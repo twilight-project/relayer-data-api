@@ -93,8 +93,8 @@ For now, it’s been decided that PostgresDB is the best DB for our use case. Ri
 
 Some sample code to poll the Kafka service used in our testing scripts is shared below.
 
-- [kafka consumer](../codes/kafkaconsumer.rs)
-- [data dumping](../codes/snapshot_sample.rs)
+- [kafka consumer](../sample%20codeskafkaconsumer.rs)
+- [data dumping](../sample%20codessnapshot_sample.rs)
 
 Once retrieved these events will be saved in the DB. The schema for the DB is to be decided by the developer, but a few sample scripts we ran to test the system used the below shared schema.
 
@@ -146,7 +146,8 @@ pub enum RpcCommand {
 
 Above code shows details for RpcCommand and RelayerCommand. Rest of the object structures are available at the below link.
 
-- [Structures link](../codes/schema_commands_events.rs)
+- [Structures link](../sample%20codesschema_commands_events.rs)
+- [Structures link](../sample%20codes/)
 
 ## Communication with Quest DB and:
 
@@ -161,4 +162,4 @@ The QUESTDB_URL is to read from quest DB, whereas the QUESTDB_INFLUX_URL is used
 
 The code which communicates with the QuestDB in relayer-core is shared under. It could be re-used in the data dumping process.
 
-[Sample Code](../codes/questdb.rs)
+[Sample Code](../sample%20codesquestdb.rs)
