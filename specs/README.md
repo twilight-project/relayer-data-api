@@ -22,7 +22,7 @@ All trading orders are held in the message queue before they are picked up by th
 
 ### Kafka Event Receiver:
 
-Everytime the state of the Relayer changes, relayer creates a new event and pushes it into kafka Queue. These events then trigger other process. The types of events are mentioned below
+For every state change, relayer creates a new event and pushes it into kafka Queue. These events trigger other processes. The types of events are:
 
 1. TraderOrder
 2. TraderOrderUpdate
@@ -38,33 +38,25 @@ Everytime the state of the Relayer changes, relayer creates a new event and push
 
 ## Relayer API module:
 
-API module is the mode of communication with the Relayer. The API module can be divided into two parts
+The API module can be divided into two parts:
 
 1. Client RPC server
 2. Web socket Server
 
-The relayer api module also has an authorization process, which we will go into later.
+Authorisation process for the API is TBD.
 
-Client RPC server is mostly used for transfer of information to the relayer, e.g. when user creates a new trade order
+API module works in a 2 step process:
 
-the web socket server is mostly used for transfer of information from the relayer, e.g. current price feed or the status of trade orders
+1. Read events data from kafka and save it in DB (Data Dumping)
+2. Api endpoint and web sockets for Kafka queue and DB. (API server)
 
-# Work to be done
-
-The work on the Relayer core and the kafka queues is done, the api module requires work and a lot of features need to be implemented.
-
-As mentioned in the explanation above, all events are logged in kafka. API endpoints/websockets which would serve the information from kafka event logs are to be implemented. This can be done in two steps, we would require two processes.
-
-1. Picking up events data from kafka and saving it in DB (Data Dumping)
-2. Api endpoint and web sockets to server the saved data. (API server)
-
-Please ensure that these are two separate executables, this will allow us to scale better in the future.
+DB and API Server are two separate executables to support horizontal scaling.
 
 ## Data Dumping:
 
-Primary purpose of this process would be to subscribe to Kafka event logs and save all the information in postgres DB.
+This process subscribes to Kafka event logs and save all the information in postgres DB.
 
-If we recall the purpose of Quest DB (explained above). Relayer saves historic data in quest DB and later use this data to create candles to show graphically show past trends. Right now, relayer-core saves the information in the Quest DB. It will be beneficial to take this responsibility from relayer-core and give it to the data dumping process, this will be the secondary purpose of this process.
+If we recall the purpose of Quest DB (explained above). Relayer saves historic data in quest DB and later uses this data to create candle charts. Right now, relayer-core saves the information in the Quest DB. It will be beneficial to take this responsibility from relayer-core and give it to the data dumping process, this will be the secondary purpose of this process.
 
 ## Connection to Kafka:
 
