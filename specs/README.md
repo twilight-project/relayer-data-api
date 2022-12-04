@@ -1,6 +1,6 @@
 # Relayer API Endpoints
 
-We have a [Relayer](https://github.com/twilight-project/twilight-relayer), whose job is to open and settle trade orders with Twilight Pool. It uses Kafka to maintain message queues and event logging and QuestDB to save historic data. It has an API module for message communication with the relayer. Please refer to the image below to get a basic understanding of the relayer.
+Twilight Pool requires an off-chain [Relayer](https://github.com/twilight-project/twilight-relayer), to open/settle trade orders and prove computation in zero knowledge. It uses Kafka to maintain message queues and event logging and QuestDB to save historic data. It has an API module for message communication with the relayer. Please refer to the image below to get a basic understanding of the relayer.
 
 ![relayer](./img/img1.png)
 
