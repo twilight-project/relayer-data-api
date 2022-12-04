@@ -1,24 +1,24 @@
 # Relayer API Endpoints
 
-Twilight Pool requires an off-chain [Relayer](https://github.com/twilight-project/twilight-relayer), to open/settle trade orders and prove computation in zero knowledge. It uses Kafka to maintain message queues and event logging and QuestDB to save historic data. It has an API module for message communication with the relayer. Please refer to the image below to get a basic understanding of the relayer.
+Twilight Pool requires an off-chain [Relayer](https://github.com/twilight-project/twilight-relayer), to open/settle trade orders and prove exchange computation in zero knowledge. It uses Kafka to maintain message queues and event logging and QuestDB to save historic data. It has an API module for message communication between relayer and the client.
 
 ![relayer](./img/img1.png)
 
 ### Price feeder server:
 
-price feeder connects to multiple exchanges and retrieves the prices from each exchange, performs some analysis and provides a single price feed to be used in the relayer.
+Price feeder connects to multiple exchanges over websocket to serve as a price oracle to the relayer. Price average calculation is TBD.
 
 ![PF](./img/img2.png)
 
 ### Kafka Msg Queue:
 
-It is a message queue which holds all trading orders before they are picked up by the Relayer core and run. To manage the load, infrastructure architecture allows multiple servers to receive client trade orders. These orders are then stored in the Kafka messaging queue and are later picked up by the relayer core and processed.
+All trading orders are held in the message queue before they are picked up by the Relayer core for execution. Relayer may host or accept orders from multiple message queue servers to scale exchange TPS. 
 
 ![PF](./img/img3.png)
 
 ### Quest DB:
 
-[Quest DB](https://questdb.io/) is a time series fast SQL data base. In our scenario, it is used to save historic data, which is used create candles to show a graphic view of past trends.
+[Quest DB](https://questdb.io/) is a time series fast SQL data base. It's used to save historical data and create candle charts for historial trends. 
 
 ### Kafka Event Receiver:
 
