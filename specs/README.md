@@ -1,4 +1,4 @@
-# Relayer API Endpoints
+# Relayer Core Architecture
 
 Twilight Pool requires an off-chain [Relayer](https://github.com/twilight-project/twilight-relayer), to open/settle trade orders and prove exchange computation in zero knowledge. It uses Kafka to maintain message queues and event logging and QuestDB to save historic data. It has an API module for message communication between relayer and the client.
 
