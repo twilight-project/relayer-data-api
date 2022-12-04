@@ -24,16 +24,16 @@ All trading orders are held in the message queue before they are picked up by th
 
 For every state change, relayer creates a new event and pushes it into kafka Queue. These events trigger other processes. The types of events are:
 
-1. TraderOrder
-2. TraderOrderUpdate
-3. TraderOrderFundingUpdate
-4. TraderOrderLiquidation
-5. LendOrder
-6. PoolUpdate
-7. FundingRateUpdate
-8. CurrentPriceUpdate
-9. SortedSetDBUpdate
-10. PositionSizeLogDBUpdate
+1. TraderOrder: This event gets generated when a client sends a request msg to the relayer for an open/settle/cancel perpetual order.
+2. TraderOrderUpdate: This event gets generated when relayer updates any pending order e.g. when order is opened or settled when the price is matched.
+3. TraderOrderFundingUpdate: This event gets generated at every funding cycle which update traderorder data (i.e. available margin, bankruptcy price etc.)
+4. TraderOrderLiquidation: This event gets generated when relayer liquidates any trade order at liquidation price match.
+5. LendOrder: This event gets generated when a client(lender) sends a request msg to the relayer for an open/withdrawal request for lending BTC
+6. PoolUpdate: This event gets generated when any trade order gets settled/liquidated or at fudning cycle or for when new lend order is opened/withdrawn.
+7. FundingRateUpdate: Funding rate update at every funding cycle
+8. CurrentPriceUpdate: System update price at every 250ms and generate a event log
+9. SortedSetDBUpdate: Not Used anymore
+10. PositionSizeLogDBUpdate: Position size log updates at every trade order update i.e. open/settle/liquidate.
 11. Stop
 
 ## Relayer API module:
@@ -63,21 +63,6 @@ If we recall the purpose of Quest DB (explained above). Relayer saves historic d
 Kafka connection requires An IP, Port and topic name.
 By default, kafka runs on port 9092
 The Topic name for event logs in Kafka is ‘CoreEventLogTopic’
-
-### Event types and explanation:
-
-As the primary job of this process is to pick up event logs from Kafka and save them in the DB. It is better if we explain each event type.
-
-1. TraderOrder: This event gets generated when a client sends a request msg to the relayer for an open/settle/cancel perpetual order.
-2. TraderOrderUpdate: This event gets generated when relayer updates any pending order e.g. when order is opened or settled when the price is matched.
-3. TraderOrderFundingUpdate: This event gets generated at every funding cycle which update traderorder data (i.e. available margin, bankruptcy price etc.)
-4. TraderOrderLiquidation: This event gets generated when relayer liquidates any trade order at liquidation price match.
-5. LendOrder: This event gets generated when a client(lender) sends a request msg to the relayer for an open/withdrawal request for lending BTC
-6. PoolUpdate: This event gets generated when any trade order gets settled/liquidated or at fudning cycle or for when new lend order is opened/withdrawn.
-7. FundingRateUpdate: Funding rate update at every funding cycle
-8. CurrentPriceUpdate: System update price at every 250ms and generate a event log
-9. SortedSetDBUpdate: Not Used anymore
-10. PositionSizeLogDBUpdate: Position size log updates at every trade order update i.e. open/settle/liquidate.
 
 ## Postgres DB:
 
