@@ -1,80 +1,28 @@
-# Relayer API Endpoints
+# Relayer Core Architecture
 
-We have a [Relayer](https://github.com/twilight-project/twilight-relayer), whose job is to match and execute trade orders for the exchange. It uses Kafka to maintain message queues and event logging, QuestDB is used save historic data and has an API module which is used to communicate with the relayer. Please refer to the image below to get a basic understanding of the relayer.
+Twilight Pool requires an off-chain [Relayer](https://github.com/twilight-project/twilight-relayer), to open/settle trade orders and prove exchange computation in zero knowledge. It uses Kafka to maintain message queues and event logging and QuestDB to save historic data. It has an API module for message communication between relayer and the client.
 
 ![relayer](./img/img1.png)
 
 ### Price feeder server:
 
-price feeder connects to multiple exchanges and retrieves the prices from each exchange, performs some analysis and provides a single price feed to be used in the relayer.
+Price feeder connects to multiple exchanges over websocket to serve as a price oracle to the relayer. Price average calculation is TBD.
 
 ![PF](./img/img2.png)
 
 ### Kafka Msg Queue:
 
-It is a message queue which holds all trading orders before they are picked up by the Relayer core and run. To manage the load, infrastructure architecture allows multiple servers to receive client trade orders. These orders are then stored in the Kafka messaging queue and are later picked up by the relayer core and processed.
+All trading orders are held in the message queue before they are picked up by the Relayer core for execution. Relayer may host or accept orders from multiple message queue servers to scale exchange TPS. 
 
 ![PF](./img/img3.png)
 
 ### Quest DB:
 
-[Quest DB](https://questdb.io/) is a time series fast SQL data base. In our scenario, it is used to save historic data, which is used create candles to show a graphic view of past trends.
+[Quest DB](https://questdb.io/) is a time series fast SQL data base. It's used to save historical data and create candle charts for historial trends. 
 
 ### Kafka Event Receiver:
 
-Everytime the state of the Relayer changes, relayer creates a new event and pushes it into kafka Queue. These events then trigger other process. The types of events are mentioned below
-
-1. TraderOrder
-2. TraderOrderUpdate
-3. TraderOrderFundingUpdate
-4. TraderOrderLiquidation
-5. LendOrder
-6. PoolUpdate
-7. FundingRateUpdate
-8. CurrentPriceUpdate
-9. SortedSetDBUpdate
-10. PositionSizeLogDBUpdate
-11. Stop
-
-## Relayer API module:
-
-API module is the mode of communication with the Relayer. The API module can be divided into two parts
-
-1. Client RPC server
-2. Web socket Server
-
-The relayer api module also has an authorization process, which we will go into later.
-
-Client RPC server is mostly used for transfer of information to the relayer, e.g. when user creates a new trade order
-
-the web socket server is mostly used for transfer of information from the relayer, e.g. current price feed or the status of trade orders
-
-# Work to be done
-
-The work on the Relayer core and the kafka queues is done, the api module requires work and a lot of features need to be implemented.
-
-As mentioned in the explanation above, all events are logged in kafka. API endpoints/websockets which would serve the information from kafka event logs are to be implemented. This can be done in two steps, we would require two processes.
-
-1. Picking up events data from kafka and saving it in DB (Data Dumping)
-2. Api endpoint and web sockets to server the saved data. (API server)
-
-Please ensure that these are two separate executables, this will allow us to scale better in the future.
-
-## Data Dumping:
-
-Primary purpose of this process would be to subscribe to Kafka event logs and save all the information in postgres DB.
-
-If we recall the purpose of Quest DB (explained above). Relayer saves historic data in quest DB and later use this data to create candles to show graphically show past trends. Right now, relayer-core saves the information in the Quest DB. It will be beneficial to take this responsibility from relayer-core and give it to the data dumping process, this will be the secondary purpose of this process.
-
-## Connection to Kafka:
-
-Kafka connection requires An IP, Port and topic name.
-By default, kafka runs on port 9092
-The Topic name for event logs in Kafka is ‘CoreEventLogTopic’
-
-### Event types and explanation:
-
-As the primary job of this process is to pick up event logs from Kafka and save them in the DB. It is better if we explain each event type.
+For every state change, relayer creates a new event and pushes it into kafka Queue. These events trigger other processes. The types of events are:
 
 1. TraderOrder: This event gets generated when a client sends a request msg to the relayer for an open/settle/cancel perpetual order.
 2. TraderOrderUpdate: This event gets generated when relayer updates any pending order e.g. when order is opened or settled when the price is matched.
@@ -86,6 +34,35 @@ As the primary job of this process is to pick up event logs from Kafka and save 
 8. CurrentPriceUpdate: System update price at every 250ms and generate a event log
 9. SortedSetDBUpdate: Not Used anymore
 10. PositionSizeLogDBUpdate: Position size log updates at every trade order update i.e. open/settle/liquidate.
+11. Stop
+
+## Relayer API module:
+
+The API module can be divided into two parts:
+
+1. Client RPC server
+2. Web socket Server
+
+Authorisation process for the API is TBD.
+
+API module works in a 2 step process:
+
+1. Read events data from kafka and save it in DB (Data Dumping)
+2. Api endpoint and web sockets for Kafka queue and DB. (API server)
+
+DB and API Server are two separate executables to support horizontal scaling.
+
+## Data Dumping:
+
+This process subscribes to Kafka event logs and save all the information in postgres DB.
+
+If we recall the purpose of Quest DB (explained above). Relayer saves historic data in quest DB and later uses this data to create candle charts. Right now, relayer-core saves the information in the Quest DB. It will be beneficial to take this responsibility from relayer-core and give it to the data dumping process, this will be the secondary purpose of this process.
+
+## Connection to Kafka:
+
+Kafka connection requires An IP, Port and topic name.
+By default, kafka runs on port 9092
+The Topic name for event logs in Kafka is ‘CoreEventLogTopic’
 
 ## Postgres DB:
 
