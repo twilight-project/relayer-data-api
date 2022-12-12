@@ -14,3 +14,15 @@ specs/privateAPI.md
 # specs/publicAPI.md
 specs/RelayerAPI.md
 codes.zip
+
+# Added by cargo
+
+/target
+
+
+# Added by cargo
+#
+# already existing elements were commented out
+
+#/target
+/Cargo.lock
