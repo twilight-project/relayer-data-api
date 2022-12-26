@@ -1,6 +1,5 @@
-mod models;
-mod schema;
-mod sql_types;
+pub mod database;
+pub mod kafka;
 
 #[cfg(test)]
 mod tests {

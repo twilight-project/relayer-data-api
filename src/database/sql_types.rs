@@ -5,6 +5,7 @@ pub enum TXType {
     ORDERTX,
     LENDTX,
 }
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum OrderType {
     LIMIT,
@@ -12,11 +13,13 @@ pub enum OrderType {
     DARK,
     LEND,
 }
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum PositionType {
     LONG,
     SHORT,
 }
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum OrderStatus {
     SETTLED,

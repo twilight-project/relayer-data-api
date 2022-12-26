@@ -1,4 +1,4 @@
-use crate::{
+use crate::database::{
     schema::{btc_usd_price, funding_rate, lend_order, trader_order},
     sql_types::*,
 };
@@ -75,4 +75,37 @@ pub struct LendOrder {
     pub tlv3: f64,
     pub tps3: f64,
     pub entry_sequence: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn order_type() {
+        let order = LendOrder {
+            uuid: Uuid::nil(),
+            account_id: "fake_account".into(),
+            balance: 0.0,
+            order_status: OrderStatus::PENDING,
+            order_type: OrderType::LEND,
+            entry_nonce: 0,
+            exit_nonce: 0,
+            deposit: 0.0,
+            new_lend_state_amount: 0.0,
+            timestamp: Utc::now(),
+            npoolshare: 0.0,
+            nwithdraw: 0.0,
+            payment: 0.0,
+            tlv0: 0.0,
+            tps0: 0.0,
+            tlv1: 0.0,
+            tps1: 0.0,
+            tlv2: 0.0,
+            tps2: 0.0,
+            tlv3: 0.0,
+            tps3: 0.0,
+            entry_sequence: 0,
+        };
+    }
 }
