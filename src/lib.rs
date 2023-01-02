@@ -1,5 +1,8 @@
+mod archiver;
 pub mod database;
 pub mod kafka;
+
+pub use archiver::DatabaseArchiver;
 
 #[cfg(test)]
 mod tests {

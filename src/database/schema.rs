@@ -8,10 +8,6 @@ pub mod sql_types {
     #[derive(diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "order_type"))]
     pub struct OrderType;
-
-    #[derive(diesel::sql_types::SqlType)]
-    #[diesel(postgres_type(name = "position_type"))]
-    pub struct PositionType;
 }
 
 diesel::table! {
@@ -63,17 +59,9 @@ diesel::table! {
 }
 
 diesel::table! {
-    use diesel::sql_types::*;
-    use super::sql_types::PositionType;
-    use super::sql_types::OrderStatus;
-    use super::sql_types::OrderType;
-
     trader_order (uuid) {
         uuid -> Uuid,
         account_id -> Varchar,
-        position_type -> PositionType,
-        order_status -> OrderStatus,
-        order_type -> OrderType,
         entryprice -> Numeric,
         execution_price -> Numeric,
         positionsize -> Numeric,

@@ -1,11 +1,14 @@
+use bigdecimal::{BigDecimal, FromPrimitive};
 use crate::database::{
     schema::{btc_usd_price, funding_rate, lend_order, trader_order},
     sql_types::*,
 };
 use chrono::prelude::*;
 use diesel::prelude::*;
+use diesel::sql_types::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use twilight_relayer_rust::relayer;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
 #[diesel(table_name = btc_usd_price)]
@@ -24,30 +27,45 @@ pub struct FundingRate {
     pub timestamp: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
 #[diesel(table_name = trader_order)]
 pub struct TraderOrder {
     pub uuid: Uuid,
     pub account_id: String,
-    pub position_type: PositionType,
-    pub order_status: OrderStatus,
-    pub order_type: OrderType,
-    pub entryprice: f64,
-    pub execution_price: f64,
-    pub positionsize: f64,
-    pub leverage: f64,
-    pub initial_margin: f64,
-    pub available_margin: f64,
+    // TODO: fix recursion limit issue with enums....
+    //pub position_type: PositionType,
+    //pub order_status: OrderStatus,
+    //pub order_type: OrderType,
+    pub entryprice: BigDecimal,
+    pub execution_price: BigDecimal,
+    pub positionsize: BigDecimal,
+    pub leverage: BigDecimal,
+    pub initial_margin: BigDecimal,
+    pub available_margin: BigDecimal,
     pub timestamp: DateTime<Utc>,
-    pub bankruptcy_price: f64,
-    pub bankruptcy_value: f64,
-    pub maintenance_margin: f64,
-    pub liquidation_price: f64,
-    pub unrealized_pnl: f64,
-    pub settlement_price: f64,
-    pub entry_nonce: usize,
-    pub exit_nonce: usize,
-    pub entry_sequence: usize,
+    pub bankruptcy_price: BigDecimal,
+    pub bankruptcy_value: BigDecimal,
+    pub maintenance_margin: BigDecimal,
+    pub liquidation_price: BigDecimal,
+    pub unrealized_pnl: BigDecimal,
+    pub settlement_price: BigDecimal,
+    pub entry_nonce: i64,
+    pub exit_nonce: i64,
+    pub entry_sequence: i64,
+}
+
+impl TraderOrder {
+    pub fn insert(self, conn: &mut PgConnection) -> QueryResult<usize> {
+        use crate::database::schema::trader_order::dsl::*;
+
+        diesel::insert_into(trader_order).values(&self).execute(conn)
+    }
+
+    pub fn update(self, conn: &mut PgConnection) -> QueryResult<usize> {
+        use crate::database::schema::trader_order::dsl::*;
+
+        diesel::update(trader_order).filter(uuid.eq(self.uuid)).set(&self).execute(conn)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
@@ -75,6 +93,59 @@ pub struct LendOrder {
     pub tlv3: f64,
     pub tps3: f64,
     pub entry_sequence: usize,
+}
+
+impl From<relayer::TraderOrder> for TraderOrder {
+    fn from(src: relayer::TraderOrder) -> TraderOrder {
+        let relayer::TraderOrder {
+            uuid,
+            account_id,
+            position_type,
+            order_status,
+            order_type,
+            entryprice,
+            execution_price,
+            positionsize,
+            leverage,
+            initial_margin,
+            available_margin,
+            timestamp,
+            bankruptcy_price,
+            bankruptcy_value,
+            maintenance_margin,
+            liquidation_price,
+            unrealized_pnl,
+            settlement_price,
+            entry_nonce,
+            exit_nonce,
+            entry_sequence,
+        } = src;
+
+        TraderOrder {
+            uuid: Uuid::from_bytes(*uuid.as_bytes()),
+            account_id,
+            //position_type: position_type.into(),
+            //order_status: order_status.into(),
+            //order_type: order_type.into(),
+            // TODO: maybe a TryFrom impl instead...
+            entryprice: BigDecimal::from_f64(entryprice).unwrap(),
+            execution_price: BigDecimal::from_f64(execution_price).unwrap(),
+            positionsize: BigDecimal::from_f64(positionsize).unwrap(),
+            leverage: BigDecimal::from_f64(leverage).unwrap(),
+            initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
+            available_margin: BigDecimal::from_f64(available_margin).unwrap(),
+            timestamp: timestamp.into(),
+            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap(),
+            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap(),
+            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap(),
+            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap(),
+            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap(),
+            settlement_price: BigDecimal::from_f64(settlement_price).unwrap(),
+            entry_nonce: entry_nonce as i64,
+            exit_nonce: exit_nonce as i64,
+            entry_sequence: entry_sequence as i64,
+        }
+    }
 }
 
 #[cfg(test)]
