@@ -3,7 +3,6 @@ use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 use std::thread::{self, JoinHandle};
 use twilight_relayer_rust::db::EventLog;
 
-
 pub fn start_consumer(group: String, topic: String, tx: Sender<EventLog>) -> JoinHandle<()> {
     std::thread::spawn(move || {
         let broker = vec![std::env::var("BROKER")
@@ -32,7 +31,7 @@ pub fn start_consumer(group: String, topic: String, tx: Sender<EventLog>) -> Joi
                                 .unwrap(),
                         };
                         match sender_clone.send(message) {
-                            Ok(_) => { }
+                            Ok(_) => {}
                             Err(_arg) => {
                                 connection_status = false;
                                 break;

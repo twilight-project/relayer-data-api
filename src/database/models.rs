@@ -1,14 +1,14 @@
-use bigdecimal::{BigDecimal, FromPrimitive};
 use crate::database::{
     schema::{btc_usd_price, funding_rate, lend_order, trader_order},
     sql_types::*,
 };
+use bigdecimal::{BigDecimal, FromPrimitive};
 use chrono::prelude::*;
 use diesel::prelude::*;
 use diesel::sql_types::*;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use twilight_relayer_rust::relayer;
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
 #[diesel(table_name = btc_usd_price)]
@@ -32,10 +32,9 @@ pub struct FundingRate {
 pub struct TraderOrder {
     pub uuid: Uuid,
     pub account_id: String,
-    // TODO: fix recursion limit issue with enums....
-    //pub position_type: PositionType,
-    //pub order_status: OrderStatus,
-    //pub order_type: OrderType,
+    pub position_type: PositionType,
+    pub order_status: OrderStatus,
+    pub order_type: OrderType,
     pub entryprice: BigDecimal,
     pub execution_price: BigDecimal,
     pub positionsize: BigDecimal,
@@ -58,13 +57,18 @@ impl TraderOrder {
     pub fn insert(self, conn: &mut PgConnection) -> QueryResult<usize> {
         use crate::database::schema::trader_order::dsl::*;
 
-        diesel::insert_into(trader_order).values(&self).execute(conn)
+        diesel::insert_into(trader_order)
+            .values(&self)
+            .execute(conn)
     }
 
     pub fn update(self, conn: &mut PgConnection) -> QueryResult<usize> {
         use crate::database::schema::trader_order::dsl::*;
 
-        diesel::update(trader_order).filter(uuid.eq(self.uuid)).set(&self).execute(conn)
+        diesel::update(trader_order)
+            .filter(uuid.eq(self.uuid))
+            .set(&self)
+            .execute(conn)
     }
 }
 
@@ -124,9 +128,9 @@ impl From<relayer::TraderOrder> for TraderOrder {
         TraderOrder {
             uuid: Uuid::from_bytes(*uuid.as_bytes()),
             account_id,
-            //position_type: position_type.into(),
-            //order_status: order_status.into(),
-            //order_type: order_type.into(),
+            position_type: position_type.into(),
+            order_status: order_status.into(),
+            order_type: order_type.into(),
             // TODO: maybe a TryFrom impl instead...
             entryprice: BigDecimal::from_f64(entryprice).unwrap(),
             execution_price: BigDecimal::from_f64(execution_price).unwrap(),

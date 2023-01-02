@@ -1,3 +1,6 @@
+use crate::database::schema::sql_types::{
+    OrderStatus as OrderStatusSql, OrderType as OrderTypeSql, PositionType as PositionTypeSql,
+};
 use diesel::*;
 use diesel::{
     backend::Backend,
@@ -7,11 +10,6 @@ use diesel::{
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use twilight_relayer_rust::relayer;
-use crate::database::schema::sql_types::{
-    OrderStatus as OrderStatusSql,
-    OrderType as OrderTypeSql,
-//    PositionType as PositionTypeSql,
-};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum TXType {
@@ -28,8 +26,8 @@ pub enum OrderType {
     LEND,
 }
 
-//#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
-//#[diesel(sql_type = PositionTypeSql)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
+#[diesel(sql_type = PositionTypeSql)]
 pub enum PositionType {
     LONG,
     SHORT,
@@ -46,14 +44,41 @@ pub enum OrderStatus {
     FILLED,
 }
 
-//impl<DB: Backend> ToSql<PositionTypeSql, DB> for PositionType {
-//    fn to_sql(&self, out: &mut Output<DB>) -> serialize::Result {
-//        match *self {
-//            PositionType::LONG => out.write_all(b"LONG")?,
-//            PositionType::SHORT => out.write_all(b"SHORT")?,
-//        }
-//    }
-//}
+impl ToSql<OrderStatusSql, Pg> for OrderStatus {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
+        match *self {
+            OrderStatus::SETTLED => out.write_all(b"SETTLED")?,
+            OrderStatus::LENDED => out.write_all(b"LENDED")?,
+            OrderStatus::LIQUIDATE => out.write_all(b"LIQUIDATE")?,
+            OrderStatus::CANCELLED => out.write_all(b"CANCELLED")?,
+            OrderStatus::PENDING => out.write_all(b"PENDING")?,
+            OrderStatus::FILLED => out.write_all(b"FILLED")?,
+        }
+        Ok(IsNull::No)
+    }
+}
+
+impl ToSql<OrderTypeSql, Pg> for OrderType {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
+        match *self {
+            OrderType::LIMIT => out.write_all(b"LIMIT")?,
+            OrderType::MARKET => out.write_all(b"MARKET")?,
+            OrderType::DARK => out.write_all(b"DARK")?,
+            OrderType::LEND => out.write_all(b"LEND")?,
+        }
+        Ok(IsNull::No)
+    }
+}
+
+impl ToSql<PositionTypeSql, Pg> for PositionType {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
+        match *self {
+            PositionType::LONG => out.write_all(b"LONG")?,
+            PositionType::SHORT => out.write_all(b"SHORT")?,
+        }
+        Ok(IsNull::No)
+    }
+}
 
 //impl FromSql<PositionTypeSql, Pg> for PositionType {
 //}

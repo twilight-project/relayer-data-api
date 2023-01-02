@@ -21,9 +21,9 @@ CREATE TABLE funding_rate (
 CREATE TABLE trader_order (
     uuid uuid primary key,
     account_id varchar NOT NULL,
-    --position_type position_type NOT NULL,
-    --order_status order_status NOT NULL,
-    --order_type order_type NOT NULL,
+    position_type position_type NOT NULL,
+    order_status order_status NOT NULL,
+    order_type order_type NOT NULL,
     entryprice numeric NOT NULL,
     execution_price numeric NOT NULL,
     positionsize numeric NOT NULL,

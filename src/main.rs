@@ -5,7 +5,6 @@ use twilight_relayerAPI::DatabaseArchiver;
 const SNAPSHOT_TOPIC: &str = "CoreEventLogTopic";
 const ARCHIVER_GROUP: &str = "Archiver";
 
-
 fn main() {
     tracing_subscriber::fmt::Subscriber::builder()
         .with_env_filter(tracing_subscriber::filter::EnvFilter::from_default_env())
