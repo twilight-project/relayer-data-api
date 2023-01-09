@@ -21,5 +21,5 @@ fn main() {
 
     let database_worker = DatabaseArchiver::from_host(database_url);
 
-    database_worker.run(rx);
+    database_worker.run(rx).expect("Archiver loop quit unexpectedly!");
 }

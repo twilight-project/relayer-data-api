@@ -3,7 +3,6 @@ use crate::database::schema::sql_types::{
 };
 use diesel::*;
 use diesel::{
-    backend::Backend,
     pg::Pg,
     serialize::{self, IsNull, Output, ToSql},
 };
