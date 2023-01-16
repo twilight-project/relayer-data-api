@@ -19,6 +19,7 @@ codes.zip
 
 /target
 
+node_modules
 
 # Added by cargo
 #
