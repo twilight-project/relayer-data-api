@@ -80,7 +80,7 @@ diesel::table! {
         leverage -> Numeric,
         initial_margin -> Numeric,
         available_margin -> Numeric,
-        timestamp -> Nullable<Timestamptz>,
+        timestamp -> Timestamptz,
         bankruptcy_price -> Numeric,
         bankruptcy_value -> Numeric,
         maintenance_margin -> Numeric,

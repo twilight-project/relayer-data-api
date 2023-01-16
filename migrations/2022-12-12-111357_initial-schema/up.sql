@@ -30,7 +30,7 @@ CREATE TABLE trader_order (
     leverage numeric NOT NULL,
     initial_margin numeric NOT NULL,
     available_margin numeric NOT NULL,
-    timestamp timestamptz,
+    timestamp timestamptz NOT NULL,
     bankruptcy_price numeric NOT NULL,
     bankruptcy_value numeric NOT NULL,
     maintenance_margin numeric NOT NULL,

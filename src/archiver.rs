@@ -1,7 +1,4 @@
-use crate::{
-    database::*,
-    error::ApiError,
-};
+use crate::{database::*, error::ApiError};
 use crossbeam_channel::Receiver;
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
@@ -14,7 +11,6 @@ const BATCH_INTERVAL: u64 = 100;
 const BATCH_SIZE: usize = 500;
 const MAX_RETRIES: usize = 5;
 const RETRY_SLEEP: u64 = 2000;
-
 
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
@@ -135,27 +131,40 @@ impl DatabaseArchiver {
         Ok(())
     }
 
+    /// Worker task that loops indefinitely, batching commits to postgres backend.
     pub fn run(mut self, rx: Receiver<EventLog>) -> Result<(), ApiError> {
         let mut deadline = Instant::now() + Duration::from_millis(BATCH_INTERVAL);
 
         loop {
             match rx.recv_deadline(deadline) {
                 Ok(msg) => {
-                    let EventLog { offset: _, key: _, value } = msg;
+                    let EventLog {
+                        offset: _,
+                        key: _,
+                        value,
+                    } = msg;
                     match value {
-                        Event::TraderOrder(trader_order, ..) => self.trader_order(trader_order.into())?,
-                        Event::TraderOrderUpdate(trader_order, ..) => self.trader_order(trader_order.into())?,
-                        Event::TraderOrderFundingUpdate(trader_order, ..) => self.trader_order(trader_order.into())?,
-                        Event::TraderOrderLiquidation(trader_order, ..) => self.trader_order(trader_order.into())?,
+                        Event::TraderOrder(trader_order, ..) => {
+                            self.trader_order(trader_order.into())?
+                        }
+                        Event::TraderOrderUpdate(trader_order, ..) => {
+                            self.trader_order(trader_order.into())?
+                        }
+                        Event::TraderOrderFundingUpdate(trader_order, ..) => {
+                            self.trader_order(trader_order.into())?
+                        }
+                        Event::TraderOrderLiquidation(trader_order, ..) => {
+                            self.trader_order(trader_order.into())?
+                        }
                         Event::LendOrder(lend_order, ..) => self.lend_order(lend_order.into())?,
+                        Event::FundingRateUpdate(funding_rate, _system_time) => {
+                            FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate)?;
+                        }
+                        Event::CurrentPriceUpdate(current_price, _system_time) => {
+                            CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price)?;
+                        }
                         Event::PoolUpdate(_lend_pool_command, ..) => {
                             info!("FINISH POOL UPDATE");
-                        }
-                        Event::FundingRateUpdate(_, _system_time) => {
-                            info!("FINISH FUNDING RATE UPDATE");
-                        }
-                        Event::CurrentPriceUpdate(_, _system_time) => {
-                            info!("FINISH CURRENT PRICE UPDATE");
                         }
                         Event::SortedSetDBUpdate(_sorted_set_command) => {
                             info!("FINISH SORTED SET DB UPDATE");

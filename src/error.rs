@@ -1,6 +1,5 @@
 use thiserror::Error;
 
-
 #[derive(Debug, Error)]
 pub enum ApiError {
     #[error("Commit retry count exceeded!")]

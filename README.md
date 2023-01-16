@@ -18,9 +18,12 @@ Check the .env file for the DATABASE_URL environment variable, be sure it's set 
 
 ## Run the archiver
 
-`cargo r --release`
+`cargo r --release --bin archiver`
 
 ## Testing
 Tests are using uuid features that require additional compiler flags:
 
-`RUSTFLAGS='--cfg uuid_unstable' cargo test`
+```command
+./init_test_db.sh
+cargo test
+```

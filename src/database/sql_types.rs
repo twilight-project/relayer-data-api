@@ -3,6 +3,8 @@ use crate::database::schema::sql_types::{
 };
 use diesel::*;
 use diesel::{
+    backend,
+    deserialize::FromSql,
     pg::Pg,
     serialize::{self, IsNull, Output, ToSql},
 };
@@ -57,6 +59,20 @@ impl ToSql<OrderStatusSql, Pg> for OrderStatus {
     }
 }
 
+impl FromSql<OrderStatusSql, Pg> for OrderStatus {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<OrderStatus> {
+        match bytes.as_bytes() {
+            b"SETTLED" => Ok(OrderStatus::SETTLED),
+            b"LENDED" => Ok(OrderStatus::LENDED),
+            b"LIQUIDATE" => Ok(OrderStatus::LIQUIDATE),
+            b"CANCELLED" => Ok(OrderStatus::CANCELLED),
+            b"PENDING" => Ok(OrderStatus::PENDING),
+            b"FILLED" => Ok(OrderStatus::FILLED),
+            _ => panic!("Invalid enum type in database!"),
+        }
+    }
+}
+
 impl ToSql<OrderTypeSql, Pg> for OrderType {
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
         match *self {
@@ -66,6 +82,18 @@ impl ToSql<OrderTypeSql, Pg> for OrderType {
             OrderType::LEND => out.write_all(b"LEND")?,
         }
         Ok(IsNull::No)
+    }
+}
+
+impl FromSql<OrderTypeSql, Pg> for OrderType {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<OrderType> {
+        match bytes.as_bytes() {
+            b"LIMIT" => Ok(OrderType::LIMIT),
+            b"MARKET" => Ok(OrderType::MARKET),
+            b"DARK" => Ok(OrderType::DARK),
+            b"LEND" => Ok(OrderType::LEND),
+            _ => panic!("Invalid enum type in database!"),
+        }
     }
 }
 
@@ -79,8 +107,15 @@ impl ToSql<PositionTypeSql, Pg> for PositionType {
     }
 }
 
-//impl FromSql<PositionTypeSql, Pg> for PositionType {
-//}
+impl FromSql<PositionTypeSql, Pg> for PositionType {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<PositionType> {
+        match bytes.as_bytes() {
+            b"LONG" => Ok(PositionType::LONG),
+            b"SHORT" => Ok(PositionType::SHORT),
+            _ => panic!("Invalid enum type in database!"),
+        }
+    }
+}
 
 impl From<relayer::OrderStatus> for OrderStatus {
     fn from(status: relayer::OrderStatus) -> OrderStatus {

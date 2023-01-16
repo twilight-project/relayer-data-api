@@ -14,17 +14,63 @@ use uuid::Uuid;
 #[diesel(table_name = btc_usd_price)]
 pub struct BtcUsdPrice {
     pub id: usize,
-    pub price: f64,
+    pub price: BigDecimal,
     pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = btc_usd_price)]
+pub struct CurrentPriceUpdate {
+    pub price: BigDecimal,
+    pub timestamp: DateTime<Utc>,
+}
+
+impl CurrentPriceUpdate {
+    pub fn insert(conn: &mut PgConnection, current_price: f64) -> QueryResult<usize> {
+        use crate::database::schema::btc_usd_price::dsl::*;
+
+        let update = CurrentPriceUpdate {
+            price: BigDecimal::from_f64(current_price).unwrap(),
+            timestamp: Utc::now(),
+        };
+
+        diesel::insert_into(btc_usd_price)
+            .values(update)
+            .execute(conn)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
 #[diesel(table_name = funding_rate)]
 pub struct FundingRate {
     pub id: usize,
-    pub rate: f64,
-    pub price: f64,
+    pub rate: BigDecimal,
+    pub price: BigDecimal,
     pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = funding_rate)]
+pub struct FundingRateUpdate {
+    pub rate: BigDecimal,
+    // TODO: where to get this from????
+    //pub price: BigDecimal,
+    pub timestamp: DateTime<Utc>,
+}
+
+impl FundingRateUpdate {
+    pub fn insert(conn: &mut PgConnection, r: f64) -> QueryResult<usize> {
+        use crate::database::schema::funding_rate::dsl::*;
+
+        let update = FundingRateUpdate {
+            rate: BigDecimal::from_f64(r).unwrap(),
+            timestamp: Utc::now(),
+        };
+
+        diesel::insert_into(funding_rate)
+            .values(update)
+            .execute(conn)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
@@ -54,7 +100,10 @@ pub struct TraderOrder {
 }
 
 impl TraderOrder {
-    pub fn update_or_insert(conn: &mut PgConnection, orders: Vec<TraderOrder>) -> QueryResult<usize> {
+    pub fn update_or_insert(
+        conn: &mut PgConnection,
+        orders: Vec<TraderOrder>,
+    ) -> QueryResult<usize> {
         use crate::database::schema::trader_order::dsl::*;
 
         let query = diesel::insert_into(trader_order)
@@ -260,11 +309,16 @@ impl From<relayer::LendOrder> for LendOrder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use getrandom::getrandom;
     const DIESEL_TEST_URL: &str = "postgres://relayer:relayer@localhost:5434/test";
 
-    fn make_order(entryprice: f64, execution_price: f64) -> TraderOrder {
+    fn make_trader_order(entryprice: f64, execution_price: f64) -> TraderOrder {
+        let mut bytes = [0u8; 16];
+
+        getrandom(&mut bytes).expect("Could not get randomness");
+
         TraderOrder {
-            uuid: Uuid::now_v7(),
+            uuid: Uuid::from_slice(&bytes).unwrap(),
             account_id: "my-id".into(),
             position_type: PositionType::LONG,
             order_status: OrderStatus::PENDING,
@@ -288,31 +342,75 @@ mod tests {
         }
     }
 
+    fn make_lend_order(balance: f64, payment: f64) -> LendOrder {
+        let mut bytes = [0u8; 16];
+
+        getrandom(&mut bytes).expect("Could not get randomness");
+
+        LendOrder {
+            uuid: Uuid::from_slice(&bytes).unwrap(),
+            account_id: "lender-id".into(),
+            balance: BigDecimal::from_f64(balance).unwrap(),
+            order_status: OrderStatus::PENDING,
+            order_type: OrderType::MARKET,
+            entry_nonce: 40,
+            exit_nonce: 600,
+            deposit: BigDecimal::from_f64(0.0).unwrap(),
+            new_lend_state_amount: BigDecimal::from_f64(0.0).unwrap(),
+            timestamp: Utc::now(),
+            npoolshare: BigDecimal::from_f64(0.0).unwrap(),
+            nwithdraw: BigDecimal::from_f64(0.0).unwrap(),
+            payment: BigDecimal::from_f64(payment).unwrap(),
+            tlv0: BigDecimal::from_f64(0.0).unwrap(),
+            tps0: BigDecimal::from_f64(0.0).unwrap(),
+            tlv1: BigDecimal::from_f64(0.0).unwrap(),
+            tps1: BigDecimal::from_f64(0.0).unwrap(),
+            tlv2: BigDecimal::from_f64(0.0).unwrap(),
+            tps2: BigDecimal::from_f64(0.0).unwrap(),
+            tlv3: BigDecimal::from_f64(0.0).unwrap(),
+            tps3: BigDecimal::from_f64(0.0).unwrap(),
+            entry_sequence: 0,
+        }
+    }
+
     #[test]
     fn trader_orders() {
         use crate::database::schema::trader_order::dsl::*;
 
-        let mut conn = PgConnection::establish(DIESEL_TEST_URL).expect("Could not establish test connection!");
+        let mut conn =
+            PgConnection::establish(DIESEL_TEST_URL).expect("Could not establish test connection!");
 
         conn.test_transaction::<_, diesel::result::Error, _>(|conn| {
-            let mut order1 = make_order(1.0, 4.0);
-            let mut order2 = make_order(4.0, 400.0);
+            let mut order1 = make_trader_order(1.0, 4.0);
+            let mut order2 = make_trader_order(4.0, 400.0);
 
             let orders: Vec<TraderOrder> = vec![order1.clone(), order2.clone()];
 
-            diesel::insert_into(trader_order)
+            let result = diesel::insert_into(trader_order)
                 .values(orders)
-                .execute(&mut *conn)?;
+                .execute(&mut *conn);
+
+            if let Err(e) = result {
+                panic!("insert in database didn't suceed! {:#?}", e);
+            }
 
             //Test updates/inserts
-            let order3 = make_order(989.0, 23.0);
-            let order4 = make_order(99.0, 302.0);
+            let order3 = make_trader_order(989.0, 23.0);
+            let order4 = make_trader_order(99.0, 302.0);
 
             order1.entryprice = BigDecimal::from_f64(32.0).unwrap();
             order1.execution_price = BigDecimal::from_f64(89.0).unwrap();
             order2.entryprice = BigDecimal::from_f64(20.0).unwrap();
 
-            TraderOrder::update_or_insert(&mut *conn, vec![order1, order2, order3, order4])?;
+            TraderOrder::update_or_insert(
+                &mut *conn,
+                vec![
+                    order1.clone(),
+                    order2.clone(),
+                    order3.clone(),
+                    order4.clone(),
+                ],
+            )?;
 
             let o1: TraderOrder = trader_order.find(order1.uuid).first(&mut *conn)?;
 
@@ -323,6 +421,59 @@ mod tests {
 
             assert_eq!(o2.entryprice, order2.entryprice);
             assert_eq!(o2.execution_price, order2.execution_price);
+
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn lender_orders() {
+        use crate::database::schema::lend_order::dsl::*;
+
+        let mut conn =
+            PgConnection::establish(DIESEL_TEST_URL).expect("Could not establish test connection!");
+
+        conn.test_transaction::<_, diesel::result::Error, _>(|conn| {
+            let mut order1 = make_lend_order(1.0, 4.0);
+            let mut order2 = make_lend_order(4.0, 400.0);
+
+            let orders: Vec<LendOrder> = vec![order1.clone(), order2.clone()];
+
+            let result = diesel::insert_into(lend_order)
+                .values(orders)
+                .execute(&mut *conn);
+
+            if let Err(e) = result {
+                panic!("insert in database didn't suceed! {:#?}", e);
+            }
+
+            //Test updates/inserts
+            let order3 = make_lend_order(989.0, 23.0);
+            let order4 = make_lend_order(99.0, 302.0);
+
+            order1.balance = BigDecimal::from_f64(32.0).unwrap();
+            order1.payment = BigDecimal::from_f64(89.0).unwrap();
+            order2.balance = BigDecimal::from_f64(20.0).unwrap();
+
+            LendOrder::update_or_insert(
+                &mut *conn,
+                vec![
+                    order1.clone(),
+                    order2.clone(),
+                    order3.clone(),
+                    order4.clone(),
+                ],
+            )?;
+
+            let o1: LendOrder = lend_order.find(order1.uuid).first(&mut *conn)?;
+
+            assert_eq!(o1.balance, order1.balance);
+            assert_eq!(o1.payment, order1.payment);
+
+            let o2: LendOrder = lend_order.find(order2.uuid).first(&mut *conn)?;
+
+            assert_eq!(o2.balance, order2.balance);
+            assert_eq!(o2.payment, order2.payment);
 
             Ok(())
         });
