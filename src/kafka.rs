@@ -2,12 +2,14 @@ use crossbeam_channel::Sender;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 use std::thread::{self, JoinHandle};
 use twilight_relayer_rust::db::EventLog;
+use log::info;
 
 pub fn start_consumer(group: String, topic: String, tx: Sender<EventLog>) -> JoinHandle<()> {
     std::thread::spawn(move || {
-        let broker = vec![std::env::var("BROKER")
-            .expect("missing environment variable BROKER")
-            .to_owned()];
+        let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
+
+        info!("Connecting to kafka at host: {}", broker_host);
+        let broker = vec![broker_host.to_owned()];
 
         let mut con = Consumer::from_hosts(broker)
             .with_group(group)

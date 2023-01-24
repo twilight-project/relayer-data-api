@@ -1,4 +1,4 @@
-use crate::{database::*, error::ApiError};
+use crate::{database::*, error::ApiError, migrations};
 use crossbeam_channel::Receiver;
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
@@ -26,6 +26,10 @@ impl DatabaseArchiver {
     pub fn from_host(database_url: String) -> DatabaseArchiver {
         let manager = ConnectionManager::<PgConnection>::new(database_url);
         let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
+
+        let mut conn = pool.get().expect("Could not get pooled connection!");
+
+        migrations::run_migrations(&mut *conn).expect("Failed to run database migrations!");
 
         let trader_orders = Vec::with_capacity(BATCH_SIZE);
         let lend_orders = Vec::with_capacity(BATCH_SIZE);

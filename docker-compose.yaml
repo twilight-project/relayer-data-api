@@ -1,0 +1,54 @@
+---
+services:
+  api:
+    image: relayer-api
+    command: api
+    build:
+      context: ..
+      dockerfile: twilight-relayerAPI/Dockerfile
+    env_file: .compose.env
+    depends_on:
+      database:
+        condition: service_healthy
+    ports:
+      - "8989:8989"
+    networks:
+      - archiver
+    volumes:
+      - log-data:/var/log/relayer-api
+  archiver:
+    image: relayer-api
+    command: archiver
+    build:
+      context: ..
+      dockerfile: twilight-relayerAPI/Dockerfile
+    env_file: .compose.env
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - archiver
+    volumes:
+      - log-data:/var/log/relayer-archiver
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  database:
+    image: postgres
+    networks:
+      - archiver
+    environment:
+      POSTGRES_PASSWORD: relayer
+      POSTGRES_USER: relayer
+      POSTGRES_DB: relayer
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "relayer", "-U", "relayer"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+volumes:
+  log-data:
+  db-data:
+networks:
+  archiver: {}

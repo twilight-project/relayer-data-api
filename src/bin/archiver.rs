@@ -1,6 +1,7 @@
 use crossbeam_channel::unbounded;
 use twilight_relayerAPI::kafka;
 use twilight_relayerAPI::DatabaseArchiver;
+use log::warn;
 
 const SNAPSHOT_TOPIC: &str = "CoreEventLogTopic";
 const ARCHIVER_GROUP: &str = "Archiver";
@@ -12,7 +13,9 @@ fn main() {
         .with_line_number(true)
         .init();
 
-    dotenv::dotenv().expect("No environment file found");
+    if let Err(_) = dotenv::dotenv() {
+        warn!("DOTENV file not found");
+    }
 
     let database_url = std::env::var("DATABASE_URL").expect("No database url found!");
 
