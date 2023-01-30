@@ -1,7 +1,7 @@
 use crossbeam_channel::unbounded;
+use log::warn;
 use twilight_relayerAPI::kafka;
 use twilight_relayerAPI::DatabaseArchiver;
-use log::warn;
 
 const SNAPSHOT_TOPIC: &str = "CoreEventLogTopic";
 const ARCHIVER_GROUP: &str = "Archiver";

@@ -4,6 +4,39 @@ CREATE TYPE tx_type AS ENUM ('ORDERTX', 'LENDTX');
 CREATE TYPE order_type AS ENUM ('LIMIT', 'MARKET', 'DARK', 'LEND');
 CREATE TYPE position_type AS ENUM ('LONG', 'SHORT');
 CREATE TYPE order_status AS ENUM ('SETTLED', 'LENDED', 'LIQUIDATE', 'CANCELLED', 'PENDING', 'FILLED');
+CREATE TYPE position_size_command AS ENUM ('ADD', 'REMOVE');
+CREATE TYPE sorted_set_command_type AS ENUM (
+	'ADD_LIQUIDATION_PRICE',
+	'ADD_OPEN_LIMIT_PRICE',
+	'ADD_CLOSE_LIMIT_PRICE',
+        'REMOVE_LIQUIDATION_PRICE',
+        'REMOVE_OPEN_LIMIT_PRICE',
+        'REMOVE_CLOSE_LIMIT_PRICE',
+        'UPDATE_LIQUIDATION_PRICE',
+        'UPDATE_OPEN_LIMIT_PRICE',
+        'UPDATE_CLOSE_LIMIT_PRICE',
+        'BULK_SEARCH_REMOVE_LIQUIDATION_PRICE',
+        'BULK_SEARCH_REMOVE_OPEN_LIMIT_PRICE',
+        'BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE'
+);
+
+CREATE TABLE sorted_set_command (
+	id bigserial primary key,
+	command sorted_set_command_type NOT NULL,
+	uuid uuid,
+	amount numeric,
+	position_type position_type NOT NULL
+);
+
+CREATE TABLE position_size_log (
+	id bigserial primary key,
+	command position_size_command NOT NULL,
+	position_type position_type NOT NULL,
+	amount numeric NOT NULL,
+	total_short numeric NOT NULL,
+	total_long numeric NOT NULL,
+	total numeric NOT NULL
+);
 
 CREATE TABLE btc_usd_price (
     id bigserial primary key,

@@ -1,8 +1,8 @@
 use crossbeam_channel::Sender;
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
+use log::info;
 use std::thread::{self, JoinHandle};
 use twilight_relayer_rust::db::EventLog;
-use log::info;
 
 pub fn start_consumer(group: String, topic: String, tx: Sender<EventLog>) -> JoinHandle<()> {
     std::thread::spawn(move || {

@@ -10,8 +10,16 @@ pub mod sql_types {
     pub struct OrderType;
 
     #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "position_size_command"))]
+    pub struct PositionSizeCommand;
+
+    #[derive(diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "position_type"))]
     pub struct PositionType;
+
+    #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "sorted_set_command_type"))]
+    pub struct SortedSetCommandType;
 }
 
 diesel::table! {
@@ -64,6 +72,36 @@ diesel::table! {
 
 diesel::table! {
     use diesel::sql_types::*;
+    use super::sql_types::PositionSizeCommand;
+    use super::sql_types::PositionType;
+
+    position_size_log (id) {
+        id -> Int8,
+        command -> PositionSizeCommand,
+        position_type -> PositionType,
+        amount -> Numeric,
+        total_short -> Numeric,
+        total_long -> Numeric,
+        total -> Numeric,
+    }
+}
+
+diesel::table! {
+    use diesel::sql_types::*;
+    use super::sql_types::SortedSetCommandType;
+    use super::sql_types::PositionType;
+
+    sorted_set_command (id) {
+        id -> Int8,
+        command -> SortedSetCommandType,
+        uuid -> Nullable<Uuid>,
+        amount -> Nullable<Numeric>,
+        position_type -> PositionType,
+    }
+}
+
+diesel::table! {
+    use diesel::sql_types::*;
     use super::sql_types::PositionType;
     use super::sql_types::OrderStatus;
     use super::sql_types::OrderType;
@@ -97,5 +135,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     btc_usd_price,
     funding_rate,
     lend_order,
+    position_size_log,
+    sorted_set_command,
     trader_order,
 );

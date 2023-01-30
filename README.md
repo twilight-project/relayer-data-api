@@ -7,10 +7,10 @@ cargo install diesel_cli --no-default-features --features postgres
 ```
 
 ## running with docker-compose
-Build the container, you will need both twilight-relayer and twilight-relayerAPI at the same dir level for this:
+Build the container, you will need an ssh-key with read-only access to the twilight-relayer repo for this:
 
 ```console
-DOCKER_BUILDKIT=1 docker build . -t relayer-api -f twilight-relayerAPI/Dockerfile
+DOCKER_BUILDKIT=1 docker build . -t relayer-api --build-arg SSH_KEY="$(cat ../.ssh/build_key)"
 docker-compose -f twilight-relayerAPI/docker-compose.yaml up -d
 ```
 

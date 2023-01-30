@@ -1,5 +1,8 @@
 use crate::database::{
-    schema::{btc_usd_price, funding_rate, lend_order, trader_order},
+    schema::{
+        btc_usd_price, funding_rate, lend_order, position_size_log, sorted_set_command,
+        trader_order,
+    },
     sql_types::*,
 };
 use bigdecimal::{BigDecimal, FromPrimitive};
@@ -7,8 +10,231 @@ use chrono::prelude::*;
 use diesel::prelude::*;
 use diesel::upsert::*;
 use serde::{Deserialize, Serialize};
-use twilight_relayer_rust::relayer;
+use twilight_relayer_rust::{db as relayer_db, relayer};
 use uuid::Uuid;
+
+pub type PositionSizeUpdate = (relayer::PositionSizeLogCommand, relayer_db::PositionSizeLog);
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
+#[diesel(table_name = sorted_set_command)]
+pub struct SortedSetCommand {
+    id: i64,
+    command: SortedSetCommandType,
+    uuid: Option<Uuid>,
+    amount: Option<BigDecimal>,
+    position_type: PositionType,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = sorted_set_command)]
+pub struct SortedSetCommandUpdate {
+    command: SortedSetCommandType,
+    uuid: Option<Uuid>,
+    amount: Option<BigDecimal>,
+    position_type: PositionType,
+}
+
+impl SortedSetCommand {
+    pub fn append(
+        conn: &mut PgConnection,
+        updates: Vec<relayer::SortedSetCommand>,
+    ) -> QueryResult<usize> {
+        use crate::database::schema::sorted_set_command::dsl::*;
+
+        let items: Vec<_> = updates
+            .into_iter()
+            .map(|item| {
+                let (cmd, cmd_uuid, amt, typ) = match item {
+                    relayer::SortedSetCommand::AddLiquidationPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::ADD_LIQUIDATION_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::AddOpenLimitPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::ADD_OPEN_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::AddCloseLimitPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::ADD_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::RemoveLiquidationPrice(i, typ) => {
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::REMOVE_LIQUIDATION_PRICE,
+                            cmd_uuid,
+                            None,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::RemoveOpenLimitPrice(i, typ) => {
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::REMOVE_OPEN_LIMIT_PRICE,
+                            cmd_uuid,
+                            None,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::RemoveCloseLimitPrice(i, typ) => {
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::REMOVE_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            None,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::UpdateLiquidationPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::UPDATE_LIQUIDATION_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::UpdateOpenLimitPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::UPDATE_OPEN_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::UpdateCloseLimitPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::UPDATE_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::BulkSearchRemoveLiquidationPrice(amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        (
+                            SortedSetCommandType::BULK_SEARCH_REMOVE_LIQUIDATION_PRICE,
+                            None,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::BulkSearchRemoveOpenLimitPrice(amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        (
+                            SortedSetCommandType::BULK_SEARCH_REMOVE_OPEN_LIMIT_PRICE,
+                            None,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::BulkSearchRemoveCloseLimitPrice(amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        (
+                            SortedSetCommandType::BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE,
+                            None,
+                            amt,
+                            typ,
+                        )
+                    }
+                };
+
+                SortedSetCommandUpdate {
+                    command: cmd,
+                    uuid: cmd_uuid,
+                    amount: amt,
+                    position_type: typ.into(),
+                }
+            })
+            .collect();
+
+        diesel::insert_into(sorted_set_command)
+            .values(items)
+            .execute(conn)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
+#[diesel(table_name = position_size_log)]
+pub struct PositionSizeLog {
+    pub id: i64,
+    pub command: PositionSizeCommand,
+    pub position_type: PositionType,
+    pub amount: BigDecimal,
+    pub total_short: BigDecimal,
+    pub total_long: BigDecimal,
+    pub total: BigDecimal,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = position_size_log)]
+pub struct PositionSizeLogUpdate {
+    pub command: PositionSizeCommand,
+    pub position_type: PositionType,
+    pub amount: BigDecimal,
+    pub total_short: BigDecimal,
+    pub total_long: BigDecimal,
+    pub total: BigDecimal,
+}
+
+impl PositionSizeLog {
+    pub fn append(conn: &mut PgConnection, sizes: Vec<PositionSizeUpdate>) -> QueryResult<usize> {
+        use crate::database::schema::position_size_log::dsl::*;
+
+        let items: Vec<_> = sizes
+            .into_iter()
+            .map(|item| {
+                let (cmd, log) = item;
+
+                let (cmd, typ, amt) = match cmd {
+                    relayer::PositionSizeLogCommand::AddPositionSize(typ, amt) => {
+                        (PositionSizeCommand::ADD, typ, amt)
+                    }
+                    relayer::PositionSizeLogCommand::RemovePositionSize(typ, amt) => {
+                        (PositionSizeCommand::REMOVE, typ, amt)
+                    }
+                };
+
+                PositionSizeLogUpdate {
+                    command: cmd,
+                    position_type: typ.into(),
+                    amount: BigDecimal::from_f64(amt).expect("Invalid f64"),
+                    total_short: BigDecimal::from_f64(log.total_short_positionsize)
+                        .expect("Invalid f64"),
+                    total_long: BigDecimal::from_f64(log.total_long_positionsize)
+                        .expect("Invalid f64"),
+                    total: BigDecimal::from_f64(log.totalpositionsize).expect("Invalid f64"),
+                }
+            })
+            .collect();
+
+        diesel::insert_into(position_size_log)
+            .values(items)
+            .execute(conn)
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
 #[diesel(table_name = btc_usd_price)]

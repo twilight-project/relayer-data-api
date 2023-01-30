@@ -1,5 +1,7 @@
 use crate::database::schema::sql_types::{
-    OrderStatus as OrderStatusSql, OrderType as OrderTypeSql, PositionType as PositionTypeSql,
+    OrderStatus as OrderStatusSql, OrderType as OrderTypeSql,
+    PositionSizeCommand as PositionSizeCommandSql, PositionType as PositionTypeSql,
+    SortedSetCommandType as SortedSetCommandTypeSql,
 };
 use diesel::*;
 use diesel::{
@@ -16,6 +18,30 @@ use twilight_relayer_rust::relayer;
 pub enum TXType {
     ORDERTX,
     LENDTX,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
+#[diesel(sql_type = SortedSetCommandTypeSql)]
+pub enum SortedSetCommandType {
+    ADD_LIQUIDATION_PRICE,
+    ADD_OPEN_LIMIT_PRICE,
+    ADD_CLOSE_LIMIT_PRICE,
+    REMOVE_LIQUIDATION_PRICE,
+    REMOVE_OPEN_LIMIT_PRICE,
+    REMOVE_CLOSE_LIMIT_PRICE,
+    UPDATE_LIQUIDATION_PRICE,
+    UPDATE_OPEN_LIMIT_PRICE,
+    UPDATE_CLOSE_LIMIT_PRICE,
+    BULK_SEARCH_REMOVE_LIQUIDATION_PRICE,
+    BULK_SEARCH_REMOVE_OPEN_LIMIT_PRICE,
+    BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
+#[diesel(sql_type = PositionSizeCommandSql)]
+pub enum PositionSizeCommand {
+    ADD,
+    REMOVE,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
@@ -45,6 +71,74 @@ pub enum OrderStatus {
     FILLED,
 }
 
+impl ToSql<SortedSetCommandTypeSql, Pg> for SortedSetCommandType {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
+        match *self {
+            SortedSetCommandType::ADD_LIQUIDATION_PRICE => {
+                out.write_all(b"ADD_LIQUIDATION_PRICE")?
+            }
+            SortedSetCommandType::ADD_OPEN_LIMIT_PRICE => out.write_all(b"ADD_OPEN_LIMIT_PRICE")?,
+            SortedSetCommandType::ADD_CLOSE_LIMIT_PRICE => {
+                out.write_all(b"ADD_CLOSE_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::REMOVE_LIQUIDATION_PRICE => {
+                out.write_all(b"REMOVE_LIQUIDATION_PRICE")?
+            }
+            SortedSetCommandType::REMOVE_OPEN_LIMIT_PRICE => {
+                out.write_all(b"REMOVE_OPEN_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::REMOVE_CLOSE_LIMIT_PRICE => {
+                out.write_all(b"REMOVE_CLOSE_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::UPDATE_LIQUIDATION_PRICE => {
+                out.write_all(b"UPDATE_LIQUIDATION_PRICE")?
+            }
+            SortedSetCommandType::UPDATE_OPEN_LIMIT_PRICE => {
+                out.write_all(b"UPDATE_OPEN_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::UPDATE_CLOSE_LIMIT_PRICE => {
+                out.write_all(b"UPDATE_CLOSE_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::BULK_SEARCH_REMOVE_LIQUIDATION_PRICE => {
+                out.write_all(b"BULK_SEARCH_REMOVE_LIQUIDATION_PRICE")?
+            }
+            SortedSetCommandType::BULK_SEARCH_REMOVE_OPEN_LIMIT_PRICE => {
+                out.write_all(b"BULK_SEARCH_REMOVE_OPEN_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE => {
+                out.write_all(b"BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE")?
+            }
+        }
+        Ok(IsNull::No)
+    }
+}
+
+impl FromSql<SortedSetCommandTypeSql, Pg> for SortedSetCommandType {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<SortedSetCommandType> {
+        match bytes.as_bytes() {
+            b"ADD_LIQUIDATION_PRICE" => Ok(SortedSetCommandType::ADD_LIQUIDATION_PRICE),
+            b"ADD_OPEN_LIMIT_PRICE" => Ok(SortedSetCommandType::ADD_OPEN_LIMIT_PRICE),
+            b"ADD_CLOSE_LIMIT_PRICE" => Ok(SortedSetCommandType::ADD_CLOSE_LIMIT_PRICE),
+            b"REMOVE_LIQUIDATION_PRICE" => Ok(SortedSetCommandType::REMOVE_LIQUIDATION_PRICE),
+            b"REMOVE_OPEN_LIMIT_PRICE" => Ok(SortedSetCommandType::REMOVE_OPEN_LIMIT_PRICE),
+            b"REMOVE_CLOSE_LIMIT_PRICE" => Ok(SortedSetCommandType::REMOVE_CLOSE_LIMIT_PRICE),
+            b"UPDATE_LIQUIDATION_PRICE" => Ok(SortedSetCommandType::UPDATE_LIQUIDATION_PRICE),
+            b"UPDATE_OPEN_LIMIT_PRICE" => Ok(SortedSetCommandType::UPDATE_OPEN_LIMIT_PRICE),
+            b"UPDATE_CLOSE_LIMIT_PRICE" => Ok(SortedSetCommandType::UPDATE_CLOSE_LIMIT_PRICE),
+            b"BULK_SEARCH_REMOVE_LIQUIDATION_PRICE" => {
+                Ok(SortedSetCommandType::BULK_SEARCH_REMOVE_LIQUIDATION_PRICE)
+            }
+            b"BULK_SEARCH_REMOVE_OPEN_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::BULK_SEARCH_REMOVE_OPEN_LIMIT_PRICE)
+            }
+            b"BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE)
+            }
+            _ => panic!("Invalid enum type in database!"),
+        }
+    }
+}
+
 impl ToSql<OrderStatusSql, Pg> for OrderStatus {
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
         match *self {
@@ -54,6 +148,26 @@ impl ToSql<OrderStatusSql, Pg> for OrderStatus {
             OrderStatus::CANCELLED => out.write_all(b"CANCELLED")?,
             OrderStatus::PENDING => out.write_all(b"PENDING")?,
             OrderStatus::FILLED => out.write_all(b"FILLED")?,
+        }
+        Ok(IsNull::No)
+    }
+}
+
+impl FromSql<PositionSizeCommandSql, Pg> for PositionSizeCommand {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<PositionSizeCommand> {
+        match bytes.as_bytes() {
+            b"ADD" => Ok(PositionSizeCommand::ADD),
+            b"REMOVE" => Ok(PositionSizeCommand::REMOVE),
+            _ => panic!("Invalid enum type in database!"),
+        }
+    }
+}
+
+impl ToSql<PositionSizeCommandSql, Pg> for PositionSizeCommand {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
+        match *self {
+            PositionSizeCommand::ADD => out.write_all(b"ADD")?,
+            PositionSizeCommand::REMOVE => out.write_all(b"REMOVE")?,
         }
         Ok(IsNull::No)
     }

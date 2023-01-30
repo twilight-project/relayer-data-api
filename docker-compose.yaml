@@ -3,9 +3,6 @@ services:
   api:
     image: relayer-api
     command: api
-    build:
-      context: ..
-      dockerfile: twilight-relayerAPI/Dockerfile
     env_file: .compose.env
     depends_on:
       database:
@@ -19,9 +16,6 @@ services:
   archiver:
     image: relayer-api
     command: archiver
-    build:
-      context: ..
-      dockerfile: twilight-relayerAPI/Dockerfile
     env_file: .compose.env
     depends_on:
       database:

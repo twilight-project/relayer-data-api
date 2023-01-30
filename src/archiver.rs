@@ -5,7 +5,10 @@ use diesel::r2d2::ConnectionManager;
 use log::{debug, error, info};
 use r2d2::PooledConnection;
 use std::time::{Duration, Instant};
-use twilight_relayer_rust::db::{Event, EventLog};
+use twilight_relayer_rust::{
+    db::{Event, EventLog, LendPoolCommand},
+    relayer,
+};
 
 const BATCH_INTERVAL: u64 = 100;
 const BATCH_SIZE: usize = 500;
@@ -19,6 +22,8 @@ pub struct DatabaseArchiver {
     pool: ManagedPool,
     trader_orders: Vec<TraderOrder>,
     lend_orders: Vec<LendOrder>,
+    position_size: Vec<PositionSizeUpdate>,
+    sorted_set: Vec<relayer::SortedSetCommand>,
 }
 
 impl DatabaseArchiver {
@@ -33,11 +38,15 @@ impl DatabaseArchiver {
 
         let trader_orders = Vec::with_capacity(BATCH_SIZE);
         let lend_orders = Vec::with_capacity(BATCH_SIZE);
+        let position_size = Vec::with_capacity(BATCH_SIZE);
+        let sorted_set = Vec::with_capacity(BATCH_SIZE);
 
         DatabaseArchiver {
             pool,
             trader_orders,
             lend_orders,
+            position_size,
+            sorted_set,
         }
     }
 
@@ -62,6 +71,68 @@ impl DatabaseArchiver {
                 }
             };
         })
+    }
+
+    /// Add a sorted set update to the next update batch, if the queue is full, commit and clear the
+    /// queue.
+    fn sorted_set_update(
+        &mut self,
+        sorted_set_update: relayer::SortedSetCommand,
+    ) -> Result<(), ApiError> {
+        debug!("Appending sorted set update");
+        self.sorted_set.push(sorted_set_update);
+
+        if self.sorted_set.len() == self.sorted_set.capacity() {
+            self.commit_sorted_set_updates()?;
+        }
+
+        Ok(())
+    }
+
+    /// Commit a batch of sorted set updates to the database. If we're failing to update the database, we
+    /// should exit.
+    fn commit_sorted_set_updates(&mut self) -> Result<(), ApiError> {
+        debug!("Committing sorted sets");
+
+        let mut conn = self.get_conn()?;
+
+        let mut updates = Vec::with_capacity(self.sorted_set.capacity());
+        std::mem::swap(&mut updates, &mut self.sorted_set);
+
+        SortedSetCommand::append(&mut conn, updates)?;
+
+        Ok(())
+    }
+
+    /// Add a position size update to the next update batch, if the queue is full, commit and clear the
+    /// queue.
+    fn position_size_log(
+        &mut self,
+        position_size_update: PositionSizeUpdate,
+    ) -> Result<(), ApiError> {
+        debug!("Appending position size update");
+        self.position_size.push(position_size_update);
+
+        if self.position_size.len() == self.position_size.capacity() {
+            self.commit_position_sizes()?;
+        }
+
+        Ok(())
+    }
+
+    /// Commit a batch of position sizes to the database. If we're failing to update the database, we
+    /// should exit.
+    fn commit_position_sizes(&mut self) -> Result<(), ApiError> {
+        debug!("Committing position sizes");
+
+        let mut conn = self.get_conn()?;
+
+        let mut sizes = Vec::with_capacity(self.position_size.capacity());
+        std::mem::swap(&mut sizes, &mut self.position_size);
+
+        PositionSizeLog::append(&mut conn, sizes)?;
+
+        Ok(())
     }
 
     /// Add a trader order to the next update batch, if the queue is full, commit and clear the
@@ -130,7 +201,14 @@ impl DatabaseArchiver {
             self.commit_lend_orders()?;
         }
 
-        //TODO: other order types...
+        if self.position_size.len() > 0 {
+            self.commit_position_sizes()?;
+        }
+
+        if self.sorted_set.len() > 0 {
+            self.commit_sorted_set_updates()?;
+        }
+        // TODO: others hereS......
 
         Ok(())
     }
@@ -149,16 +227,16 @@ impl DatabaseArchiver {
                     } = msg;
                     match value {
                         Event::TraderOrder(trader_order, ..) => {
-                            self.trader_order(trader_order.into())?
+                            self.trader_order(trader_order.into())?;
                         }
                         Event::TraderOrderUpdate(trader_order, ..) => {
-                            self.trader_order(trader_order.into())?
+                            self.trader_order(trader_order.into())?;
                         }
                         Event::TraderOrderFundingUpdate(trader_order, ..) => {
-                            self.trader_order(trader_order.into())?
+                            self.trader_order(trader_order.into())?;
                         }
                         Event::TraderOrderLiquidation(trader_order, ..) => {
-                            self.trader_order(trader_order.into())?
+                            self.trader_order(trader_order.into())?;
                         }
                         Event::LendOrder(lend_order, ..) => self.lend_order(lend_order.into())?,
                         Event::FundingRateUpdate(funding_rate, _system_time) => {
@@ -170,14 +248,14 @@ impl DatabaseArchiver {
                         Event::PoolUpdate(_lend_pool_command, ..) => {
                             info!("FINISH POOL UPDATE");
                         }
-                        Event::SortedSetDBUpdate(_sorted_set_command) => {
-                            info!("FINISH SORTED SET DB UPDATE");
+                        Event::SortedSetDBUpdate(sorted_set_command) => {
+                            self.sorted_set_update(sorted_set_command)?;
                         }
                         Event::PositionSizeLogDBUpdate(
-                            _position_size_log_command,
-                            _position_size_log,
+                            position_size_log_command,
+                            position_size_log,
                         ) => {
-                            info!("FINISH POSITION SIZE LOG DB UPDATE");
+                            self.position_size_log((position_size_log_command, position_size_log))?;
                         }
                         Event::Stop(_stop) => {
                             info!("FINISH STOP");
