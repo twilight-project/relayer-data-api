@@ -2,11 +2,11 @@ use crate::{database::*, error::ApiError, migrations};
 use crossbeam_channel::Receiver;
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use r2d2::PooledConnection;
 use std::time::{Duration, Instant};
 use twilight_relayer_rust::{
-    db::{Event, EventLog, LendPoolCommand},
+    db::{self as relayer_db, Event, EventLog},
     relayer,
 };
 
@@ -24,6 +24,7 @@ pub struct DatabaseArchiver {
     lend_orders: Vec<LendOrder>,
     position_size: Vec<PositionSizeUpdate>,
     sorted_set: Vec<relayer::SortedSetCommand>,
+    lend_pool: Vec<relayer_db::LendPoolCommand>,
 }
 
 impl DatabaseArchiver {
@@ -40,6 +41,7 @@ impl DatabaseArchiver {
         let lend_orders = Vec::with_capacity(BATCH_SIZE);
         let position_size = Vec::with_capacity(BATCH_SIZE);
         let sorted_set = Vec::with_capacity(BATCH_SIZE);
+        let lend_pool = Vec::with_capacity(BATCH_SIZE);
 
         DatabaseArchiver {
             pool,
@@ -47,6 +49,7 @@ impl DatabaseArchiver {
             lend_orders,
             position_size,
             sorted_set,
+            lend_pool,
         }
     }
 
@@ -191,6 +194,34 @@ impl DatabaseArchiver {
         Ok(())
     }
 
+    /// Add a lend pool update to the next update batch, if the queue is full, commit and clear the
+    /// queue.
+    fn lend_pool_command(&mut self, update: relayer_db::LendPoolCommand) -> Result<(), ApiError> {
+        debug!("Appending lend pool update");
+        self.lend_pool.push(update);
+
+        if self.lend_pool.len() == self.lend_pool.capacity() {
+            self.commit_lend_pool_commands()?;
+        }
+
+        Ok(())
+    }
+
+    /// Commit a batch of lend pool updates to the database. If we're failing to update the database, we
+    /// should exit.
+    fn commit_lend_pool_commands(&mut self) -> Result<(), ApiError> {
+        debug!("Committing lend pool commands");
+
+        let mut conn = self.get_conn()?;
+
+        let mut pool = Vec::with_capacity(self.lend_pool.capacity());
+        std::mem::swap(&mut pool, &mut self.lend_pool);
+
+        LendPoolCommand::update_or_insert(&mut conn, pool)?;
+
+        Ok(())
+    }
+
     /// Commit any pending orders of any type, regardless of batch size.
     fn commit_orders(&mut self) -> Result<(), ApiError> {
         if self.trader_orders.len() > 0 {
@@ -208,7 +239,10 @@ impl DatabaseArchiver {
         if self.sorted_set.len() > 0 {
             self.commit_sorted_set_updates()?;
         }
-        // TODO: others hereS......
+
+        if self.lend_pool.len() > 0 {
+            self.commit_lend_pool_commands()?;
+        }
 
         Ok(())
     }
@@ -245,8 +279,8 @@ impl DatabaseArchiver {
                         Event::CurrentPriceUpdate(current_price, _system_time) => {
                             CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price)?;
                         }
-                        Event::PoolUpdate(_lend_pool_command, ..) => {
-                            info!("FINISH POOL UPDATE");
+                        Event::PoolUpdate(lend_pool_command, ..) => {
+                            self.lend_pool_command(lend_pool_command)?;
                         }
                         Event::SortedSetDBUpdate(sorted_set_command) => {
                             self.sorted_set_update(sorted_set_command)?;
@@ -264,11 +298,11 @@ impl DatabaseArchiver {
                 }
                 Err(e) => {
                     if e.is_timeout() {
-                        debug!("Timeout reached, committing current orders");
+                        trace!("Timeout reached, committing current orders");
                         self.commit_orders()?;
 
                         deadline = Instant::now() + Duration::from_millis(BATCH_INTERVAL);
-                        debug!("New deadline: {:?}", deadline);
+                        trace!("New deadline: {:?}", deadline);
                     } else {
                         error!("Channel disconnected!");
                         break;

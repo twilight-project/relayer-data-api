@@ -1,4 +1,3 @@
-use crate::migrations;
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
@@ -12,9 +11,7 @@ type ManagedPool = r2d2::Pool<ManagedConnection>;
 type HandlerType<R> =
     Box<dyn 'static + Fn(Params<'_>, &RelayerContext) -> Result<R, Error> + Send + Sync>;
 
-pub struct RelayerContext {
-    pub pool: ManagedPool,
-}
+pub struct RelayerContext;
 
 fn register_method<R: Serialize + 'static>(
     module: &mut RpcModule<RelayerContext>,
@@ -27,35 +24,10 @@ fn register_method<R: Serialize + 'static>(
 }
 
 pub fn init_methods(database_url: &str) -> RpcModule<RelayerContext> {
-    let manager = ConnectionManager::<PgConnection>::new(database_url);
-    let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
+    let mut module = RpcModule::new(RelayerContext {});
 
-    let mut conn = pool.get().expect("Could not get pooled connection!");
-
-    migrations::run_migrations(&mut *conn).expect("Failed to run database migrations!");
-
-    let mut module = RpcModule::new(RelayerContext { pool });
-
-    register_method(
-        &mut module,
-        "trader_order_info",
-        Box::new(methods::trader_order_info),
-    );
-    register_method(
-        &mut module,
-        "lend_order_info",
-        Box::new(methods::lend_order_info),
-    );
-    register_method(
-        &mut module,
-        "get_funding_rate",
-        Box::new(methods::get_funding_rate),
-    );
-    register_method(
-        &mut module,
-        "btc_usd_price",
-        Box::new(methods::btc_usd_price),
-    );
+    register_method(&mut module, "hello_method", Box::new(methods::hello_method));
+    register_method(&mut module, "list_orders", Box::new(methods::hello_method));
 
     module
 }

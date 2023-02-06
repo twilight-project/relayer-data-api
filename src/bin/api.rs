@@ -19,6 +19,7 @@ struct Opt {
 #[tokio::main]
 async fn main() {
     let opts = Opt::from_args();
+    dotenv::dotenv().expect("dotenv file not found!");
 
     tracing_subscriber::fmt::Subscriber::builder()
         .with_env_filter(tracing_subscriber::filter::EnvFilter::from_default_env())
@@ -27,13 +28,14 @@ async fn main() {
         .init();
 
     let addrs: &[SocketAddr] = &[opts.listen_addr];
+    let database_url = std::env::var("DATABASE_URL").expect("No database url found!");
 
     let server = ServerBuilder::new()
         .build(addrs)
         .await
         .expect("Failed to build API server");
 
-    let methods = rpc::init_methods();
+    let methods = rpc::init_methods(&database_url);
 
     let _handle = server.start(methods).expect("Failed to start API server");
 

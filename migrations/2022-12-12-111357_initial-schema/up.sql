@@ -19,6 +19,23 @@ CREATE TYPE sorted_set_command_type AS ENUM (
         'BULK_SEARCH_REMOVE_OPEN_LIMIT_PRICE',
         'BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE'
 );
+CREATE TYPE lend_pool_command_type AS ENUM (
+	'ADD_TRADER_ORDER_SETTLEMENT',
+	'ADD_TRADER_LIMIT_ORDER_SETTLEMENT',
+	'ADD_FUNDING_DATA',
+	'ADD_TRADER_ORDER_LIQUIDATION',
+	'LEND_ORDER_CREATE_ORDER',
+	'LEND_ORDER_SETTLE_ORDER',
+	'BATCH_EXECUTE_TRADER_ORDER',
+	'INITIATE_NEW_POOL'
+);
+
+CREATE TABLE lend_pool_command (
+	id bigserial primary key,
+	command lend_pool_command_type NOT NULL,
+	order_id uuid NOT NULL,
+	payment numeric
+);
 
 CREATE TABLE sorted_set_command (
 	id bigserial primary key,

@@ -2,6 +2,10 @@
 
 pub mod sql_types {
     #[derive(diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "lend_pool_command_type"))]
+    pub struct LendPoolCommandType;
+
+    #[derive(diesel::sql_types::SqlType)]
     #[diesel(postgres_type(name = "order_status"))]
     pub struct OrderStatus;
 
@@ -72,6 +76,18 @@ diesel::table! {
 
 diesel::table! {
     use diesel::sql_types::*;
+    use super::sql_types::LendPoolCommandType;
+
+    lend_pool_command (id) {
+        id -> Int8,
+        command -> LendPoolCommandType,
+        order_id -> Uuid,
+        payment -> Nullable<Numeric>,
+    }
+}
+
+diesel::table! {
+    use diesel::sql_types::*;
     use super::sql_types::PositionSizeCommand;
     use super::sql_types::PositionType;
 
@@ -135,6 +151,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     btc_usd_price,
     funding_rate,
     lend_order,
+    lend_pool_command,
     position_size_log,
     sorted_set_command,
     trader_order,

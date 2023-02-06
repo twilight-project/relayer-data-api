@@ -1,7 +1,7 @@
 use crate::database::schema::sql_types::{
-    OrderStatus as OrderStatusSql, OrderType as OrderTypeSql,
-    PositionSizeCommand as PositionSizeCommandSql, PositionType as PositionTypeSql,
-    SortedSetCommandType as SortedSetCommandTypeSql,
+    LendPoolCommandType as LendPoolCommandTypeSql, OrderStatus as OrderStatusSql,
+    OrderType as OrderTypeSql, PositionSizeCommand as PositionSizeCommandSql,
+    PositionType as PositionTypeSql, SortedSetCommandType as SortedSetCommandTypeSql,
 };
 use diesel::*;
 use diesel::{
@@ -18,6 +18,19 @@ use twilight_relayer_rust::relayer;
 pub enum TXType {
     ORDERTX,
     LENDTX,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
+#[diesel(sql_type = LendPoolCommandTypeSql)]
+pub enum LendPoolCommandType {
+    ADD_TRADER_ORDER_SETTLEMENT,
+    ADD_TRADER_LIMIT_ORDER_SETTLEMENT,
+    ADD_FUNDING_DATA,
+    ADD_TRADER_ORDER_LIQUIDATION,
+    LEND_ORDER_CREATE_ORDER,
+    LEND_ORDER_SETTLE_ORDER,
+    BATCH_EXECUTE_TRADER_ORDER,
+    INITIATE_NEW_POOL,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
@@ -69,6 +82,54 @@ pub enum OrderStatus {
     CANCELLED,
     PENDING,
     FILLED,
+}
+
+impl ToSql<LendPoolCommandTypeSql, Pg> for LendPoolCommandType {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
+        match *self {
+            LendPoolCommandType::ADD_TRADER_ORDER_SETTLEMENT => {
+                out.write_all(b"ADD_TRADER_ORDER_SETTLEMENT")?
+            }
+            LendPoolCommandType::ADD_TRADER_LIMIT_ORDER_SETTLEMENT => {
+                out.write_all(b"ADD_TRADER_LIMIT_ORDER_SETTLEMENT")?
+            }
+            LendPoolCommandType::ADD_FUNDING_DATA => out.write_all(b"ADD_FUNDING_DATA")?,
+            LendPoolCommandType::ADD_TRADER_ORDER_LIQUIDATION => {
+                out.write_all(b"ADD_TRADER_ORDER_LIQUIDATION")?
+            }
+            LendPoolCommandType::LEND_ORDER_CREATE_ORDER => {
+                out.write_all(b"LEND_ORDER_CREATE_ORDER")?
+            }
+            LendPoolCommandType::LEND_ORDER_SETTLE_ORDER => {
+                out.write_all(b"LEND_ORDER_SETTLE_ORDER")?
+            }
+            LendPoolCommandType::BATCH_EXECUTE_TRADER_ORDER => {
+                out.write_all(b"BATCH_EXECUTE_TRADER_ORDER")?
+            }
+            LendPoolCommandType::INITIATE_NEW_POOL => out.write_all(b"INITIATE_NEW_POOL")?,
+        }
+        Ok(IsNull::No)
+    }
+}
+
+impl FromSql<LendPoolCommandTypeSql, Pg> for LendPoolCommandType {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<LendPoolCommandType> {
+        match bytes.as_bytes() {
+            b"ADD_TRADER_ORDER_SETTLEMENT" => Ok(LendPoolCommandType::ADD_TRADER_ORDER_SETTLEMENT),
+            b"ADD_TRADER_LIMIT_ORDER_SETTLEMENT" => {
+                Ok(LendPoolCommandType::ADD_TRADER_LIMIT_ORDER_SETTLEMENT)
+            }
+            b"ADD_FUNDING_DATA" => Ok(LendPoolCommandType::ADD_FUNDING_DATA),
+            b"ADD_TRADER_ORDER_LIQUIDATION" => {
+                Ok(LendPoolCommandType::ADD_TRADER_ORDER_LIQUIDATION)
+            }
+            b"LEND_ORDER_CREATE_ORDER" => Ok(LendPoolCommandType::LEND_ORDER_CREATE_ORDER),
+            b"LEND_ORDER_SETTLE_ORDER" => Ok(LendPoolCommandType::LEND_ORDER_SETTLE_ORDER),
+            b"BATCH_EXECUTE_TRADER_ORDER" => Ok(LendPoolCommandType::BATCH_EXECUTE_TRADER_ORDER),
+            b"INITIATE_NEW_POOL" => Ok(LendPoolCommandType::INITIATE_NEW_POOL),
+            _ => panic!("Invalid enum type in database!"),
+        }
+    }
 }
 
 impl ToSql<SortedSetCommandTypeSql, Pg> for SortedSetCommandType {

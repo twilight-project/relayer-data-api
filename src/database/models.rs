@@ -1,7 +1,7 @@
 use crate::database::{
     schema::{
-        btc_usd_price, funding_rate, lend_order, position_size_log, sorted_set_command,
-        trader_order,
+        btc_usd_price, funding_rate, lend_order, lend_pool_command, position_size_log,
+        sorted_set_command, trader_order,
     },
     sql_types::*,
 };
@@ -14,6 +14,96 @@ use twilight_relayer_rust::{db as relayer_db, relayer};
 use uuid::Uuid;
 
 pub type PositionSizeUpdate = (relayer::PositionSizeLogCommand, relayer_db::PositionSizeLog);
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
+#[diesel(table_name = lend_pool_command)]
+pub struct LendPoolCommand {
+    id: i64,
+    command: LendPoolCommandType,
+    order_id: Uuid,
+    payment: Option<BigDecimal>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = lend_pool_command)]
+pub struct LendPoolCommandUpdate {
+    command: LendPoolCommandType,
+    order_id: Uuid,
+    payment: Option<BigDecimal>,
+}
+
+impl From<(LendPoolCommandType, Uuid, Option<BigDecimal>)> for LendPoolCommandUpdate {
+    fn from(tuple: (LendPoolCommandType, Uuid, Option<BigDecimal>)) -> LendPoolCommandUpdate {
+        let (command, order_id, payment) = tuple;
+
+        LendPoolCommandUpdate {
+            command,
+            order_id,
+            payment,
+        }
+    }
+}
+
+impl LendPoolCommand {
+    pub fn update_or_insert(
+        conn: &mut PgConnection,
+        updates: Vec<relayer_db::LendPoolCommand>,
+    ) -> QueryResult<usize> {
+        use crate::database::schema::lend_pool_command::dsl::*;
+
+        let items: Vec<LendPoolCommandUpdate> = updates
+            .into_iter()
+            .flat_map(|item| match item {
+                relayer_db::LendPoolCommand::AddTraderOrderSettlement(_, order, p) => {
+                    let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
+                    let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+                    vec![(LendPoolCommandType::ADD_TRADER_ORDER_SETTLEMENT, uuid, pay).into()]
+                }
+                relayer_db::LendPoolCommand::AddTraderLimitOrderSettlement(_, order, p) => {
+                    let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
+                    let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+                    vec![(
+                        LendPoolCommandType::ADD_TRADER_LIMIT_ORDER_SETTLEMENT,
+                        uuid,
+                        pay,
+                    )
+                        .into()]
+                }
+                relayer_db::LendPoolCommand::AddFundingData(order, p) => {
+                    let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
+                    let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+                    vec![(LendPoolCommandType::ADD_FUNDING_DATA, uuid, pay).into()]
+                }
+                relayer_db::LendPoolCommand::AddTraderOrderLiquidation(_, order, p) => {
+                    let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
+                    let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+                    vec![(LendPoolCommandType::ADD_TRADER_ORDER_LIQUIDATION, uuid, pay).into()]
+                }
+                relayer_db::LendPoolCommand::LendOrderCreateOrder(_, order, p) => {
+                    let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
+                    let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+                    vec![(LendPoolCommandType::LEND_ORDER_CREATE_ORDER, uuid, pay).into()]
+                }
+                relayer_db::LendPoolCommand::LendOrderSettleOrder(_, order, p) => {
+                    let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
+                    let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+                    vec![(LendPoolCommandType::LEND_ORDER_SETTLE_ORDER, uuid, pay).into()]
+                }
+                relayer_db::LendPoolCommand::BatchExecuteTraderOrder(relayer_command) => {
+                    todo!("Batch order execution!")
+                }
+                relayer_db::LendPoolCommand::InitiateNewPool(order, _) => {
+                    let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+                    vec![(LendPoolCommandType::INITIATE_NEW_POOL, uuid, None).into()]
+                }
+            })
+            .collect();
+
+        diesel::insert_into(lend_pool_command)
+            .values(items)
+            .execute(conn)
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
 #[diesel(table_name = sorted_set_command)]
@@ -239,9 +329,17 @@ impl PositionSizeLog {
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
 #[diesel(table_name = btc_usd_price)]
 pub struct BtcUsdPrice {
-    pub id: usize,
+    pub id: i64,
     pub price: BigDecimal,
     pub timestamp: DateTime<Utc>,
+}
+
+impl BtcUsdPrice {
+    pub fn get(conn: &mut PgConnection) -> QueryResult<BtcUsdPrice> {
+        use crate::database::schema::btc_usd_price::dsl::*;
+
+        btc_usd_price.order_by(timestamp.desc()).first(conn)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
@@ -269,10 +367,18 @@ impl CurrentPriceUpdate {
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
 #[diesel(table_name = funding_rate)]
 pub struct FundingRate {
-    pub id: usize,
+    pub id: i64,
     pub rate: BigDecimal,
     pub price: BigDecimal,
     pub timestamp: DateTime<Utc>,
+}
+
+impl FundingRate {
+    pub fn get(conn: &mut PgConnection) -> QueryResult<FundingRate> {
+        use crate::database::schema::funding_rate::dsl::*;
+
+        funding_rate.order_by(timestamp.desc()).first(conn)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
@@ -326,6 +432,12 @@ pub struct TraderOrder {
 }
 
 impl TraderOrder {
+    pub fn get(conn: &mut PgConnection, id: Uuid) -> QueryResult<TraderOrder> {
+        use crate::database::schema::trader_order::dsl::*;
+
+        trader_order.find(id).first(&mut *conn)
+    }
+
     pub fn update_or_insert(
         conn: &mut PgConnection,
         orders: Vec<TraderOrder>,
@@ -391,6 +503,12 @@ pub struct LendOrder {
 }
 
 impl LendOrder {
+    pub fn get(conn: &mut PgConnection, id: Uuid) -> QueryResult<LendOrder> {
+        use crate::database::schema::lend_order::dsl::*;
+
+        lend_order.find(id).first(&mut *conn)
+    }
+
     pub fn update_or_insert(conn: &mut PgConnection, orders: Vec<LendOrder>) -> QueryResult<usize> {
         use crate::database::schema::lend_order::dsl::*;
 
