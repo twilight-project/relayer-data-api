@@ -48,7 +48,8 @@ diesel::table! {
     use super::sql_types::OrderStatus;
     use super::sql_types::OrderType;
 
-    lend_order (uuid) {
+    lend_order (id) {
+        id -> Int8,
         uuid -> Uuid,
         account_id -> Varchar,
         balance -> Numeric,
@@ -122,7 +123,8 @@ diesel::table! {
     use super::sql_types::OrderStatus;
     use super::sql_types::OrderType;
 
-    trader_order (uuid) {
+    trader_order (id) {
+        id -> Int8,
         uuid -> Uuid,
         account_id -> Varchar,
         position_type -> PositionType,

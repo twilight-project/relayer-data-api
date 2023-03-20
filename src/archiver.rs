@@ -20,8 +20,8 @@ type ManagedPool = r2d2::Pool<ManagedConnection>;
 
 pub struct DatabaseArchiver {
     pool: ManagedPool,
-    trader_orders: Vec<TraderOrder>,
-    lend_orders: Vec<LendOrder>,
+    trader_orders: Vec<InsertTraderOrder>,
+    lend_orders: Vec<InsertLendOrder>,
     position_size: Vec<PositionSizeUpdate>,
     sorted_set: Vec<relayer::SortedSetCommand>,
     lend_pool: Vec<relayer_db::LendPoolCommand>,
@@ -140,7 +140,7 @@ impl DatabaseArchiver {
 
     /// Add a trader order to the next update batch, if the queue is full, commit and clear the
     /// queue.
-    fn trader_order(&mut self, order: TraderOrder) -> Result<(), ApiError> {
+    fn trader_order(&mut self, order: InsertTraderOrder) -> Result<(), ApiError> {
         debug!("Appending trader order");
         self.trader_orders.push(order);
 
@@ -161,14 +161,14 @@ impl DatabaseArchiver {
         let mut orders = Vec::with_capacity(self.trader_orders.capacity());
         std::mem::swap(&mut orders, &mut self.trader_orders);
 
-        TraderOrder::update_or_insert(&mut conn, orders)?;
+        TraderOrder::insert(&mut conn, orders)?;
 
         Ok(())
     }
 
     /// Add a lend order to the next update batch, if the queue is full, commit and clear the
     /// queue.
-    fn lend_order(&mut self, order: LendOrder) -> Result<(), ApiError> {
+    fn lend_order(&mut self, order: InsertLendOrder) -> Result<(), ApiError> {
         debug!("Appending lend order");
         self.lend_orders.push(order);
 
@@ -189,7 +189,7 @@ impl DatabaseArchiver {
         let mut orders = Vec::with_capacity(self.lend_orders.capacity());
         std::mem::swap(&mut orders, &mut self.lend_orders);
 
-        LendOrder::update_or_insert(&mut conn, orders)?;
+        LendOrder::insert(&mut conn, orders)?;
 
         Ok(())
     }
@@ -217,7 +217,7 @@ impl DatabaseArchiver {
         let mut pool = Vec::with_capacity(self.lend_pool.capacity());
         std::mem::swap(&mut pool, &mut self.lend_pool);
 
-        LendPoolCommand::update_or_insert(&mut conn, pool)?;
+        LendPoolCommand::insert(&mut conn, pool)?;
 
         Ok(())
     }
@@ -260,24 +260,31 @@ impl DatabaseArchiver {
                         value,
                     } = msg;
                     match value {
-                        Event::TraderOrder(trader_order, ..) => {
+                        Event::TraderOrder(trader_order, _cmd, seq) => {
                             self.trader_order(trader_order.into())?;
                         }
-                        Event::TraderOrderUpdate(trader_order, ..) => {
+                        Event::TraderOrderUpdate(trader_order, _cmd, seq) => {
                             self.trader_order(trader_order.into())?;
                         }
-                        Event::TraderOrderFundingUpdate(trader_order, ..) => {
+                        Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
+                            // NOTE: no seq# for funding updates?
                             self.trader_order(trader_order.into())?;
                         }
-                        Event::TraderOrderLiquidation(trader_order, ..) => {
+                        Event::TraderOrderLiquidation(trader_order, _cmd, seq) => {
                             self.trader_order(trader_order.into())?;
                         }
-                        Event::LendOrder(lend_order, ..) => self.lend_order(lend_order.into())?,
-                        Event::FundingRateUpdate(funding_rate, _system_time) => {
-                            FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate)?;
+                        Event::LendOrder(lend_order, _cmd, seq) => {
+                            self.lend_order(lend_order.into())?
                         }
-                        Event::CurrentPriceUpdate(current_price, _system_time) => {
-                            CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price)?;
+                        Event::FundingRateUpdate(funding_rate, system_time) => {
+                            // TODO: this should really be converted to UTC upstream of this.
+                            let ts = system_time.into();
+                            FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, ts)?;
+                        }
+                        Event::CurrentPriceUpdate(current_price, system_time) => {
+                            // TODO: this should really be converted to UTC upstream of this.
+                            let ts = system_time.into();
+                            CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts)?;
                         }
                         Event::PoolUpdate(lend_pool_command, ..) => {
                             self.lend_pool_command(lend_pool_command)?;

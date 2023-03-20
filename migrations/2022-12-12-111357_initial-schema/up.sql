@@ -69,7 +69,8 @@ CREATE TABLE funding_rate (
 );
 
 CREATE TABLE trader_order (
-    uuid uuid primary key,
+    id bigserial primary key,
+    uuid uuid NOT NULL,
     account_id varchar NOT NULL,
     position_type position_type NOT NULL,
     order_status order_status NOT NULL,
@@ -94,7 +95,8 @@ CREATE TABLE trader_order (
 
 
 CREATE TABLE lend_order (
-    uuid uuid primary key,
+    id bigserial primary key,
+    uuid uuid NOT NULL,
     account_id varchar NOT NULL,
     balance numeric NOT NULL,
     order_status order_status NOT NULL,
