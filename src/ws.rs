@@ -1,15 +1,29 @@
-use crate::migrations;
+use crate::{
+    kafka::start_consumer,
+    migrations,
+};
+use crossbeam_channel::unbounded;
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
-use log::info;
+use log::{error, info, trace};
 use serde::Serialize;
+use std::time::{Duration, Instant, SystemTime};
 use tokio::{
     sync::broadcast::{channel, Receiver, Sender},
     task::JoinHandle,
 };
+use twilight_relayer_rust::{
+    db::{self as relayer_db, Event, EventLog},
+    relayer,
+};
 
 mod methods;
+
+
+const SNAPSHOT_TOPIC: &str = "CoreEventLogTopic";
+const WEBSOCKET_GROUP: &str = "Websocket";
+const WS_UPDATE_INTERVAL: u64 = 250;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 20;
 
@@ -17,29 +31,83 @@ type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
 pub struct WsContext {
-    hello_sub: Sender<()>,
+    price_feed: Sender<(f64, SystemTime)>,
     _watcher: JoinHandle<()>,
+    _kafka_sub: std::thread::JoinHandle<()>,
 }
 
 impl WsContext {
     pub fn new() -> WsContext {
-        let (tx, rx) = channel::<()>(BROADCAST_CHANNEL_CAPACITY);
+        let (tx, _) = channel::<(f64, SystemTime)>(BROADCAST_CHANNEL_CAPACITY);
 
         let t2 = tx.clone();
 
+        let (rx, _kafka_sub) = {
+            let (tx, rx) = unbounded();
+            let h = start_consumer(WEBSOCKET_GROUP.into(), SNAPSHOT_TOPIC.into(), tx);
+
+            (rx, h)
+        };
+
         let _watcher = tokio::task::spawn(async move {
+            let mut deadline = Instant::now() + Duration::from_millis(WS_UPDATE_INTERVAL);
             loop {
-                // TODO: monitor/dispatch all the things.
-                tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
-                if let Err(e) = t2.send(()) {
-                    info!("No subscribers present {:?}", e);
+                match rx.recv_deadline(deadline) {
+                    Ok(msg) => {
+                        let EventLog {
+                            offset: _,
+                            key: _,
+                            value,
+                        } = msg;
+                        match value {
+                            Event::TraderOrder(trader_order, _cmd, seq) => {
+                            }
+                            Event::TraderOrderUpdate(trader_order, _cmd, seq) => {
+                            }
+                            Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
+                            }
+                            Event::TraderOrderLiquidation(trader_order, _cmd, seq) => {
+                            }
+                            Event::LendOrder(lend_order, _cmd, seq) => {
+                            }
+                            Event::FundingRateUpdate(funding_rate, system_time) => {
+                            }
+                            Event::CurrentPriceUpdate(current_price, system_time) => {
+                                if let Err(e) = t2.send((current_price, system_time)) {
+                                    info!("No subscribers present {:?}", e);
+                                }
+                            }
+                            Event::PoolUpdate(lend_pool_command, ..) => {
+                            }
+                            Event::SortedSetDBUpdate(sorted_set_command) => {
+                            }
+                            Event::PositionSizeLogDBUpdate(
+                                position_size_log_command,
+                                position_size_log,
+                            ) => {
+                            }
+                            Event::Stop(_stop) => {
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        if e.is_timeout() {
+                            trace!("Timeout reached");
+                            deadline = Instant::now() + Duration::from_millis(WS_UPDATE_INTERVAL);
+                            trace!("New deadline: {:?}", deadline);
+                        } else {
+                            error!("Channel disconnected!");
+                            break;
+                        }
+                    }
                 }
             }
         });
 
         WsContext {
-            hello_sub: tx,
+            price_feed: tx,
             _watcher,
+            _kafka_sub,
         }
     }
 }
@@ -56,10 +124,10 @@ pub fn init_methods(database_url: &str) -> RpcModule<WsContext> {
 
     module
         .register_subscription(
-            "subscribe_hello",
-            "s_hello",
-            "unsubscribe_hello",
-            |params, sink, ctx| methods::spawn_hello(params, sink, ctx),
+            "subscribe_live_price_data",
+            "s_live_price_data",
+            "unsubscribe_live_price_data",
+            methods::spawn_live_price_data,
         )
         .unwrap();
 
