@@ -5,6 +5,10 @@ use crate::database::{
     },
     sql_types::*,
 };
+use crate::rpc::{
+    HistoricalFundingArgs,
+    HistoricalPriceArgs,
+};
 use bigdecimal::{BigDecimal, FromPrimitive};
 use chrono::prelude::*;
 use diesel::prelude::*;
@@ -359,6 +363,18 @@ impl BtcUsdPrice {
 
         btc_usd_price.order_by(timestamp.desc()).first(conn)
     }
+
+    pub fn get_historical(conn: &mut PgConnection, args: Option<HistoricalPriceArgs>) -> QueryResult<Vec<BtcUsdPrice>> {
+        use crate::database::schema::btc_usd_price::dsl::*;
+
+        if let Some(args) = args {
+            let HistoricalPriceArgs { from, to } = args;
+
+            btc_usd_price.filter(timestamp.ge(from).and(timestamp.lt(to))).load(conn)
+        } else {
+            btc_usd_price.load(conn)
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
@@ -401,6 +417,18 @@ impl FundingRate {
         use crate::database::schema::funding_rate::dsl::*;
 
         funding_rate.order_by(timestamp.desc()).first(conn)
+    }
+
+    pub fn get_historical(conn: &mut PgConnection, args: Option<HistoricalFundingArgs>) -> QueryResult<Vec<FundingRate>> {
+        use crate::database::schema::funding_rate::dsl::*;
+
+        if let Some(args) = args {
+            let HistoricalFundingArgs { from, to } = args;
+
+            funding_rate.filter(timestamp.ge(from).and(timestamp.lt(to))).load(conn)
+        } else {
+            funding_rate.load(conn)
+        }
     }
 }
 
@@ -494,6 +522,14 @@ impl TraderOrder {
         let query = diesel::insert_into(trader_order).values(&orders);
 
         query.execute(conn)
+    }
+
+    pub fn list_open_limit_orders(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
+        use crate::database::schema::trader_order::dsl::*;
+
+        //trader_order.filter(order_type.eq(OrderType::LIMIT).and(order_status.eq(OrderStatus::PENDING))).load(conn)
+        //TODO: the trait `QueryId` is not implemented for ...
+        Ok(vec![])
     }
 }
 

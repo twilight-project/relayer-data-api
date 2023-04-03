@@ -5,6 +5,10 @@ use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
 use serde::Serialize;
 
 mod methods;
+pub use methods::{
+    HistoricalFundingArgs,
+    HistoricalPriceArgs,
+};
 
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
@@ -55,6 +59,26 @@ pub fn init_methods(database_url: &str) -> RpcModule<RelayerContext> {
         &mut module,
         "btc_usd_price",
         Box::new(methods::btc_usd_price),
+    );
+    register_method(
+        &mut module,
+        "historical_price",
+        Box::new(methods::historical_price),
+    );
+    register_method(
+        &mut module,
+        "historical_funding_rate",
+        Box::new(methods::historical_funding_rate),
+    );
+    register_method(
+        &mut module,
+        "open_limit_orders",
+        Box::new(methods::open_limit_orders),
+    );
+    register_method(
+        &mut module,
+        "last_day_apy",
+        Box::new(methods::last_day_apy),
     );
 
     module

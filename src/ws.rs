@@ -32,15 +32,18 @@ type ManagedPool = r2d2::Pool<ManagedConnection>;
 
 pub struct WsContext {
     price_feed: Sender<(f64, SystemTime)>,
+    order_book: Sender<relayer::TraderOrder>,
     _watcher: JoinHandle<()>,
     _kafka_sub: std::thread::JoinHandle<()>,
 }
 
 impl WsContext {
     pub fn new() -> WsContext {
-        let (tx, _) = channel::<(f64, SystemTime)>(BROADCAST_CHANNEL_CAPACITY);
+        let (price_feed, _) = channel::<(f64, SystemTime)>(BROADCAST_CHANNEL_CAPACITY);
+        let (order_book, _) = channel::<relayer::TraderOrder>(BROADCAST_CHANNEL_CAPACITY);
 
-        let t2 = tx.clone();
+        let price_feed2 = price_feed.clone();
+        let order_book2 = order_book.clone();
 
         let (rx, _kafka_sub) = {
             let (tx, rx) = unbounded();
@@ -60,20 +63,24 @@ impl WsContext {
                             value,
                         } = msg;
                         match value {
-                            Event::TraderOrder(trader_order, _cmd, seq) => {
-                            }
-                            Event::TraderOrderUpdate(trader_order, _cmd, seq) => {
-                            }
-                            Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
-                            }
-                            Event::TraderOrderLiquidation(trader_order, _cmd, seq) => {
+                            Event::TraderOrder(to, ..) |
+                            Event::TraderOrderUpdate(to, ..) |
+                            Event::TraderOrderFundingUpdate(to, ..) |
+                            Event::TraderOrderLiquidation(to, ..) => {
+                                // TODO: API spec says "Open limit orders" for this, is that all we
+                                // want?
+                                if to.order_type == relayer::OrderType::LIMIT {
+                                    if let Err(e) = order_book2.send(to) {
+                                        info!("No order book subscribers present {:?}", e);
+                                    }
+                                }
                             }
                             Event::LendOrder(lend_order, _cmd, seq) => {
                             }
                             Event::FundingRateUpdate(funding_rate, system_time) => {
                             }
                             Event::CurrentPriceUpdate(current_price, system_time) => {
-                                if let Err(e) = t2.send((current_price, system_time)) {
+                                if let Err(e) = price_feed2.send((current_price, system_time)) {
                                     info!("No subscribers present {:?}", e);
                                 }
                             }
@@ -105,7 +112,8 @@ impl WsContext {
         });
 
         WsContext {
-            price_feed: tx,
+            price_feed,
+            order_book,
             _watcher,
             _kafka_sub,
         }
@@ -128,6 +136,15 @@ pub fn init_methods(database_url: &str) -> RpcModule<WsContext> {
             "s_live_price_data",
             "unsubscribe_live_price_data",
             methods::spawn_live_price_data,
+        )
+        .unwrap();
+
+    module
+        .register_subscription(
+            "subscribe_order_book",
+            "s_order_book",
+            "unsubscribe_order_book",
+            methods::spawn_order_book,
         )
         .unwrap();
 

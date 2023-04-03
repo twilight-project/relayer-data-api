@@ -11,6 +11,13 @@ ws.addEventListener('open', () => {
 		method: "subscribe_live_price_data",
 		params: null,
 	}));
+
+	ws.send(JSON.stringify({
+		jsonrpc: "2.0",
+		id: "order_book",
+		method: "subscribe_order_book",
+		params: null,
+	}));
 });
 
 process.on('SIGINT', function () {
@@ -38,8 +45,11 @@ ws.addEventListener('message', (message) => {
       console.log('Subscription id: ', obj.result);
       subscriptions[obj.id] = obj.result;
   } else {
-      if (obj.method == "subscribe_live_price_data") {
+          console.log(`Got method: ${obj.method}`);
+      if (obj.method == "s_live_price_data") {
           console.log(`Got live_data method: ${JSON.stringify(obj.params)}`);
+      } else if (obj.method == "s_order_book") {
+          console.log(`Got order_book method: ${JSON.stringify(obj.params)}`);
       } else {
 	      console.log(`Other method: ${JSON.stringify(obj.params)}`);
       }

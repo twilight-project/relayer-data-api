@@ -57,7 +57,7 @@ pub enum PositionSizeCommand {
     REMOVE,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression, QueryId)]
 #[diesel(sql_type = OrderTypeSql)]
 pub enum OrderType {
     LIMIT,
@@ -73,7 +73,7 @@ pub enum PositionType {
     SHORT,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression, QueryId)]
 #[diesel(sql_type = OrderStatusSql)]
 pub enum OrderStatus {
     SETTLED,
