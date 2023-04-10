@@ -67,8 +67,7 @@ impl WsContext {
                             Event::TraderOrderUpdate(to, ..) |
                             Event::TraderOrderFundingUpdate(to, ..) |
                             Event::TraderOrderLiquidation(to, ..) => {
-                                // TODO: API spec says "Open limit orders" for this, is that all we
-                                // want?
+                                println!("TJDEBUG got an order {:?}", to);
                                 if to.order_type == relayer::OrderType::LIMIT {
                                     if let Err(e) = order_book2.send(to) {
                                         info!("No order book subscribers present {:?}", e);
