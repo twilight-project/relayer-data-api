@@ -8,6 +8,7 @@ use crate::database::{
 use crate::rpc::{
     HistoricalFundingArgs,
     HistoricalPriceArgs,
+    Interval,
 };
 use bigdecimal::{BigDecimal, FromPrimitive};
 use chrono::prelude::*;
@@ -347,6 +348,12 @@ impl PositionSizeLog {
             .values(items)
             .execute(conn)
     }
+
+    pub fn get_latest(conn: &mut PgConnection) -> QueryResult<PositionSizeLog> {
+        use crate::database::schema::position_size_log::dsl::*;
+
+        position_size_log.order(id.desc()).first(conn)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
@@ -355,6 +362,22 @@ pub struct BtcUsdPrice {
     pub id: i64,
     pub price: BigDecimal,
     pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName)]
+pub struct CandleData {
+    #[diesel(sql_type = diesel::sql_types::Timestamp)]
+    pub start: DateTime<Utc>,
+    #[diesel(sql_type = diesel::sql_types::Timestamp)]
+    pub end: DateTime<Utc>,
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub low: BigDecimal,
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub high: BigDecimal,
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub open: BigDecimal,
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub close: BigDecimal,
 }
 
 impl BtcUsdPrice {
@@ -374,6 +397,34 @@ impl BtcUsdPrice {
         } else {
             btc_usd_price.load(conn)
         }
+    }
+
+    pub fn candles(conn: &mut PgConnection, interval: Interval) -> QueryResult<Vec<CandleData>> {
+        use crate::database::schema::btc_usd_price::dsl::*;
+
+        //TODO: will need to update the start offset below.
+        let interval = interval.interval_sql();
+
+        let query = format!(r#"
+            SELECT
+                min(timestamp) OVER w as start,
+                max(timestamp) OVER w as end,
+                min(price) OVER w as low,
+                max(price) OVER w as high,
+                first_value(price) OVER w as open,
+                last_value(price) OVER w as close
+            FROM btc_usd_price
+            WINDOW w AS (
+                PARTITION BY date_bin({}, timestamp, now() - interval '1 day')
+                ORDER BY timestamp ASC
+                )
+            ORDER BY timestamp;
+
+        "#, interval);
+
+        // TODO: finish this....
+        //diesel::sql_query(query).load(conn)
+        Ok(vec![])
     }
 }
 
@@ -527,9 +578,14 @@ impl TraderOrder {
     pub fn list_open_limit_orders(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
         use crate::database::schema::trader_order::dsl::*;
 
-        //trader_order.filter(order_type.eq(OrderType::LIMIT).and(order_status.eq(OrderStatus::PENDING))).load(conn)
-        //TODO: the trait `QueryId` is not implemented for ...
-        Ok(vec![])
+        trader_order.filter(order_type.eq(OrderType::LIMIT).and(order_status.eq(OrderStatus::PENDING))).load(conn)
+    }
+
+    pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
+        use crate::database::schema::trader_order::dsl::*;
+
+        let start = Utc::now() - chrono::Duration::days(1);
+        trader_order.filter(timestamp.ge(start)).load(conn)
     }
 }
 

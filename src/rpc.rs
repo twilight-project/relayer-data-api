@@ -8,6 +8,7 @@ mod methods;
 pub use methods::{
     HistoricalFundingArgs,
     HistoricalPriceArgs,
+    Interval,
 };
 
 type ManagedConnection = ConnectionManager<PgConnection>;
@@ -77,9 +78,30 @@ pub fn init_methods(database_url: &str) -> RpcModule<RelayerContext> {
     );
     register_method(
         &mut module,
-        "last_day_apy",
-        Box::new(methods::last_day_apy),
+        "recent_trade_orders",
+        Box::new(methods::recent_trade_orders),
     );
+    register_method(
+        &mut module,
+        "candle_data",
+        Box::new(methods::candle_data),
+    );
+    register_method(
+        &mut module,
+        "server_time",
+        Box::new(methods::server_time),
+    );
+    register_method(
+        &mut module,
+        "position_size",
+        Box::new(methods::position_size),
+    );
+    // TODO:
+    //register_method(
+    //    &mut module,
+    //    "last_day_apy",
+    //    Box::new(methods::last_day_apy),
+    //);
 
     module
 }

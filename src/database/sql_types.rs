@@ -66,6 +66,11 @@ pub enum OrderType {
     LEND,
 }
 
+impl diesel::query_builder::QueryId for OrderTypeSql {
+    type QueryId = ();
+    const HAS_STATIC_QUERY_ID: bool = false;
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = PositionTypeSql)]
 pub enum PositionType {
@@ -82,6 +87,11 @@ pub enum OrderStatus {
     CANCELLED,
     PENDING,
     FILLED,
+}
+
+impl diesel::query_builder::QueryId for OrderStatusSql {
+    type QueryId = ();
+    const HAS_STATIC_QUERY_ID: bool = false;
 }
 
 impl ToSql<LendPoolCommandTypeSql, Pg> for LendPoolCommandType {
