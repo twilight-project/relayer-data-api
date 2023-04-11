@@ -117,6 +117,7 @@ fn lend_pool_to_batch(item: relayer_db::LendPoolCommand) -> Vec<LendPoolCommandU
                         .flat_map(lend_pool_to_batch)
                         .collect()
                 }
+                relayer::RelayerCommand::RpcCommandPoolUpdate() => {}
                 o => {
                     panic!("Relayer command {:?} not handled", o)
                 }
