@@ -25,6 +25,7 @@ pub struct DatabaseArchiver {
     position_size: Vec<PositionSizeUpdate>,
     sorted_set: Vec<relayer::SortedSetCommand>,
     lend_pool: Vec<relayer_db::LendPoolCommand>,
+    nonce: Nonce
 }
 
 impl DatabaseArchiver {
@@ -42,6 +43,7 @@ impl DatabaseArchiver {
         let position_size = Vec::with_capacity(BATCH_SIZE);
         let sorted_set = Vec::with_capacity(BATCH_SIZE);
         let lend_pool = Vec::with_capacity(BATCH_SIZE);
+        let nonce = Nonce::get(&mut conn).expect("Failed to query for current nonce");
 
         DatabaseArchiver {
             pool,
@@ -50,6 +52,7 @@ impl DatabaseArchiver {
             position_size,
             sorted_set,
             lend_pool,
+            nonce,
         }
     }
 
@@ -217,7 +220,7 @@ impl DatabaseArchiver {
         let mut pool = Vec::with_capacity(self.lend_pool.capacity());
         std::mem::swap(&mut pool, &mut self.lend_pool);
 
-        LendPoolCommand::insert(&mut conn, pool)?;
+        LendPoolCommand::insert(&mut conn, pool, &mut self.nonce)?;
 
         Ok(())
     }
@@ -267,7 +270,6 @@ impl DatabaseArchiver {
                             self.trader_order(trader_order.into())?;
                         }
                         Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
-                            // NOTE: no seq# for funding updates?
                             self.trader_order(trader_order.into())?;
                         }
                         Event::TraderOrderLiquidation(trader_order, _cmd, seq) => {

@@ -6,6 +6,7 @@ DROP TABLE btc_usd_price;
 DROP TABLE position_size_log;
 DROP TABLE sorted_set_command;
 DROP TABLE lend_pool_command;
+DROP TABLE current_nonce;
 
 DROP TYPE order_status;
 DROP TYPE position_type;

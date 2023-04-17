@@ -1,7 +1,7 @@
 use crate::database::{
     schema::{
         btc_usd_price, funding_rate, lend_order, lend_pool_command, position_size_log,
-        sorted_set_command, trader_order,
+        sorted_set_command, trader_order, current_nonce,
     },
     sql_types::*,
 };
@@ -19,6 +19,55 @@ use twilight_relayer_rust::{db as relayer_db, relayer};
 use uuid::Uuid;
 
 pub type PositionSizeUpdate = (relayer::PositionSizeLogCommand, relayer_db::PositionSizeLog);
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
+#[diesel(table_name = current_nonce)]
+pub struct Nonce {
+    pub id: i64,
+    pub nonce: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = current_nonce)]
+pub struct NewNonce {
+    pub nonce: i64,
+}
+
+
+impl Nonce {
+    pub fn get(conn: &mut PgConnection) -> QueryResult<Nonce> {
+        use crate::database::schema::current_nonce::dsl::*;
+
+        match current_nonce.order_by(id.desc()).first(conn) {
+            Ok(n) => Ok(n),
+            Err(diesel::result::Error::NotFound) => {
+                let n = NewNonce { nonce: 0 };
+                diesel::insert_into(current_nonce).values(n).execute(conn);
+
+                current_nonce.order_by(id.desc()).first(conn)
+            }
+            e => e
+        }
+    }
+
+    pub fn increment(&mut self) -> QueryResult<()> {
+        self.nonce += 1;
+        Ok(())
+    }
+
+    pub fn save(&self, conn: &mut PgConnection) -> QueryResult<()> {
+        use crate::database::schema::current_nonce::dsl::*;
+
+        let _ = diesel::insert_into(current_nonce)
+            .values(&*self)
+            .on_conflict(id)
+            .do_update()
+            .set(nonce.eq(self.nonce))
+            .execute(conn);
+
+        Ok(())
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
 #[diesel(table_name = lend_pool_command)]
@@ -53,19 +102,21 @@ impl LendPoolCommand {
     pub fn insert(
         conn: &mut PgConnection,
         updates: Vec<relayer_db::LendPoolCommand>,
+        nonce: &mut Nonce,
     ) -> QueryResult<usize> {
         use crate::database::schema::lend_pool_command::dsl::*;
 
         let items: Vec<LendPoolCommandUpdate> =
-            updates.into_iter().flat_map(lend_pool_to_batch).collect();
+            updates.into_iter().flat_map(|cmd| lend_pool_to_batch(cmd, nonce)).collect();
 
+        let _ = nonce.save(conn)?;
         diesel::insert_into(lend_pool_command)
             .values(items)
             .execute(conn)
     }
 }
 
-fn lend_pool_to_batch(item: relayer_db::LendPoolCommand) -> Vec<LendPoolCommandUpdate> {
+fn lend_pool_to_batch(item: relayer_db::LendPoolCommand, pool_nonce: &mut Nonce) -> Vec<LendPoolCommandUpdate> {
     match item {
         relayer_db::LendPoolCommand::AddTraderOrderSettlement(_, order, p) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
@@ -114,10 +165,13 @@ fn lend_pool_to_batch(item: relayer_db::LendPoolCommand) -> Vec<LendPoolCommandU
 
                     trader_order_data
                         .into_iter()
-                        .flat_map(lend_pool_to_batch)
+                        .flat_map(|cmd| lend_pool_to_batch(cmd, pool_nonce))
                         .collect()
                 }
-                relayer::RelayerCommand::RpcCommandPoolUpdate() => {}
+                relayer::RelayerCommand::RpcCommandPoolupdate() => {
+                    pool_nonce.increment();
+                    vec![]
+                }
                 o => {
                     panic!("Relayer command {:?} not handled", o)
                 }
@@ -367,9 +421,9 @@ pub struct BtcUsdPrice {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName)]
 pub struct CandleData {
-    #[diesel(sql_type = diesel::sql_types::Timestamp)]
+    #[diesel(sql_type = diesel::sql_types::Timestamptz)]
     pub start: DateTime<Utc>,
-    #[diesel(sql_type = diesel::sql_types::Timestamp)]
+    #[diesel(sql_type = diesel::sql_types::Timestamptz)]
     pub end: DateTime<Utc>,
     #[diesel(sql_type = diesel::sql_types::Numeric)]
     pub low: BigDecimal,
@@ -400,32 +454,28 @@ impl BtcUsdPrice {
         }
     }
 
-    pub fn candles(conn: &mut PgConnection, interval: Interval) -> QueryResult<Vec<CandleData>> {
+    pub fn candles(conn: &mut PgConnection, interval: Interval, since: DateTime<Utc>) -> QueryResult<Vec<CandleData>> {
         use crate::database::schema::btc_usd_price::dsl::*;
 
-        //TODO: will need to update the start offset below.
         let interval = interval.interval_sql();
 
         let query = format!(r#"
+        SELECT min(timestamp) as start, max(timestamp) as end, min(open) as open, min(close) as close, max(price) as high, min(price) as low
+        FROM (
             SELECT
-                min(timestamp) OVER w as start,
-                max(timestamp) OVER w as end,
-                min(price) OVER w as low,
-                max(price) OVER w as high,
-                first_value(price) OVER w as open,
-                last_value(price) OVER w as close
-            FROM btc_usd_price
-            WINDOW w AS (
-                PARTITION BY date_bin({}, timestamp, now() - interval '1 day')
-                ORDER BY timestamp ASC
-                )
-            ORDER BY timestamp;
+                 t.timestamp as window_ts,
+                 c.*,
+                 first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp asc) AS open,
+                 first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp desc) AS close
+            FROM generate_series('{}', now(), {}) t(timestamp)
+            LEFT JOIN btc_usd_price c
+            ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {}
+        ) as w
+        WHERE open IS NOT NULL
+        GROUP BY window_ts
+        "#, since, interval, interval);
 
-        "#, interval);
-
-        // TODO: finish this....
-        //diesel::sql_query(query).load(conn)
-        Ok(vec![])
+        diesel::sql_query(query).get_results(conn)
     }
 }
 

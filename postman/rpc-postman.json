@@ -1,0 +1,443 @@
+{
+	"info": {
+		"_postman_id": "4240b429-c47e-482a-b9bb-78bba33b65a9",
+		"name": "Twilight RelayerAPI Postman Requests",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "13084114"
+	},
+	"item": [
+		{
+			"name": "CandleData",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {},
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"candle_data\", \"id\":123, \"params\": {\"interval\": \"FIVE_MINUTE\", \"since\": \"2023-04-17T00:01:00.0Z\"}  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989",
+					"query": []
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetFundingRate",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {},
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"get_funding_rate\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989",
+					"query": []
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "BtcUsdPrice",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {},
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"btc_usd_price\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989",
+					"query": []
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "HistoricalPrice",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {},
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"historical_price\", \"id\":123, \"params\": {\"from\": \"2023-04-22T00:00:00Z\", \"to\": \"2023-04-22T01:00:00Z\"}  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989",
+					"query": []
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "TraderOrderInfo",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {},
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"trader_order_info\", \"id\":123, \"params\": {\"id\": \"1a7fded3-7487-47ca-b88e-6aa438fda631\"}  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989",
+					"query": []
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "LendOrderInfo",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {},
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"lend_order_info\", \"id\":123, \"params\": {\"id\": \"1a7fded3-7487-47ca-b88e-6aa438fda631\"}  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989",
+					"query": []
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "ServerTime",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {},
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"server_time\", \"id\":123 }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989",
+					"query": []
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

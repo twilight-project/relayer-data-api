@@ -35,6 +35,13 @@ diesel::table! {
 }
 
 diesel::table! {
+    current_nonce (id) {
+        id -> Int8,
+        nonce -> Int8,
+    }
+}
+
+diesel::table! {
     funding_rate (id) {
         id -> Int8,
         rate -> Numeric,
@@ -151,6 +158,7 @@ diesel::table! {
 
 diesel::allow_tables_to_appear_in_same_query!(
     btc_usd_price,
+    current_nonce,
     funding_rate,
     lend_order,
     lend_pool_command,

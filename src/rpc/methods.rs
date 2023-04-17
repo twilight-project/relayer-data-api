@@ -13,6 +13,7 @@ pub struct OrderId {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Candles {
     pub interval: Interval,
+    pub since: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -180,10 +181,10 @@ pub(super) fn candle_data(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let Candles { interval } = params.parse()?;
+    let Candles { interval, since } = params.parse()?;
 
     match ctx.pool.get() {
-        Ok(mut conn) => match BtcUsdPrice::candles(&mut conn, interval) {
+        Ok(mut conn) => match BtcUsdPrice::candles(&mut conn, interval, since) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!("Error fetching candles info: {:?}", e))),
         },

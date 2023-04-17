@@ -30,6 +30,11 @@ CREATE TYPE lend_pool_command_type AS ENUM (
 	'INITIATE_NEW_POOL'
 );
 
+CREATE TABLE current_nonce (
+	id bigserial primary key,
+	nonce bigint NOT NULL
+);
+
 CREATE TABLE lend_pool_command (
 	id bigserial primary key,
 	command lend_pool_command_type NOT NULL,
