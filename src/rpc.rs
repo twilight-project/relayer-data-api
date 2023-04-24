@@ -11,6 +11,7 @@ pub use methods::{
     Interval,
 };
 
+
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 

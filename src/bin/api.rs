@@ -1,6 +1,15 @@
 use jsonrpsee::server::ServerBuilder;
+use http::{Request, Response};
+use http_body::Empty;
+use http::header::AUTHORIZATION;
 use log::info;
-use std::{net::SocketAddr, time::Duration};
+use std::{iter::once, net::SocketAddr, time::Duration};
+use tower::ServiceBuilder;
+use tower_http::{
+    auth::require_authorization::Bearer,
+    sensitive_headers::SetSensitiveRequestHeadersLayer,
+    validate_request::{ValidateRequest, ValidateRequestHeaderLayer},
+};
 use structopt::StructOpt;
 use tokio::time::sleep;
 use twilight_relayerAPI::{rpc, ws};
@@ -24,6 +33,20 @@ struct Opt {
     ws_listen_addr: SocketAddr,
 }
 
+#[derive(Clone, Copy)]
+pub struct AuthHeader;
+
+impl<B> ValidateRequest<B> for AuthHeader {
+    type ResponseBody = Empty<Vec<u8>>;
+
+    fn validate(
+        &mut self,
+        request: &mut Request<B>,
+    ) -> Result<(), Response<Self::ResponseBody>> {
+        todo!("Auth vallid8")
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let opts = Opt::from_args();
@@ -37,6 +60,11 @@ async fn main() {
 
     let addrs: &[SocketAddr] = &[opts.listen_addr];
     let database_url = std::env::var("DATABASE_URL").expect("No database url found!");
+
+    // TODO: env var
+    let middleware = ServiceBuilder::new()
+        .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
+        .layer(ValidateRequestHeaderLayer::custom(AuthHeader));
 
     info!("Starting RPC server on {:?}", opts.listen_addr);
     let server = ServerBuilder::new()

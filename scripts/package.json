@@ -4,6 +4,7 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
+    "jsonwebtoken": "^9.0.0",
     "node-jsonrpc-client": "^2.0.0",
     "websocket": "^1.0.34"
   }
