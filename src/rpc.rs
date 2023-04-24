@@ -1,8 +1,14 @@
 use crate::migrations;
+use chrono::prelude::*;
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
+use hmac::Hmac;
 use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
-use serde::Serialize;
+use jwt::{AlgorithmType, Header, Token, VerifyWithKey};
+use http::{header::AUTHORIZATION, Request};
+use hyper::Body;
+use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 
 mod methods;
 pub use methods::{
@@ -20,6 +26,50 @@ type HandlerType<R> =
 
 pub struct RelayerContext {
     pub pool: ManagedPool,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AuthToken {
+    userid: String,
+    is_admin: bool,
+    // TODO: parse as DateTime<Utc>
+    exp: usize,
+}
+
+pub struct UserId(String);
+
+// TODO: replace with keystore??
+pub async fn check_auth(request: &Request<Body>, key: &Hmac<Sha256>) -> Option<UserId> {
+    match request.headers().get(AUTHORIZATION) {
+        Some(header) => {
+            match header.to_str() {
+                Ok(strval) => {
+                    let mut split = strval.split(' ');
+                    let bearer = split.next();
+                    let token = split.next();
+
+                    if bearer != Some("Bearer") {
+                        return None;
+                    }
+
+                    if token.is_none() {
+                        return None;
+                    }
+
+                    match token.unwrap().verify_with_key(key) {
+                        Ok::<Token<Header, AuthToken, _>, jwt::Error>(token) => {
+                            let header = token.header();
+                            let claims = token.claims();
+                            Some(UserId(claims.userid.clone()))
+                        }
+                        Err(e) => None
+                    }
+                }
+                e => None
+            }
+        }
+        None => None
+    }
 }
 
 fn register_method<R: Serialize + 'static>(

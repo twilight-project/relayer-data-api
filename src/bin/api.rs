@@ -1,16 +1,17 @@
 use jsonrpsee::server::ServerBuilder;
 use http::{Request, Response};
-use http_body::Empty;
-use http::header::AUTHORIZATION;
+use hmac::{Hmac, Mac};
+use hyper::Body;
+use http::{header::AUTHORIZATION, StatusCode};
 use log::info;
 use std::{iter::once, net::SocketAddr, time::Duration};
 use tower::ServiceBuilder;
 use tower_http::{
-    auth::require_authorization::Bearer,
+    auth::{AsyncRequireAuthorizationLayer, AsyncAuthorizeRequest},
     sensitive_headers::SetSensitiveRequestHeadersLayer,
-    validate_request::{ValidateRequest, ValidateRequestHeaderLayer},
 };
 use structopt::StructOpt;
+use sha2::Sha256;
 use tokio::time::sleep;
 use twilight_relayerAPI::{rpc, ws};
 
@@ -33,20 +34,6 @@ struct Opt {
     ws_listen_addr: SocketAddr,
 }
 
-#[derive(Clone, Copy)]
-pub struct AuthHeader;
-
-impl<B> ValidateRequest<B> for AuthHeader {
-    type ResponseBody = Empty<Vec<u8>>;
-
-    fn validate(
-        &mut self,
-        request: &mut Request<B>,
-    ) -> Result<(), Response<Self::ResponseBody>> {
-        todo!("Auth vallid8")
-    }
-}
-
 #[tokio::main]
 async fn main() {
     let opts = Opt::from_args();
@@ -64,10 +51,24 @@ async fn main() {
     // TODO: env var
     let middleware = ServiceBuilder::new()
         .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
-        .layer(ValidateRequestHeaderLayer::custom(AuthHeader));
+        .layer(
+            AsyncRequireAuthorizationLayer::new(|request: Request<Body>| async move {
+                let key: Hmac<Sha256> = Hmac::new_from_slice(b"test_secret").expect("Bad key");
+                if let Some(user_id) = rpc::check_auth(&request, &key).await {
+                    Ok(request)
+                } else {
+                    let unauthorized_response = Response::builder()
+                        .status(StatusCode::UNAUTHORIZED)
+                        .body(Body::empty())
+                        .unwrap();
+
+                    Err(unauthorized_response)
+                }
+    }));
 
     info!("Starting RPC server on {:?}", opts.listen_addr);
     let server = ServerBuilder::new()
+        .set_middleware(middleware)
         .build(addrs)
         .await
         .expect("Failed to build API server");
