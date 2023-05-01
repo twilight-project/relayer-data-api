@@ -42,7 +42,7 @@ impl Nonce {
             Ok(n) => Ok(n),
             Err(diesel::result::Error::NotFound) => {
                 let n = NewNonce { nonce: 0 };
-                diesel::insert_into(current_nonce).values(n).execute(conn);
+                diesel::insert_into(current_nonce).values(n).execute(conn)?;
 
                 current_nonce.order_by(id.desc()).first(conn)
             }
@@ -750,7 +750,7 @@ impl From<relayer::TraderOrder> for InsertTraderOrder {
             leverage: BigDecimal::from_f64(leverage).unwrap(),
             initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
             available_margin: BigDecimal::from_f64(available_margin).unwrap(),
-            timestamp: timestamp.into(),
+            timestamp: DateTime::parse_from_rfc3339(&timestamp).expect("Bad datetime format").into(),
             bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap(),
             bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap(),
             maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap(),
@@ -801,7 +801,7 @@ impl From<relayer::LendOrder> for InsertLendOrder {
             exit_nonce: exit_nonce as i64,
             deposit: BigDecimal::from_f64(deposit).unwrap(),
             new_lend_state_amount: BigDecimal::from_f64(new_lend_state_amount).unwrap(),
-            timestamp: timestamp.into(),
+            timestamp: DateTime::parse_from_rfc3339(&timestamp).expect("Bad datetime format").into(),
             npoolshare: BigDecimal::from_f64(npoolshare).unwrap(),
             nwithdraw: BigDecimal::from_f64(nwithdraw).unwrap(),
             payment: BigDecimal::from_f64(payment).unwrap(),

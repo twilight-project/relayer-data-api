@@ -24,7 +24,8 @@ if (args.is_admin !== undefined) {
 	is_admin = false;
 }
 
-// 1 hour from now, plenty good for testing
-var expires = Math.floor(Date.now() / 1000) + (60 * 60);
+// 100 years
+var expires = Math.floor(Date.now() / 1000) + 100*365*24*(60 * 60);
+console.log(expires);
 
 console.log(jwt.sign({userid: userid, is_admin: is_admin, exp: expires }, secret))

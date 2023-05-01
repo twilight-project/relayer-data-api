@@ -1,4 +1,5 @@
 use crate::{database::*, error::ApiError, migrations};
+use chrono::prelude::*;
 use crossbeam_channel::Receiver;
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
@@ -279,13 +280,11 @@ impl DatabaseArchiver {
                             self.lend_order(lend_order.into())?
                         }
                         Event::FundingRateUpdate(funding_rate, system_time) => {
-                            // TODO: this should really be converted to UTC upstream of this.
-                            let ts = system_time.into();
+                            let ts = DateTime::parse_from_rfc3339(&system_time).expect("Bad datetime format").into();
                             FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, ts)?;
                         }
                         Event::CurrentPriceUpdate(current_price, system_time) => {
-                            // TODO: this should really be converted to UTC upstream of this.
-                            let ts = system_time.into();
+                            let ts = DateTime::parse_from_rfc3339(&system_time).expect("Bad datetime format").into();
                             CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts)?;
                         }
                         Event::PoolUpdate(lend_pool_command, ..) => {

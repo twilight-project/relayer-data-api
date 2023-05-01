@@ -2,6 +2,7 @@ use crate::{
     kafka::start_consumer,
     migrations,
 };
+use chrono::prelude::*;
 use crossbeam_channel::unbounded;
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
@@ -31,7 +32,7 @@ type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
 pub struct WsContext {
-    price_feed: Sender<(f64, SystemTime)>,
+    price_feed: Sender<(f64, DateTime<Utc>)>,
     order_book: Sender<relayer::TraderOrder>,
     _watcher: JoinHandle<()>,
     _kafka_sub: std::thread::JoinHandle<()>,
@@ -39,7 +40,7 @@ pub struct WsContext {
 
 impl WsContext {
     pub fn new() -> WsContext {
-        let (price_feed, _) = channel::<(f64, SystemTime)>(BROADCAST_CHANNEL_CAPACITY);
+        let (price_feed, _) = channel::<(f64, DateTime<Utc>)>(BROADCAST_CHANNEL_CAPACITY);
         let (order_book, _) = channel::<relayer::TraderOrder>(BROADCAST_CHANNEL_CAPACITY);
 
         let price_feed2 = price_feed.clone();
@@ -67,7 +68,6 @@ impl WsContext {
                             Event::TraderOrderUpdate(to, ..) |
                             Event::TraderOrderFundingUpdate(to, ..) |
                             Event::TraderOrderLiquidation(to, ..) => {
-                                println!("TJDEBUG got an order {:?}", to);
                                 if to.order_type == relayer::OrderType::LIMIT {
                                     if let Err(e) = order_book2.send(to) {
                                         info!("No order book subscribers present {:?}", e);
@@ -79,7 +79,8 @@ impl WsContext {
                             Event::FundingRateUpdate(funding_rate, system_time) => {
                             }
                             Event::CurrentPriceUpdate(current_price, system_time) => {
-                                if let Err(e) = price_feed2.send((current_price, system_time)) {
+                                let ts = DateTime::parse_from_rfc3339(&system_time).expect("Bad datetime format").into();
+                                if let Err(e) = price_feed2.send((current_price, ts)) {
                                     info!("No subscribers present {:?}", e);
                                 }
                             }

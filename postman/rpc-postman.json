@@ -1,9 +1,9 @@
 {
 	"info": {
-		"_postman_id": "4240b429-c47e-482a-b9bb-78bba33b65a9",
+		"_postman_id": "ba8ce684-6bed-4667-83d6-4c1f5a3836c7",
 		"name": "Twilight RelayerAPI Postman Requests",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "13084114"
+		"_exporter_id": "27185915"
 	},
 	"item": [
 		{
@@ -20,7 +20,6 @@
 				}
 			],
 			"request": {
-				"auth": {},
 				"method": "POST",
 				"header": [
 					{
@@ -59,8 +58,7 @@
 						"0",
 						"1"
 					],
-					"port": "8989",
-					"query": []
+					"port": "8989"
 				}
 			},
 			"response": []
@@ -79,7 +77,6 @@
 				}
 			],
 			"request": {
-				"auth": {},
 				"method": "POST",
 				"header": [
 					{
@@ -118,8 +115,7 @@
 						"0",
 						"1"
 					],
-					"port": "8989",
-					"query": []
+					"port": "8989"
 				}
 			},
 			"response": []
@@ -138,7 +134,6 @@
 				}
 			],
 			"request": {
-				"auth": {},
 				"method": "POST",
 				"header": [
 					{
@@ -177,8 +172,7 @@
 						"0",
 						"1"
 					],
-					"port": "8989",
-					"query": []
+					"port": "8989"
 				}
 			},
 			"response": []
@@ -197,7 +191,6 @@
 				}
 			],
 			"request": {
-				"auth": {},
 				"method": "POST",
 				"header": [
 					{
@@ -236,8 +229,7 @@
 						"0",
 						"1"
 					],
-					"port": "8989",
-					"query": []
+					"port": "8989"
 				}
 			},
 			"response": []
@@ -256,7 +248,6 @@
 				}
 			],
 			"request": {
-				"auth": {},
 				"method": "POST",
 				"header": [
 					{
@@ -295,8 +286,7 @@
 						"0",
 						"1"
 					],
-					"port": "8989",
-					"query": []
+					"port": "8989"
 				}
 			},
 			"response": []
@@ -315,7 +305,6 @@
 				}
 			],
 			"request": {
-				"auth": {},
 				"method": "POST",
 				"header": [
 					{
@@ -354,8 +343,7 @@
 						"0",
 						"1"
 					],
-					"port": "8989",
-					"query": []
+					"port": "8989"
 				}
 			},
 			"response": []
@@ -374,7 +362,6 @@
 				}
 			],
 			"request": {
-				"auth": {},
 				"method": "POST",
 				"header": [
 					{
@@ -413,13 +400,57 @@
 						"0",
 						"1"
 					],
-					"port": "8989",
-					"query": []
+					"port": "8989"
 				}
 			},
 			"response": []
 		}
 	],
+	"auth": {
+		"type": "jwt",
+		"jwt": [
+			{
+				"key": "payload",
+				"value": "{\n    \"userid\": \"me\",\n    \"is_admin\": false,\n    \"exp\": 4836542748\n}",
+				"type": "string"
+			},
+			{
+				"key": "secret",
+				"value": "test_secret",
+				"type": "string"
+			},
+			{
+				"key": "algorithm",
+				"value": "HS256",
+				"type": "string"
+			},
+			{
+				"key": "isSecretBase64Encoded",
+				"value": false,
+				"type": "boolean"
+			},
+			{
+				"key": "addTokenTo",
+				"value": "header",
+				"type": "string"
+			},
+			{
+				"key": "headerPrefix",
+				"value": "Bearer",
+				"type": "string"
+			},
+			{
+				"key": "queryParamKey",
+				"value": "token",
+				"type": "string"
+			},
+			{
+				"key": "header",
+				"value": "{}",
+				"type": "string"
+			}
+		]
+	},
 	"event": [
 		{
 			"listen": "prerequest",

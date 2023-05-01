@@ -1,19 +1,15 @@
 use jsonrpsee::server::ServerBuilder;
-use http::{Request, Response};
-use hmac::{Hmac, Mac};
-use hyper::Body;
-use http::{header::AUTHORIZATION, StatusCode};
+use http::header::AUTHORIZATION;
 use log::info;
 use std::{iter::once, net::SocketAddr, time::Duration};
 use tower::ServiceBuilder;
+use structopt::StructOpt;
+use tokio::time::sleep;
 use tower_http::{
-    auth::{AsyncRequireAuthorizationLayer, AsyncAuthorizeRequest},
+    auth::AsyncRequireAuthorizationLayer,
     sensitive_headers::SetSensitiveRequestHeadersLayer,
 };
-use structopt::StructOpt;
-use sha2::Sha256;
-use tokio::time::sleep;
-use twilight_relayerAPI::{rpc, ws};
+use twilight_relayerAPI::{auth, rpc, ws};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Relayer API", about = "Twilight Relayer API server")]
@@ -51,20 +47,7 @@ async fn main() {
     // TODO: env var
     let middleware = ServiceBuilder::new()
         .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
-        .layer(
-            AsyncRequireAuthorizationLayer::new(|request: Request<Body>| async move {
-                let key: Hmac<Sha256> = Hmac::new_from_slice(b"test_secret").expect("Bad key");
-                if let Some(user_id) = rpc::check_auth(&request, &key).await {
-                    Ok(request)
-                } else {
-                    let unauthorized_response = Response::builder()
-                        .status(StatusCode::UNAUTHORIZED)
-                        .body(Body::empty())
-                        .unwrap();
-
-                    Err(unauthorized_response)
-                }
-    }));
+        .layer(AsyncRequireAuthorizationLayer::new(auth::TwilightAuth));
 
     info!("Starting RPC server on {:?}", opts.listen_addr);
     let server = ServerBuilder::new()
