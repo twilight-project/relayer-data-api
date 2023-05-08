@@ -538,8 +538,7 @@ impl FundingRate {
 #[diesel(table_name = funding_rate)]
 pub struct FundingRateUpdate {
     pub rate: BigDecimal,
-    // TODO: where to get this from????
-    //pub price: BigDecimal,
+    pub price: BigDecimal,
     pub timestamp: DateTime<Utc>,
 }
 
@@ -549,6 +548,8 @@ impl FundingRateUpdate {
 
         let update = FundingRateUpdate {
             rate: BigDecimal::from_f64(r).unwrap(),
+            // TODO: where to get price?
+            price: BigDecimal::from_f64(0.).unwrap(),
             timestamp: ts,
         };
 

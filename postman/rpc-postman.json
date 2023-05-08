@@ -64,6 +64,234 @@
 			"response": []
 		},
 		{
+			"name": "HistoricalFundingRate",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"historical_funding_rate\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "OpenLimitOrders",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"open_limit_orders\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "RecentTradeOrders",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"recent_trade_orders\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "PositionSize",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"position_size\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989"
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "GetFundingRate",
 			"event": [
 				{
@@ -406,58 +634,13 @@
 			"response": []
 		}
 	],
-	"auth": {
-		"type": "jwt",
-		"jwt": [
-			{
-				"key": "payload",
-				"value": "{\n    \"userid\": \"me\",\n    \"is_admin\": false,\n    \"exp\": 4836542748\n}",
-				"type": "string"
-			},
-			{
-				"key": "secret",
-				"value": "test_secret",
-				"type": "string"
-			},
-			{
-				"key": "algorithm",
-				"value": "HS256",
-				"type": "string"
-			},
-			{
-				"key": "isSecretBase64Encoded",
-				"value": false,
-				"type": "boolean"
-			},
-			{
-				"key": "addTokenTo",
-				"value": "header",
-				"type": "string"
-			},
-			{
-				"key": "headerPrefix",
-				"value": "Bearer",
-				"type": "string"
-			},
-			{
-				"key": "queryParamKey",
-				"value": "token",
-				"type": "string"
-			},
-			{
-				"key": "header",
-				"value": "{}",
-				"type": "string"
-			}
-		]
-	},
 	"event": [
 		{
 			"listen": "prerequest",
 			"script": {
 				"type": "text/javascript",
 				"exec": [
-					""
+					"pm.request.headers.add({key: 'Authorization', value: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyaWQiOiJ0ZXN0X3VzZXIiLCJpc19hZG1pbiI6ZmFsc2UsImV4cCI6NDgzNzE0Mzk1OSwiaWF0IjoxNjgzNTQzOTU5fQ.jn1u6__HRuqSHk8kXXlCY4FXli1F5V7UzNHP_8OfC78' });"
 				]
 			}
 		},
