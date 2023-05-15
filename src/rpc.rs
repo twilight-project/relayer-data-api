@@ -6,12 +6,8 @@ use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
 use serde::{Deserialize, Serialize};
 
 mod methods;
-pub use methods::{
-    HistoricalFundingArgs,
-    HistoricalPriceArgs,
-    Interval,
-};
-
+mod types;
+pub use types::{Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval, OrderId};
 
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
@@ -83,16 +79,8 @@ pub fn init_methods(database_url: &str) -> RpcModule<RelayerContext> {
         "recent_trade_orders",
         Box::new(methods::recent_trade_orders),
     );
-    register_method(
-        &mut module,
-        "candle_data",
-        Box::new(methods::candle_data),
-    );
-    register_method(
-        &mut module,
-        "server_time",
-        Box::new(methods::server_time),
-    );
+    register_method(&mut module, "candle_data", Box::new(methods::candle_data));
+    register_method(&mut module, "server_time", Box::new(methods::server_time));
     register_method(
         &mut module,
         "position_size",

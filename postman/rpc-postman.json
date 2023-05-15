@@ -7,7 +7,7 @@
 	},
 	"item": [
 		{
-			"name": "CandleData",
+			"name": "CandleData 5min",
 			"event": [
 				{
 					"listen": "prerequest",
@@ -49,6 +49,120 @@
 				"body": {
 					"mode": "raw",
 					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"candle_data\", \"id\":123, \"params\": {\"interval\": \"FIVE_MINUTE\", \"since\": \"2023-04-17T00:01:00.0Z\"}  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "CandleData 1hr",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"candle_data\", \"id\":123, \"params\": {\"interval\": \"ONE_HOUR\", \"since\": \"2023-04-17T00:01:00.0Z\"}  }"
+				},
+				"url": {
+					"raw": "127.0.0.1:8989",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8989"
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "CandleData 1day",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"candle_data\", \"id\":123, \"params\": {\"interval\": \"ONE_DAY\", \"since\": \"2023-04-17T00:01:00.0Z\"}  }"
 				},
 				"url": {
 					"raw": "127.0.0.1:8989",

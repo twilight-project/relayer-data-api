@@ -1,6 +1,6 @@
-use crate::{database::*, error::ApiError, migrations};
+use crate::{database::*, error::ApiError, kafka::Completion, migrations};
 use chrono::prelude::*;
-use crossbeam_channel::Receiver;
+use crossbeam_channel::{Receiver, Sender};
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use log::{debug, error, info, trace};
@@ -26,12 +26,13 @@ pub struct DatabaseArchiver {
     position_size: Vec<PositionSizeUpdate>,
     sorted_set: Vec<relayer::SortedSetCommand>,
     lend_pool: Vec<relayer_db::LendPoolCommand>,
-    nonce: Nonce
+    completions: Sender<Completion>,
+    nonce: Nonce,
 }
 
 impl DatabaseArchiver {
     /// Start an archiver, provided a postgres connection string.
-    pub fn from_host(database_url: String) -> DatabaseArchiver {
+    pub fn from_host(database_url: String, completions: Sender<Completion>) -> DatabaseArchiver {
         let manager = ConnectionManager::<PgConnection>::new(database_url);
         let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
 
@@ -53,6 +54,7 @@ impl DatabaseArchiver {
             position_size,
             sorted_set,
             lend_pool,
+            completions,
             nonce,
         }
     }
@@ -251,58 +253,64 @@ impl DatabaseArchiver {
         Ok(())
     }
 
+    fn process_msg(&mut self, event: Event) -> Result<(), ApiError> {
+        match event {
+            Event::TraderOrder(trader_order, _cmd, seq) => {
+                self.trader_order(trader_order.into())?;
+            }
+            Event::TraderOrderUpdate(trader_order, _cmd, seq) => {
+                self.trader_order(trader_order.into())?;
+            }
+            Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
+                self.trader_order(trader_order.into())?;
+            }
+            Event::TraderOrderLiquidation(trader_order, _cmd, seq) => {
+                self.trader_order(trader_order.into())?;
+            }
+            Event::LendOrder(lend_order, _cmd, seq) => self.lend_order(lend_order.into())?,
+            Event::FundingRateUpdate(funding_rate, system_time) => {
+                let ts = DateTime::parse_from_rfc3339(&system_time)
+                    .expect("Bad datetime format")
+                    .into();
+                FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, ts)?;
+            }
+            Event::CurrentPriceUpdate(current_price, system_time) => {
+                let ts = DateTime::parse_from_rfc3339(&system_time)
+                    .expect("Bad datetime format")
+                    .into();
+                CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts)?;
+            }
+            Event::PoolUpdate(lend_pool_command, ..) => {
+                self.lend_pool_command(lend_pool_command)?;
+            }
+            Event::SortedSetDBUpdate(sorted_set_command) => {
+                self.sorted_set_update(sorted_set_command)?;
+            }
+            Event::PositionSizeLogDBUpdate(position_size_log_command, position_size_log) => {
+                self.position_size_log((position_size_log_command, position_size_log))?;
+            }
+            Event::Stop(_stop) => {
+                info!("FINISH STOP");
+            }
+        }
+
+        Ok(())
+    }
+
     /// Worker task that loops indefinitely, batching commits to postgres backend.
-    pub fn run(mut self, rx: Receiver<EventLog>) -> Result<(), ApiError> {
+    pub fn run(mut self, rx: Receiver<(Completion, Vec<Event>)>) -> Result<(), ApiError> {
         let mut deadline = Instant::now() + Duration::from_millis(BATCH_INTERVAL);
 
         loop {
             match rx.recv_deadline(deadline) {
-                Ok(msg) => {
-                    let EventLog {
-                        offset: _,
-                        key: _,
-                        value,
-                    } = msg;
-                    match value {
-                        Event::TraderOrder(trader_order, _cmd, seq) => {
-                            self.trader_order(trader_order.into())?;
-                        }
-                        Event::TraderOrderUpdate(trader_order, _cmd, seq) => {
-                            self.trader_order(trader_order.into())?;
-                        }
-                        Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
-                            self.trader_order(trader_order.into())?;
-                        }
-                        Event::TraderOrderLiquidation(trader_order, _cmd, seq) => {
-                            self.trader_order(trader_order.into())?;
-                        }
-                        Event::LendOrder(lend_order, _cmd, seq) => {
-                            self.lend_order(lend_order.into())?
-                        }
-                        Event::FundingRateUpdate(funding_rate, system_time) => {
-                            let ts = DateTime::parse_from_rfc3339(&system_time).expect("Bad datetime format").into();
-                            FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, ts)?;
-                        }
-                        Event::CurrentPriceUpdate(current_price, system_time) => {
-                            let ts = DateTime::parse_from_rfc3339(&system_time).expect("Bad datetime format").into();
-                            CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts)?;
-                        }
-                        Event::PoolUpdate(lend_pool_command, ..) => {
-                            self.lend_pool_command(lend_pool_command)?;
-                        }
-                        Event::SortedSetDBUpdate(sorted_set_command) => {
-                            self.sorted_set_update(sorted_set_command)?;
-                        }
-                        Event::PositionSizeLogDBUpdate(
-                            position_size_log_command,
-                            position_size_log,
-                        ) => {
-                            self.position_size_log((position_size_log_command, position_size_log))?;
-                        }
-                        Event::Stop(_stop) => {
-                            info!("FINISH STOP");
-                        }
+                Ok((completion, msgs)) => {
+                    for msg in msgs {
+                        self.process_msg(msg)?;
                     }
+                    self.commit_orders()?;
+                    self.completions
+                        .send(completion)
+                        .map_err(|e| ApiError::CrossbeamChannel(format!("{:?}", e)))?;
                 }
                 Err(e) => {
                     if e.is_timeout() {

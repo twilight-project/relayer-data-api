@@ -1,63 +1,9 @@
-use super::RelayerContext;
-use chrono::prelude::*;
+use super::{Candles, HistoricalFundingArgs, HistoricalPriceArgs, OrderId, RelayerContext};
 use crate::database::*;
+use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OrderId {
-    pub id: Uuid,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Candles {
-    pub interval: Interval,
-    pub since: DateTime<Utc>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum Interval {
-    ONE_MINUTE,
-    FIVE_MINUTE,
-    FIFTEEN_MINUTE,
-    THIRTY_MINUTE,
-    ONE_HOUR,
-    FOUR_HOUR,
-    EIGHT_HOUR,
-    TWELVE_HOUR,
-    ONE_DAY,
-}
-
-impl Interval {
-    pub fn interval_sql(&self) -> String {
-        match self {
-            Interval::ONE_MINUTE => "'1 minute'",
-            Interval::FIVE_MINUTE => "'5 minutes'",
-            Interval::FIFTEEN_MINUTE => "'15 minutes'",
-            Interval::THIRTY_MINUTE => "'30 minutes'",
-            Interval::ONE_HOUR => "'1 hour'",
-            Interval::FOUR_HOUR => "'4 hours'",
-            Interval::EIGHT_HOUR=> "'8 hours'",
-            Interval::TWELVE_HOUR=> "'12 hours'",
-            Interval::ONE_DAY=> "'1 day'",
-        }.into()
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct HistoricalPriceArgs {
-    pub from: DateTime<Utc>,
-    pub to: DateTime<Utc>,
-    //TODO: paginate?
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct HistoricalFundingArgs {
-    pub from: DateTime<Utc>,
-    pub to: DateTime<Utc>,
-    //TODO: paginate?
-}
 
 pub(super) fn trader_order_info(
     params: Params<'_>,
@@ -186,16 +132,16 @@ pub(super) fn candle_data(
     match ctx.pool.get() {
         Ok(mut conn) => match BtcUsdPrice::candles(&mut conn, interval, since) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
-            Err(e) => Err(Error::Custom(format!("Error fetching candles info: {:?}", e))),
+            Err(e) => Err(Error::Custom(format!(
+                "Error fetching candles info: {:?}",
+                e
+            ))),
         },
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
 }
 
-pub(super) fn server_time(
-    _: Params<'_>,
-    ctx: &RelayerContext,
-) -> Result<serde_json::Value, Error> {
+pub(super) fn server_time(_: Params<'_>, ctx: &RelayerContext) -> Result<serde_json::Value, Error> {
     Ok(serde_json::to_value(Utc::now()).expect("Failed to get timestamp"))
 }
 
@@ -206,7 +152,10 @@ pub(super) fn position_size(
     match ctx.pool.get() {
         Ok(mut conn) => match PositionSizeLog::get_latest(&mut conn) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
-            Err(e) => Err(Error::Custom(format!("Error fetching position size: {:?}", e))),
+            Err(e) => Err(Error::Custom(format!(
+                "Error fetching position size: {:?}",
+                e
+            ))),
         },
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
@@ -216,5 +165,5 @@ pub(super) fn last_day_apy(
     _: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-        todo!("APY")
+    todo!("APY")
 }

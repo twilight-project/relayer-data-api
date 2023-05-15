@@ -1,11 +1,20 @@
-use crossbeam_channel::Sender;
-use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
-use log::info;
+use crossbeam_channel::{unbounded, Receiver, Sender};
+use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, MessageSet};
+use log::{error, info, warn};
+use std::collections::HashMap;
 use std::thread::{self, JoinHandle};
-use twilight_relayer_rust::db::EventLog;
+use twilight_relayer_rust::db::Event;
 
-pub fn start_consumer(group: String, topic: String, tx: Sender<EventLog>) -> JoinHandle<()> {
-    std::thread::spawn(move || {
+pub type Completion = (i32, i64);
+
+pub fn start_consumer(
+    group: String,
+    topic: String,
+    tx: Sender<(Completion, Vec<Event>)>,
+) -> (Sender<Completion>, JoinHandle<()>) {
+    let (tx_consumed, rx_consumed) = unbounded::<Completion>();
+
+    let handle = std::thread::spawn(move || {
         let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
 
         info!("Connecting to kafka at host: {}", broker_host);
@@ -13,7 +22,7 @@ pub fn start_consumer(group: String, topic: String, tx: Sender<EventLog>) -> Joi
 
         let mut con = Consumer::from_hosts(broker)
             .with_group(group)
-            .with_topic_partitions(topic, &[0])
+            .with_topic(topic.clone())
             .with_fallback_offset(FetchOffset::Earliest)
             .with_offset_storage(GroupOffsetStorage::Kafka)
             .create()
@@ -25,27 +34,61 @@ pub fn start_consumer(group: String, topic: String, tx: Sender<EventLog>) -> Joi
             let mss = con.poll().unwrap();
             if !mss.is_empty() {
                 for ms in mss.iter() {
-                    for m in ms.messages() {
-                        let message = EventLog {
-                            offset: m.offset,
-                            key: String::from_utf8_lossy(&m.key).to_string(),
-                            value: serde_json::from_str(&String::from_utf8_lossy(&m.value))
-                                .unwrap(),
-                        };
-                        match sender_clone.send(message) {
-                            Ok(_) => {}
-                            Err(_arg) => {
+                    let mut max_offset = 0i64;
+
+                    let events: Vec<Event> = ms
+                        .messages()
+                        .iter()
+                        .map(|m| {
+                            max_offset = max_offset.max(m.offset);
+
+                            let message: Event =
+                                serde_json::from_str(&String::from_utf8_lossy(&m.value)).unwrap();
+                            message
+                        })
+                        .collect();
+
+                    let token = (ms.partition(), max_offset);
+
+                    match sender_clone.send((token, events)) {
+                        Ok(_) => {}
+                        Err(_arg) => {
+                            connection_status = false;
+                            break;
+                        }
+                    }
+                }
+
+                while !rx_consumed.is_empty() {
+                    match rx_consumed.recv() {
+                        Ok((partition, offset)) => {
+                            let e = con.consume_message(&topic, partition, offset);
+
+                            if e.is_err() {
+                                error!("Kafka connection failed {:?}", e);
+                                connection_status = false;
+                                break;
+                            }
+
+                            let e = con.commit_consumed();
+                            if e.is_err() {
+                                error!("Kafka connection failed {:?}", e);
                                 connection_status = false;
                                 break;
                             }
                         }
+                        Err(e) => {
+                            connection_status = false;
+                            error!("The consumed channel is closed");
+                            break;
+                        }
                     }
-                    let _ = con.consume_messageset(ms);
                 }
-                con.commit_consumed().unwrap();
             }
         }
         con.commit_consumed().unwrap();
         thread::park();
-    })
+    });
+
+    (tx_consumed, handle)
 }

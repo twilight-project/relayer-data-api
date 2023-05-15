@@ -7,24 +7,19 @@ use jsonrpsee::{
 };
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
-use std::{
-    time::Duration,
-    sync::Arc,
-};
+use std::{sync::Arc, time::Duration};
 use tokio::{
+    sync::broadcast::{error::TryRecvError, Receiver},
     task::JoinHandle,
     time::sleep,
-    sync::broadcast::{
-        error::TryRecvError,
-        Receiver,
-    },
 };
 use uuid::Uuid;
 
 use super::WsContext;
 
 fn pipe<T>(task_name: String, mut rx: Receiver<T>, mut sink: SubscriptionSink) -> JoinHandle<()>
-where T: Clone + Serialize + std::marker::Send + 'static
+where
+    T: Clone + Serialize + std::marker::Send + 'static,
 {
     tokio::task::spawn(async move {
         loop {
@@ -46,7 +41,6 @@ where T: Clone + Serialize + std::marker::Send + 'static
                     sleep(Duration::from_millis(100)).await;
                 }
             }
-
 
             if sink.is_closed() {
                 info!("{}: subscriber closed, exiting.", task_name);

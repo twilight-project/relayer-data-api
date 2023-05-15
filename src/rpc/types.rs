@@ -9,6 +9,7 @@
 // •	Candle data (Kline data: 1min, 5min, 15min, 30min, 1hr, 4hr, 8hr, 12hr, 24hr)
 // •	Position Size (For Long, Short and Total)
 // •	Server Time
+use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use uuid::Uuid;
@@ -139,4 +140,54 @@ pub struct MarketInfo {
     pub incremental_position_size: f64,
     pub max_position_size: f64,
     pub baseline_position_size: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Candles {
+    pub interval: Interval,
+    pub since: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Interval {
+    ONE_MINUTE,
+    FIVE_MINUTE,
+    FIFTEEN_MINUTE,
+    THIRTY_MINUTE,
+    ONE_HOUR,
+    FOUR_HOUR,
+    EIGHT_HOUR,
+    TWELVE_HOUR,
+    ONE_DAY,
+}
+
+impl Interval {
+    pub fn interval_sql(&self) -> String {
+        match self {
+            Interval::ONE_MINUTE => "'1 minute'",
+            Interval::FIVE_MINUTE => "'5 minutes'",
+            Interval::FIFTEEN_MINUTE => "'15 minutes'",
+            Interval::THIRTY_MINUTE => "'30 minutes'",
+            Interval::ONE_HOUR => "'1 hour'",
+            Interval::FOUR_HOUR => "'4 hours'",
+            Interval::EIGHT_HOUR => "'8 hours'",
+            Interval::TWELVE_HOUR => "'12 hours'",
+            Interval::ONE_DAY => "'1 day'",
+        }
+        .into()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HistoricalPriceArgs {
+    pub from: DateTime<Utc>,
+    pub to: DateTime<Utc>,
+    //TODO: paginate?
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HistoricalFundingArgs {
+    pub from: DateTime<Utc>,
+    pub to: DateTime<Utc>,
+    //TODO: paginate?
 }

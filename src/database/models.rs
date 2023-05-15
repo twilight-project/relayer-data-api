@@ -1,15 +1,11 @@
 use crate::database::{
     schema::{
-        btc_usd_price, funding_rate, lend_order, lend_pool_command, position_size_log,
-        sorted_set_command, trader_order, current_nonce,
+        btc_usd_price, current_nonce, funding_rate, lend_order, lend_pool_command,
+        position_size_log, sorted_set_command, trader_order,
     },
     sql_types::*,
 };
-use crate::rpc::{
-    HistoricalFundingArgs,
-    HistoricalPriceArgs,
-    Interval,
-};
+use crate::rpc::{HistoricalFundingArgs, HistoricalPriceArgs, Interval};
 use bigdecimal::{BigDecimal, FromPrimitive};
 use chrono::prelude::*;
 use diesel::prelude::*;
@@ -33,7 +29,6 @@ pub struct NewNonce {
     pub nonce: i64,
 }
 
-
 impl Nonce {
     pub fn get(conn: &mut PgConnection) -> QueryResult<Nonce> {
         use crate::database::schema::current_nonce::dsl::*;
@@ -46,7 +41,7 @@ impl Nonce {
 
                 current_nonce.order_by(id.desc()).first(conn)
             }
-            e => e
+            e => e,
         }
     }
 
@@ -106,8 +101,10 @@ impl LendPoolCommand {
     ) -> QueryResult<usize> {
         use crate::database::schema::lend_pool_command::dsl::*;
 
-        let items: Vec<LendPoolCommandUpdate> =
-            updates.into_iter().flat_map(|cmd| lend_pool_to_batch(cmd, nonce)).collect();
+        let items: Vec<LendPoolCommandUpdate> = updates
+            .into_iter()
+            .flat_map(|cmd| lend_pool_to_batch(cmd, nonce))
+            .collect();
 
         let _ = nonce.save(conn)?;
         diesel::insert_into(lend_pool_command)
@@ -116,7 +113,10 @@ impl LendPoolCommand {
     }
 }
 
-fn lend_pool_to_batch(item: relayer_db::LendPoolCommand, pool_nonce: &mut Nonce) -> Vec<LendPoolCommandUpdate> {
+fn lend_pool_to_batch(
+    item: relayer_db::LendPoolCommand,
+    pool_nonce: &mut Nonce,
+) -> Vec<LendPoolCommandUpdate> {
     match item {
         relayer_db::LendPoolCommand::AddTraderOrderSettlement(_, order, p) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
@@ -442,24 +442,37 @@ impl BtcUsdPrice {
         btc_usd_price.order_by(timestamp.desc()).first(conn)
     }
 
-    pub fn get_historical(conn: &mut PgConnection, args: Option<HistoricalPriceArgs>) -> QueryResult<Vec<BtcUsdPrice>> {
+    pub fn get_historical(
+        conn: &mut PgConnection,
+        args: Option<HistoricalPriceArgs>,
+    ) -> QueryResult<Vec<BtcUsdPrice>> {
         use crate::database::schema::btc_usd_price::dsl::*;
 
         if let Some(args) = args {
             let HistoricalPriceArgs { from, to } = args;
 
-            btc_usd_price.filter(timestamp.ge(from).and(timestamp.lt(to))).load(conn)
+            btc_usd_price
+                .filter(diesel::BoolExpressionMethods::and(
+                    timestamp.ge(from),
+                    timestamp.lt(to),
+                ))
+                .load(conn)
         } else {
             btc_usd_price.load(conn)
         }
     }
 
-    pub fn candles(conn: &mut PgConnection, interval: Interval, since: DateTime<Utc>) -> QueryResult<Vec<CandleData>> {
+    pub fn candles(
+        conn: &mut PgConnection,
+        interval: Interval,
+        since: DateTime<Utc>,
+    ) -> QueryResult<Vec<CandleData>> {
         use crate::database::schema::btc_usd_price::dsl::*;
 
         let interval = interval.interval_sql();
 
-        let query = format!(r#"
+        let query = format!(
+            r#"
         SELECT min(timestamp) as start, max(timestamp) as end, min(open) as open, min(close) as close, max(price) as high, min(price) as low
         FROM (
             SELECT
@@ -473,7 +486,9 @@ impl BtcUsdPrice {
         ) as w
         WHERE open IS NOT NULL
         GROUP BY window_ts
-        "#, since, interval, interval);
+        "#,
+            since, interval, interval
+        );
 
         diesel::sql_query(query).get_results(conn)
     }
@@ -521,13 +536,21 @@ impl FundingRate {
         funding_rate.order_by(timestamp.desc()).first(conn)
     }
 
-    pub fn get_historical(conn: &mut PgConnection, args: Option<HistoricalFundingArgs>) -> QueryResult<Vec<FundingRate>> {
+    pub fn get_historical(
+        conn: &mut PgConnection,
+        args: Option<HistoricalFundingArgs>,
+    ) -> QueryResult<Vec<FundingRate>> {
         use crate::database::schema::funding_rate::dsl::*;
 
         if let Some(args) = args {
             let HistoricalFundingArgs { from, to } = args;
 
-            funding_rate.filter(timestamp.ge(from).and(timestamp.lt(to))).load(conn)
+            funding_rate
+                .filter(diesel::BoolExpressionMethods::and(
+                    timestamp.ge(from),
+                    timestamp.lt(to),
+                ))
+                .load(conn)
         } else {
             funding_rate.load(conn)
         }
@@ -630,7 +653,13 @@ impl TraderOrder {
     pub fn list_open_limit_orders(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
         use crate::database::schema::trader_order::dsl::*;
 
-        trader_order.filter(order_type.eq(OrderType::LIMIT).and(order_status.eq(OrderStatus::PENDING))).load(conn)
+        trader_order
+            .filter(
+                order_type
+                    .eq(OrderType::LIMIT)
+                    .and(order_status.eq(OrderStatus::PENDING)),
+            )
+            .load(conn)
     }
 
     pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
@@ -751,7 +780,9 @@ impl From<relayer::TraderOrder> for InsertTraderOrder {
             leverage: BigDecimal::from_f64(leverage).unwrap(),
             initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
             available_margin: BigDecimal::from_f64(available_margin).unwrap(),
-            timestamp: DateTime::parse_from_rfc3339(&timestamp).expect("Bad datetime format").into(),
+            timestamp: DateTime::parse_from_rfc3339(&timestamp)
+                .expect("Bad datetime format")
+                .into(),
             bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap(),
             bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap(),
             maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap(),
@@ -802,7 +833,9 @@ impl From<relayer::LendOrder> for InsertLendOrder {
             exit_nonce: exit_nonce as i64,
             deposit: BigDecimal::from_f64(deposit).unwrap(),
             new_lend_state_amount: BigDecimal::from_f64(new_lend_state_amount).unwrap(),
-            timestamp: DateTime::parse_from_rfc3339(&timestamp).expect("Bad datetime format").into(),
+            timestamp: DateTime::parse_from_rfc3339(&timestamp)
+                .expect("Bad datetime format")
+                .into(),
             npoolshare: BigDecimal::from_f64(npoolshare).unwrap(),
             nwithdraw: BigDecimal::from_f64(nwithdraw).unwrap(),
             payment: BigDecimal::from_f64(payment).unwrap(),

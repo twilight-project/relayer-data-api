@@ -1,13 +1,12 @@
-use jsonrpsee::server::ServerBuilder;
 use http::header::AUTHORIZATION;
+use jsonrpsee::server::ServerBuilder;
 use log::info;
 use std::{iter::once, net::SocketAddr, time::Duration};
-use tower::ServiceBuilder;
 use structopt::StructOpt;
 use tokio::time::sleep;
+use tower::ServiceBuilder;
 use tower_http::{
-    auth::AsyncRequireAuthorizationLayer,
-    sensitive_headers::SetSensitiveRequestHeadersLayer,
+    auth::AsyncRequireAuthorizationLayer, sensitive_headers::SetSensitiveRequestHeadersLayer,
 };
 use twilight_relayerAPI::{auth, rpc, ws};
 

@@ -6,4 +6,6 @@ pub enum ApiError {
     CommitRetryCountExceeded,
     #[error("Database error! {0:?}")]
     DatabaseError(#[from] diesel::result::Error),
+    #[error("Crossbeam error {0:?}")]
+    CrossbeamChannel(String),
 }

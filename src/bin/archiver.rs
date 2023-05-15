@@ -20,9 +20,10 @@ fn main() {
     let database_url = std::env::var("DATABASE_URL").expect("No database url found!");
 
     let (tx, rx) = unbounded();
-    let _handle = kafka::start_consumer(ARCHIVER_GROUP.into(), SNAPSHOT_TOPIC.into(), tx);
+    let (completions, _handle) =
+        kafka::start_consumer(ARCHIVER_GROUP.into(), SNAPSHOT_TOPIC.into(), tx);
 
-    let database_worker = DatabaseArchiver::from_host(database_url);
+    let database_worker = DatabaseArchiver::from_host(database_url, completions);
 
     database_worker
         .run(rx)

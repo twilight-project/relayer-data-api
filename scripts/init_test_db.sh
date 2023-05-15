@@ -21,5 +21,8 @@ fi
 start_db
 
 timeout 90s bash -c "until docker exec test-db pg_isready ; do sleep 5 ; done"
+export DATABASE_URL=postgres://relayer:relayer@localhost:5434/test
 
-DATABASE_URL=postgres://relayer:relayer@localhost:5434/test diesel database reset
+diesel database reset
+
+psql ${DATABASE_URL} -f test_set.sql

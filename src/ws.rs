@@ -1,9 +1,6 @@
-use crate::{
-    kafka::start_consumer,
-    migrations,
-};
+use crate::{kafka::start_consumer, migrations};
 use chrono::prelude::*;
-use crossbeam_channel::unbounded;
+use crossbeam_channel::{unbounded, Sender as CrossbeamSender};
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
@@ -21,7 +18,6 @@ use twilight_relayer_rust::{
 
 mod methods;
 
-
 const SNAPSHOT_TOPIC: &str = "CoreEventLogTopic";
 const WEBSOCKET_GROUP: &str = "Websocket";
 const WS_UPDATE_INTERVAL: u64 = 250;
@@ -34,6 +30,7 @@ type ManagedPool = r2d2::Pool<ManagedConnection>;
 pub struct WsContext {
     price_feed: Sender<(f64, DateTime<Utc>)>,
     order_book: Sender<relayer::TraderOrder>,
+    completions: CrossbeamSender<crate::kafka::Completion>,
     _watcher: JoinHandle<()>,
     _kafka_sub: std::thread::JoinHandle<()>,
 }
@@ -46,55 +43,55 @@ impl WsContext {
         let price_feed2 = price_feed.clone();
         let order_book2 = order_book.clone();
 
-        let (rx, _kafka_sub) = {
+        let (completions, rx, _kafka_sub) = {
             let (tx, rx) = unbounded();
-            let h = start_consumer(WEBSOCKET_GROUP.into(), SNAPSHOT_TOPIC.into(), tx);
+            let (completions, h) =
+                start_consumer(WEBSOCKET_GROUP.into(), SNAPSHOT_TOPIC.into(), tx);
 
-            (rx, h)
+            (completions, rx, h)
         };
+
+        let notify = completions.clone();
 
         let _watcher = tokio::task::spawn(async move {
             let mut deadline = Instant::now() + Duration::from_millis(WS_UPDATE_INTERVAL);
             loop {
                 match rx.recv_deadline(deadline) {
-                    Ok(msg) => {
-                        let EventLog {
-                            offset: _,
-                            key: _,
-                            value,
-                        } = msg;
-                        match value {
-                            Event::TraderOrder(to, ..) |
-                            Event::TraderOrderUpdate(to, ..) |
-                            Event::TraderOrderFundingUpdate(to, ..) |
-                            Event::TraderOrderLiquidation(to, ..) => {
-                                if to.order_type == relayer::OrderType::LIMIT {
-                                    if let Err(e) = order_book2.send(to) {
-                                        info!("No order book subscribers present {:?}", e);
+                    Ok((completion, msgs)) => {
+                        for msg in msgs {
+                            match msg {
+                                Event::TraderOrder(to, ..)
+                                | Event::TraderOrderUpdate(to, ..)
+                                | Event::TraderOrderFundingUpdate(to, ..)
+                                | Event::TraderOrderLiquidation(to, ..) => {
+                                    if to.order_type == relayer::OrderType::LIMIT {
+                                        if let Err(e) = order_book2.send(to) {
+                                            info!("No order book subscribers present {:?}", e);
+                                        }
                                     }
                                 }
-                            }
-                            Event::LendOrder(lend_order, _cmd, seq) => {
-                            }
-                            Event::FundingRateUpdate(funding_rate, system_time) => {
-                            }
-                            Event::CurrentPriceUpdate(current_price, system_time) => {
-                                let ts = DateTime::parse_from_rfc3339(&system_time).expect("Bad datetime format").into();
-                                if let Err(e) = price_feed2.send((current_price, ts)) {
-                                    info!("No subscribers present {:?}", e);
+                                Event::LendOrder(lend_order, _cmd, seq) => {}
+                                Event::FundingRateUpdate(funding_rate, system_time) => {}
+                                Event::CurrentPriceUpdate(current_price, system_time) => {
+                                    let ts = DateTime::parse_from_rfc3339(&system_time)
+                                        .expect("Bad datetime format")
+                                        .into();
+                                    if let Err(e) = price_feed2.send((current_price, ts)) {
+                                        info!("No subscribers present {:?}", e);
+                                    }
                                 }
+                                Event::PoolUpdate(lend_pool_command, ..) => {}
+                                Event::SortedSetDBUpdate(sorted_set_command) => {}
+                                Event::PositionSizeLogDBUpdate(
+                                    position_size_log_command,
+                                    position_size_log,
+                                ) => {}
+                                Event::Stop(_stop) => {}
                             }
-                            Event::PoolUpdate(lend_pool_command, ..) => {
-                            }
-                            Event::SortedSetDBUpdate(sorted_set_command) => {
-                            }
-                            Event::PositionSizeLogDBUpdate(
-                                position_size_log_command,
-                                position_size_log,
-                            ) => {
-                            }
-                            Event::Stop(_stop) => {
-                            }
+                        }
+                        if let Err(e) = notify.send(completion) {
+                            error!("Crossbeam channel is closed {:?}", e);
+                            break;
                         }
                     }
                     Err(e) => {
@@ -114,6 +111,7 @@ impl WsContext {
         WsContext {
             price_feed,
             order_book,
+            completions,
             _watcher,
             _kafka_sub,
         }
