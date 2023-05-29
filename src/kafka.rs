@@ -1,7 +1,6 @@
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, MessageSet};
-use log::{error, info, warn};
-use std::collections::HashMap;
+use crossbeam_channel::{unbounded, Sender};
+use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
+use log::{error, info};
 use std::thread::{self, JoinHandle};
 use twilight_relayer_rust::db::Event;
 

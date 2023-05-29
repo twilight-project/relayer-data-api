@@ -3,18 +3,14 @@ use chrono::prelude::*;
 use crossbeam_channel::{unbounded, Sender as CrossbeamSender};
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
-use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
+use jsonrpsee::RpcModule;
 use log::{error, info, trace};
-use serde::Serialize;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 use tokio::{
-    sync::broadcast::{channel, Receiver, Sender},
+    sync::broadcast::{channel, Sender},
     task::JoinHandle,
 };
-use twilight_relayer_rust::{
-    db::{self as relayer_db, Event, EventLog},
-    relayer,
-};
+use twilight_relayer_rust::{db::Event, relayer};
 
 mod methods;
 
@@ -24,13 +20,10 @@ const WS_UPDATE_INTERVAL: u64 = 250;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 20;
 
-type ManagedConnection = ConnectionManager<PgConnection>;
-type ManagedPool = r2d2::Pool<ManagedConnection>;
-
 pub struct WsContext {
     price_feed: Sender<(f64, DateTime<Utc>)>,
     order_book: Sender<relayer::TraderOrder>,
-    completions: CrossbeamSender<crate::kafka::Completion>,
+    _completions: CrossbeamSender<crate::kafka::Completion>,
     _watcher: JoinHandle<()>,
     _kafka_sub: std::thread::JoinHandle<()>,
 }
@@ -70,8 +63,8 @@ impl WsContext {
                                         }
                                     }
                                 }
-                                Event::LendOrder(lend_order, _cmd, seq) => {}
-                                Event::FundingRateUpdate(funding_rate, system_time) => {}
+                                Event::LendOrder(_lend_order, _cmd, _seq) => {}
+                                Event::FundingRateUpdate(_funding_rate, _system_time) => {}
                                 Event::CurrentPriceUpdate(current_price, system_time) => {
                                     let ts = DateTime::parse_from_rfc3339(&system_time)
                                         .expect("Bad datetime format")
@@ -80,11 +73,11 @@ impl WsContext {
                                         info!("No subscribers present {:?}", e);
                                     }
                                 }
-                                Event::PoolUpdate(lend_pool_command, ..) => {}
-                                Event::SortedSetDBUpdate(sorted_set_command) => {}
+                                Event::PoolUpdate(_lend_pool_command, ..) => {}
+                                Event::SortedSetDBUpdate(_sorted_set_command) => {}
                                 Event::PositionSizeLogDBUpdate(
-                                    position_size_log_command,
-                                    position_size_log,
+                                    _position_size_log_command,
+                                    _position_size_log,
                                 ) => {}
                                 Event::Stop(_stop) => {}
                             }
@@ -111,7 +104,7 @@ impl WsContext {
         WsContext {
             price_feed,
             order_book,
-            completions,
+            _completions: completions,
             _watcher,
             _kafka_sub,
         }

@@ -1,9 +1,8 @@
 use crate::migrations;
-use chrono::prelude::*;
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 mod methods;
 mod types;
@@ -39,6 +38,11 @@ pub fn init_methods(database_url: &str) -> RpcModule<RelayerContext> {
 
     let mut module = RpcModule::new(RelayerContext { pool });
 
+    register_method(
+        &mut module,
+        "lend_pool_info",
+        Box::new(methods::lend_pool_info),
+    );
     register_method(
         &mut module,
         "trader_order_info",

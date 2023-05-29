@@ -1,3 +1,5 @@
+#![allow(non_camel_case_types)]
+
 // •	Live Price Data
 // •	Historical Price Data
 // •	Funding Rate
@@ -11,7 +13,6 @@
 // •	Server Time
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::time::SystemTime;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]

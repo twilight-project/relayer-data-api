@@ -3,6 +3,7 @@ use hmac::{Hmac, Mac};
 use http::{header::AUTHORIZATION, Request, Response, StatusCode};
 use hyper::Body;
 use jwt::{Header, Token, VerifyWithKey};
+use log::error;
 use serde::Deserialize;
 use sha2::Sha256;
 use tower_http::auth::AsyncAuthorizeRequest;
@@ -69,14 +70,20 @@ where
 
                 match token.unwrap().verify_with_key(key) {
                     Ok::<Token<Header, AuthToken, _>, jwt::Error>(token) => {
-                        let header = token.header();
+                        let _ = token.header();
                         let claims = token.claims();
                         Some(UserId(claims.userid.clone()))
                     }
-                    Err(e) => None,
+                    Err(e) => {
+                        error!("Auth error {:?}", e);
+                        None
+                    }
                 }
             }
-            e => None,
+            e => {
+                error!("Auth error {:?}", e);
+                None
+            }
         },
         None => None,
     }

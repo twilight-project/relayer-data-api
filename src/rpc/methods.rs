@@ -2,8 +2,6 @@ use super::{Candles, HistoricalFundingArgs, HistoricalPriceArgs, OrderId, Relaye
 use crate::database::*;
 use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 pub(super) fn trader_order_info(
     params: Params<'_>,
@@ -15,6 +13,22 @@ pub(super) fn trader_order_info(
         Ok(mut conn) => match TraderOrder::get(&mut conn, id) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
+pub(super) fn lend_pool_info(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    match ctx.pool.get() {
+        Ok(mut conn) => match LendPool::get(&mut conn) {
+            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+            Err(e) => Err(Error::Custom(format!(
+                "Error fetching lend pool info: {:?}",
+                e
+            ))),
         },
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
@@ -141,7 +155,7 @@ pub(super) fn candle_data(
     }
 }
 
-pub(super) fn server_time(_: Params<'_>, ctx: &RelayerContext) -> Result<serde_json::Value, Error> {
+pub(super) fn server_time(_: Params<'_>, _: &RelayerContext) -> Result<serde_json::Value, Error> {
     Ok(serde_json::to_value(Utc::now()).expect("Failed to get timestamp"))
 }
 

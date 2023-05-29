@@ -7,7 +7,7 @@ use log::{debug, error, info, trace};
 use r2d2::PooledConnection;
 use std::time::{Duration, Instant};
 use twilight_relayer_rust::{
-    db::{self as relayer_db, Event, EventLog},
+    db::{self as relayer_db, Event},
     relayer,
 };
 
@@ -25,7 +25,8 @@ pub struct DatabaseArchiver {
     lend_orders: Vec<InsertLendOrder>,
     position_size: Vec<PositionSizeUpdate>,
     sorted_set: Vec<relayer::SortedSetCommand>,
-    lend_pool: Vec<relayer_db::LendPoolCommand>,
+    lend_pool: Vec<relayer_db::LendPool>,
+    lend_pool_commands: Vec<relayer_db::LendPoolCommand>,
     completions: Sender<Completion>,
     nonce: Nonce,
 }
@@ -45,6 +46,7 @@ impl DatabaseArchiver {
         let position_size = Vec::with_capacity(BATCH_SIZE);
         let sorted_set = Vec::with_capacity(BATCH_SIZE);
         let lend_pool = Vec::with_capacity(BATCH_SIZE);
+        let lend_pool_commands = Vec::with_capacity(BATCH_SIZE);
         let nonce = Nonce::get(&mut conn).expect("Failed to query for current nonce");
 
         DatabaseArchiver {
@@ -54,6 +56,7 @@ impl DatabaseArchiver {
             position_size,
             sorted_set,
             lend_pool,
+            lend_pool_commands,
             completions,
             nonce,
         }
@@ -202,11 +205,39 @@ impl DatabaseArchiver {
 
     /// Add a lend pool update to the next update batch, if the queue is full, commit and clear the
     /// queue.
-    fn lend_pool_command(&mut self, update: relayer_db::LendPoolCommand) -> Result<(), ApiError> {
+    fn lend_pool_updates(&mut self, update: relayer_db::LendPool) -> Result<(), ApiError> {
         debug!("Appending lend pool update");
         self.lend_pool.push(update);
 
         if self.lend_pool.len() == self.lend_pool.capacity() {
+            self.commit_lend_pool()?;
+        }
+
+        Ok(())
+    }
+
+    /// Commit a batch of lend pool updates to the database. If we're failing to update the database, we
+    /// should exit.
+    fn commit_lend_pool(&mut self) -> Result<(), ApiError> {
+        debug!("Committing lend pool commands");
+
+        let mut conn = self.get_conn()?;
+
+        let mut pool = Vec::with_capacity(self.lend_pool.capacity());
+        std::mem::swap(&mut pool, &mut self.lend_pool);
+
+        LendPool::insert(&mut conn, pool)?;
+
+        Ok(())
+    }
+
+    /// Add a lend pool update to the next update batch, if the queue is full, commit and clear the
+    /// queue.
+    fn lend_pool_command(&mut self, update: relayer_db::LendPoolCommand) -> Result<(), ApiError> {
+        debug!("Appending lend pool update");
+        self.lend_pool_commands.push(update);
+
+        if self.lend_pool_commands.len() == self.lend_pool_commands.capacity() {
             self.commit_lend_pool_commands()?;
         }
 
@@ -220,8 +251,8 @@ impl DatabaseArchiver {
 
         let mut conn = self.get_conn()?;
 
-        let mut pool = Vec::with_capacity(self.lend_pool.capacity());
-        std::mem::swap(&mut pool, &mut self.lend_pool);
+        let mut pool = Vec::with_capacity(self.lend_pool_commands.capacity());
+        std::mem::swap(&mut pool, &mut self.lend_pool_commands);
 
         LendPoolCommand::insert(&mut conn, pool, &mut self.nonce)?;
 
@@ -247,6 +278,10 @@ impl DatabaseArchiver {
         }
 
         if self.lend_pool.len() > 0 {
+            self.commit_lend_pool()?;
+        }
+
+        if self.lend_pool_commands.len() > 0 {
             self.commit_lend_pool_commands()?;
         }
 
@@ -255,19 +290,19 @@ impl DatabaseArchiver {
 
     fn process_msg(&mut self, event: Event) -> Result<(), ApiError> {
         match event {
-            Event::TraderOrder(trader_order, _cmd, seq) => {
+            Event::TraderOrder(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into())?;
             }
-            Event::TraderOrderUpdate(trader_order, _cmd, seq) => {
+            Event::TraderOrderUpdate(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into())?;
             }
             Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
                 self.trader_order(trader_order.into())?;
             }
-            Event::TraderOrderLiquidation(trader_order, _cmd, seq) => {
+            Event::TraderOrderLiquidation(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into())?;
             }
-            Event::LendOrder(lend_order, _cmd, seq) => self.lend_order(lend_order.into())?,
+            Event::LendOrder(lend_order, _cmd, _seq) => self.lend_order(lend_order.into())?,
             Event::FundingRateUpdate(funding_rate, system_time) => {
                 let ts = DateTime::parse_from_rfc3339(&system_time)
                     .expect("Bad datetime format")
@@ -280,7 +315,8 @@ impl DatabaseArchiver {
                     .into();
                 CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts)?;
             }
-            Event::PoolUpdate(lend_pool_command, ..) => {
+            Event::PoolUpdate(lend_pool_command, lend_pool, ..) => {
+                self.lend_pool_updates(lend_pool)?;
                 self.lend_pool_command(lend_pool_command)?;
             }
             Event::SortedSetDBUpdate(sorted_set_command) => {

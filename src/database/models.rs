@@ -1,6 +1,6 @@
 use crate::database::{
     schema::{
-        btc_usd_price, current_nonce, funding_rate, lend_order, lend_pool_command,
+        btc_usd_price, current_nonce, funding_rate, lend_order, lend_pool, lend_pool_command,
         position_size_log, sorted_set_command, trader_order,
     },
     sql_types::*,
@@ -9,7 +9,6 @@ use crate::rpc::{HistoricalFundingArgs, HistoricalPriceArgs, Interval};
 use bigdecimal::{BigDecimal, FromPrimitive};
 use chrono::prelude::*;
 use diesel::prelude::*;
-use diesel::upsert::*;
 use serde::{Deserialize, Serialize};
 use twilight_relayer_rust::{db as relayer_db, relayer};
 use uuid::Uuid;
@@ -61,6 +60,61 @@ impl Nonce {
             .execute(conn);
 
         Ok(())
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
+#[diesel(table_name = lend_pool)]
+pub struct LendPool {
+    id: i64,
+    sequence: i64,
+    nonce: i64,
+    total_pool_share: BigDecimal,
+    total_locked_value: BigDecimal,
+    pending_orders: i64,
+    aggregate_log_sequence: i64,
+    last_snapshot_id: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable)]
+#[diesel(table_name = lend_pool)]
+pub struct LendPoolUpdate {
+    sequence: i64,
+    nonce: i64,
+    total_pool_share: BigDecimal,
+    total_locked_value: BigDecimal,
+    pending_orders: i64,
+    aggregate_log_sequence: i64,
+    last_snapshot_id: i64,
+}
+
+impl LendPool {
+    pub fn get(conn: &mut PgConnection) -> QueryResult<LendPool> {
+        use crate::database::schema::lend_pool::dsl::*;
+
+        lend_pool.order_by(sequence.desc()).first(conn)
+    }
+
+    pub fn insert(
+        conn: &mut PgConnection,
+        updates: Vec<relayer_db::LendPool>,
+    ) -> QueryResult<usize> {
+        use crate::database::schema::lend_pool::dsl::*;
+
+        let items: Vec<LendPoolUpdate> = updates
+            .into_iter()
+            .map(|update| LendPoolUpdate {
+                sequence: update.sequence as i64,
+                nonce: update.nonce as i64,
+                total_pool_share: BigDecimal::default(),
+                total_locked_value: BigDecimal::default(),
+                pending_orders: 0,
+                aggregate_log_sequence: update.aggrigate_log_sequence as i64,
+                last_snapshot_id: update.last_snapshot_id as i64,
+            })
+            .collect();
+
+        diesel::insert_into(lend_pool).values(items).execute(conn)
     }
 }
 
@@ -157,10 +211,7 @@ fn lend_pool_to_batch(
             match relayer_command {
                 relayer::RelayerCommand::FundingCycle(batch_order, _meta, _time) => {
                     let relayer_db::PoolBatchOrder {
-                        nonce,
-                        len,
-                        amount,
-                        trader_order_data,
+                        trader_order_data, ..
                     } = batch_order;
 
                     trader_order_data
@@ -169,7 +220,7 @@ fn lend_pool_to_batch(
                         .collect()
                 }
                 relayer::RelayerCommand::RpcCommandPoolupdate() => {
-                    pool_nonce.increment();
+                    let _ = pool_nonce.increment();
                     vec![]
                 }
                 o => {
@@ -467,8 +518,6 @@ impl BtcUsdPrice {
         interval: Interval,
         since: DateTime<Utc>,
     ) -> QueryResult<Vec<CandleData>> {
-        use crate::database::schema::btc_usd_price::dsl::*;
-
         let interval = interval.interval_sql();
 
         let query = format!(

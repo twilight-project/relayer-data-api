@@ -83,6 +83,19 @@ diesel::table! {
 }
 
 diesel::table! {
+    lend_pool (id) {
+        id -> Int8,
+        sequence -> Int8,
+        nonce -> Int8,
+        total_pool_share -> Numeric,
+        total_locked_value -> Numeric,
+        pending_orders -> Int8,
+        aggregate_log_sequence -> Int8,
+        last_snapshot_id -> Int8,
+    }
+}
+
+diesel::table! {
     use diesel::sql_types::*;
     use super::sql_types::LendPoolCommandType;
 
@@ -161,6 +174,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     current_nonce,
     funding_rate,
     lend_order,
+    lend_pool,
     lend_pool_command,
     position_size_log,
     sorted_set_command,

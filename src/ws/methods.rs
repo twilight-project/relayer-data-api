@@ -1,19 +1,15 @@
-use crate::database::*;
-use futures_util::StreamExt;
 use jsonrpsee::{
-    core::error::Error,
     server::{logger::Params, SubscriptionSink},
     types::error::SubscriptionResult,
 };
 use log::{error, info, warn};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{sync::Arc, time::Duration};
 use tokio::{
     sync::broadcast::{error::TryRecvError, Receiver},
     task::JoinHandle,
     time::sleep,
 };
-use uuid::Uuid;
 
 use super::WsContext;
 
@@ -51,11 +47,11 @@ where
 }
 
 pub(super) fn spawn_order_book(
-    params: Params<'_>,
+    _params: Params<'_>,
     mut sink: SubscriptionSink,
     ctx: Arc<WsContext>,
 ) -> SubscriptionResult {
-    let mut rx = ctx.order_book.subscribe();
+    let rx = ctx.order_book.subscribe();
     sink.accept()?;
 
     let _ = pipe("Order Book".into(), rx, sink);
@@ -64,11 +60,11 @@ pub(super) fn spawn_order_book(
 }
 
 pub(super) fn spawn_live_price_data(
-    params: Params<'_>,
+    _params: Params<'_>,
     mut sink: SubscriptionSink,
     ctx: Arc<WsContext>,
 ) -> SubscriptionResult {
-    let mut rx = ctx.price_feed.subscribe();
+    let rx = ctx.price_feed.subscribe();
     sink.accept()?;
 
     let _ = pipe("Live Price Feed".into(), rx, sink);
