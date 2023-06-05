@@ -303,11 +303,11 @@ impl DatabaseArchiver {
                 self.trader_order(trader_order.into())?;
             }
             Event::LendOrder(lend_order, _cmd, _seq) => self.lend_order(lend_order.into())?,
-            Event::FundingRateUpdate(funding_rate, system_time) => {
+            Event::FundingRateUpdate(funding_rate, btc_price, system_time) => {
                 let ts = DateTime::parse_from_rfc3339(&system_time)
                     .expect("Bad datetime format")
                     .into();
-                FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, ts)?;
+                FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, btc_price, ts)?;
             }
             Event::CurrentPriceUpdate(current_price, system_time) => {
                 let ts = DateTime::parse_from_rfc3339(&system_time)

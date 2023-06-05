@@ -615,13 +615,17 @@ pub struct FundingRateUpdate {
 }
 
 impl FundingRateUpdate {
-    pub fn insert(conn: &mut PgConnection, r: f64, ts: DateTime<Utc>) -> QueryResult<usize> {
+    pub fn insert(
+        conn: &mut PgConnection,
+        r: f64,
+        p: f64,
+        ts: DateTime<Utc>,
+    ) -> QueryResult<usize> {
         use crate::database::schema::funding_rate::dsl::*;
 
         let update = FundingRateUpdate {
             rate: BigDecimal::from_f64(r).unwrap(),
-            // TODO: where to get price?
-            price: BigDecimal::from_f64(0.).unwrap(),
+            price: BigDecimal::from_f64(p).unwrap(),
             timestamp: ts,
         };
 

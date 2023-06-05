@@ -64,7 +64,11 @@ impl WsContext {
                                     }
                                 }
                                 Event::LendOrder(_lend_order, _cmd, _seq) => {}
-                                Event::FundingRateUpdate(_funding_rate, _system_time) => {}
+                                Event::FundingRateUpdate(
+                                    _funding_rate,
+                                    _btc_price,
+                                    _system_time,
+                                ) => {}
                                 Event::CurrentPriceUpdate(current_price, system_time) => {
                                     let ts = DateTime::parse_from_rfc3339(&system_time)
                                         .expect("Bad datetime format")
