@@ -42,6 +42,7 @@ async fn main() {
 
     let addrs: &[SocketAddr] = &[opts.listen_addr];
     let database_url = std::env::var("DATABASE_URL").expect("No database url found!");
+    info!("Database backend: {}", database_url);
 
     // TODO: env var
     let middleware = ServiceBuilder::new()

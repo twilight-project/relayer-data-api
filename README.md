@@ -1,5 +1,7 @@
 # Twilight relayer API
 
+For subscriptions and rpcs, see [here](./docs/API.md)
+
 ## install diesel_cli (Only necessary for development)
 ```command
 sudo apt install libpq-dev

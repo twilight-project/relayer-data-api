@@ -576,3 +576,37 @@ VALUES
     (7161, now() + interval '2865 minute'),
     (981, now() + interval '2870 minute'),
     (23484, now() + interval '2875 minute');
+
+INSERT INTO lend_pool (sequence, nonce, total_pool_share, total_locked_value, pending_orders, aggregate_log_sequence, last_snapshot_id)
+VALUES
+    ( 43566, 8, 2300, 2345, 400000, 123423, 8765);
+
+INSERT INTO trader_order (
+	uuid, account_id, position_type, order_status, order_type, entryprice,
+	execution_price, positionsize, leverage, initial_margin, available_margin,
+	timestamp, bankruptcy_price, bankruptcy_value, maintenance_margin,
+	liquidation_price, unrealized_pnl, settlement_price, entry_nonce, exit_nonce,
+	entry_sequence
+)
+VALUES (
+	'7EC8D23F-9BBE-4063-BD28-9331669A517F', 'uasywxdifg', 'LONG', 'PENDING', 'LIMIT', 
+	23404, 78954, 234466, 94949494, 9393939, 7234465, now(), 4758584, 48585345,
+	823434, 48485, 283442, 90994554, 123, 456, 234569
+);
+
+
+INSERT INTO lend_order (
+    uuid, account_id, balance, order_status, order_type,
+    entry_nonce, exit_nonce, deposit, new_lend_state_amount,
+    timestamp, npoolshare, nwithdraw, payment,
+    tlv0, tps0, tlv1, tps1, tlv2, tps2, tlv3, tps3, entry_sequence
+)
+VALUES (
+	'7EC8D23F-9BBE-4063-BD28-9331669A517F', 'uasywxdifg', 4858584, 'PENDING', 'LIMIT', 
+	123, 9595, 2344, 90954, now(), 234, 9595, 2345, 123,
+	345, 124, 96969, 234, 9696, 234, 96969, 344
+);
+
+INSERT INTO funding_rate ( rate, price, timestamp)
+VALUES ( 234, 99595, now() );
+
