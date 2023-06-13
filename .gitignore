@@ -10,7 +10,7 @@ Cargo.lock
 **/*.rs.bk
 
 specs/database_insertion.md
-specs/privateAPI.md
+# specs/privateAPI.md
 # specs/publicAPI.md
 specs/RelayerAPI.md
 codes.zip
