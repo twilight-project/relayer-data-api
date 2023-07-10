@@ -42,6 +42,43 @@ diesel::table! {
 }
 
 diesel::table! {
+    customer_account (id) {
+        id -> Int8,
+        customer_registration_id -> Varchar,
+        username -> Varchar,
+        password -> Varchar,
+        created_on -> Timestamptz,
+        password_hint -> Varchar,
+    }
+}
+
+diesel::table! {
+    customer_apikey_linking (id) {
+        id -> Int8,
+        customer_account_id -> Int8,
+        api_key -> Varchar,
+        api_salt_key -> Varchar,
+        created_on -> Timestamptz,
+        expires_on -> Timestamptz,
+        is_active -> Bool,
+        remark -> Nullable<Varchar>,
+        authorities -> Nullable<Varchar>,
+        limit_remaining -> Nullable<Int8>,
+    }
+}
+
+diesel::table! {
+    customer_order_linking (id) {
+        id -> Int8,
+        order_id -> Uuid,
+        public_key -> Varchar,
+        customer_account_id -> Int8,
+        order_status -> Varchar,
+        created_on -> Timestamptz,
+    }
+}
+
+diesel::table! {
     funding_rate (id) {
         id -> Int8,
         rate -> Numeric,
@@ -169,9 +206,15 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(customer_apikey_linking -> customer_account (customer_account_id));
+diesel::joinable!(customer_order_linking -> customer_account (customer_account_id));
+
 diesel::allow_tables_to_appear_in_same_query!(
     btc_usd_price,
     current_nonce,
+    customer_account,
+    customer_apikey_linking,
+    customer_order_linking,
     funding_rate,
     lend_order,
     lend_pool,
