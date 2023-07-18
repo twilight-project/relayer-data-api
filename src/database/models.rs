@@ -1,8 +1,8 @@
 use crate::database::{
     schema::{
-        btc_usd_price, current_nonce, funding_rate, lend_order, lend_pool, lend_pool_command,
-        position_size_log, sorted_set_command, trader_order, customer_order_linking,
-        customer_apikey_linking, customer_account
+        btc_usd_price, current_nonce, customer_account, customer_apikey_linking,
+        customer_order_linking, funding_rate, lend_order, lend_pool, lend_pool_command,
+        position_size_log, sorted_set_command, trader_order,
     },
     sql_types::*,
 };
@@ -15,7 +15,6 @@ use twilight_relayer_rust::{db as relayer_db, relayer};
 use uuid::Uuid;
 
 pub type PositionSizeUpdate = (relayer::PositionSizeLogCommand, relayer_db::PositionSizeLog);
-
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
 #[diesel(table_name = customer_account)]
@@ -90,7 +89,10 @@ impl CustomerApiKeyLinking {
         customer_apikey_linking.find(id).first(conn)
     }
 
-    pub fn insert(conn: &mut PgConnection, new_apikey: NewCustomerApiKeyLinking) -> QueryResult<usize> {
+    pub fn insert(
+        conn: &mut PgConnection,
+        new_apikey: NewCustomerApiKeyLinking,
+    ) -> QueryResult<usize> {
         use crate::database::schema::customer_apikey_linking::dsl::*;
 
         diesel::insert_into(customer_apikey_linking)
@@ -102,22 +104,22 @@ impl CustomerApiKeyLinking {
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
 #[diesel(table_name = customer_order_linking)]
 pub struct CustomerOrderLinking {
-        id: i64,
-        order_id: Uuid,
-        public_key: String,
-        customer_account_id: i64,
-        order_status: String,
-        created_on: DateTime<Utc>,
+    id: i64,
+    order_id: Uuid,
+    public_key: String,
+    customer_account_id: i64,
+    order_status: String,
+    created_on: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
 #[diesel(table_name = customer_order_linking)]
 pub struct NewCustomerOrderLinking {
-        order_id: Uuid,
-        public_key: String,
-        customer_account_id: i64,
-        order_status: String,
-        created_on: DateTime<Utc>,
+    order_id: Uuid,
+    public_key: String,
+    customer_account_id: i64,
+    order_status: String,
+    created_on: DateTime<Utc>,
 }
 
 impl CustomerOrderLinking {
@@ -127,7 +129,10 @@ impl CustomerOrderLinking {
         customer_order_linking.find(id).first(conn)
     }
 
-    pub fn insert(conn: &mut PgConnection, new_order: NewCustomerOrderLinking) -> QueryResult<usize> {
+    pub fn insert(
+        conn: &mut PgConnection,
+        new_order: NewCustomerOrderLinking,
+    ) -> QueryResult<usize> {
         use crate::database::schema::customer_order_linking::dsl::*;
 
         diesel::insert_into(customer_order_linking)

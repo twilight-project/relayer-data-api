@@ -6,7 +6,9 @@ use structopt::StructOpt;
 use tokio::time::sleep;
 use tower::ServiceBuilder;
 use tower_http::{
-    auth::AsyncRequireAuthorizationLayer, sensitive_headers::SetSensitiveRequestHeadersLayer,
+    auth::AsyncRequireAuthorizationLayer,
+    cors::{Any, CorsLayer},
+    sensitive_headers::SetSensitiveRequestHeadersLayer,
 };
 use twilight_relayerAPI::{auth, rpc, ws};
 
@@ -44,8 +46,14 @@ async fn main() {
     let database_url = std::env::var("DATABASE_URL").expect("No database url found!");
     info!("Database backend: {}", database_url);
 
+    let cors = CorsLayer::new()
+        .allow_methods([hyper::Method::POST])
+        .allow_origin(Any)
+        .allow_headers([hyper::header::CONTENT_TYPE]);
+
     // TODO: env var
     let middleware = ServiceBuilder::new()
+        .layer(cors)
         .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
         .layer(AsyncRequireAuthorizationLayer::new(auth::TwilightAuth));
 
