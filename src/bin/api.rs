@@ -47,7 +47,7 @@ async fn main() {
     info!("Database backend: {}", database_url);
 
     let cors = CorsLayer::new()
-        .allow_methods([hyper::Method::POST])
+        .allow_methods(Any)
         .allow_origin(Any)
         .allow_headers([hyper::header::CONTENT_TYPE]);
 
