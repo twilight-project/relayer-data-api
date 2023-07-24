@@ -1,10 +1,12 @@
 use crate::{kafka::start_consumer, migrations};
+use bigdecimal::ToPrimitive;
 use chrono::prelude::*;
 use crossbeam_channel::{unbounded, Sender as CrossbeamSender};
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::RpcModule;
 use log::{error, info, trace};
+use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use tokio::{
     sync::broadcast::{channel, Sender},
@@ -20,9 +22,31 @@ const WS_UPDATE_INTERVAL: u64 = 250;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 20;
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum NewOrderBookOrder {
+    Bid { positionsize: f64, price: f64 },
+    Ask { positionsize: f64, price: f64 },
+}
+
+impl NewOrderBookOrder {
+    pub fn new(to: relayer::TraderOrder) -> Self {
+        if to.position_type == relayer::PositionType::LONG {
+            Self::Bid {
+                positionsize: to.positionsize.to_f64().unwrap(),
+                price: to.entryprice.to_f64().unwrap(),
+            }
+        } else {
+            Self::Ask {
+                positionsize: to.positionsize.to_f64().unwrap(),
+                price: to.entryprice.to_f64().unwrap(),
+            }
+        }
+    }
+}
+
 pub struct WsContext {
     price_feed: Sender<(f64, DateTime<Utc>)>,
-    order_book: Sender<relayer::TraderOrder>,
+    order_book: Sender<NewOrderBookOrder>,
     _completions: CrossbeamSender<crate::kafka::Completion>,
     _watcher: JoinHandle<()>,
     _kafka_sub: std::thread::JoinHandle<()>,
@@ -31,7 +55,7 @@ pub struct WsContext {
 impl WsContext {
     pub fn new() -> WsContext {
         let (price_feed, _) = channel::<(f64, DateTime<Utc>)>(BROADCAST_CHANNEL_CAPACITY);
-        let (order_book, _) = channel::<relayer::TraderOrder>(BROADCAST_CHANNEL_CAPACITY);
+        let (order_book, _) = channel::<NewOrderBookOrder>(BROADCAST_CHANNEL_CAPACITY);
 
         let price_feed2 = price_feed.clone();
         let order_book2 = order_book.clone();
@@ -58,7 +82,8 @@ impl WsContext {
                                 | Event::TraderOrderFundingUpdate(to, ..)
                                 | Event::TraderOrderLiquidation(to, ..) => {
                                     if to.order_type == relayer::OrderType::LIMIT {
-                                        if let Err(e) = order_book2.send(to) {
+                                        let order = NewOrderBookOrder::new(to);
+                                        if let Err(e) = order_book2.send(order) {
                                             info!("No order book subscribers present {:?}", e);
                                         }
                                     }

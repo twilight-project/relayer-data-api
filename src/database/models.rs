@@ -7,7 +7,7 @@ use crate::database::{
     sql_types::*,
 };
 use crate::rpc::{HistoricalFundingArgs, HistoricalPriceArgs, Interval};
-use bigdecimal::{BigDecimal, FromPrimitive};
+use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use chrono::prelude::*;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -545,6 +545,14 @@ pub struct PositionSizeLogUpdate {
     pub total: BigDecimal,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
+#[diesel(table_name = position_size_log)]
+pub struct PositionSize {
+    pub total_short: BigDecimal,
+    pub total_long: BigDecimal,
+    pub total: BigDecimal,
+}
+
 impl PositionSizeLog {
     pub fn append(conn: &mut PgConnection, sizes: Vec<PositionSizeUpdate>) -> QueryResult<usize> {
         use crate::database::schema::position_size_log::dsl::*;
@@ -581,10 +589,13 @@ impl PositionSizeLog {
             .execute(conn)
     }
 
-    pub fn get_latest(conn: &mut PgConnection) -> QueryResult<PositionSizeLog> {
+    pub fn get_latest(conn: &mut PgConnection) -> QueryResult<PositionSize> {
         use crate::database::schema::position_size_log::dsl::*;
 
-        position_size_log.order(id.desc()).first(conn)
+        position_size_log
+            .select((total_short, total_long, total))
+            .order(id.desc())
+            .first(conn)
     }
 }
 
@@ -610,6 +621,14 @@ pub struct CandleData {
     pub open: BigDecimal,
     #[diesel(sql_type = diesel::sql_types::Numeric)]
     pub close: BigDecimal,
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    pub resolution: String,
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub btc_volume: BigDecimal,
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub trades: i64,
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub usd_volume: BigDecimal,
 }
 
 impl BtcUsdPrice {
@@ -646,23 +665,75 @@ impl BtcUsdPrice {
     ) -> QueryResult<Vec<CandleData>> {
         let interval = interval.interval_sql();
 
-        let query = format!(
+        let trader_subquery = format!(
             r#"
-        SELECT min(timestamp) as start, max(timestamp) as end, min(open) as open, min(close) as close, max(price) as high, min(price) as low
-        FROM (
             SELECT
-                 t.timestamp as window_ts,
-                 c.*,
-                 first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp asc) AS open,
-                 first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp desc) AS close
-            FROM generate_series('{}', now(), {}) t(timestamp)
-            LEFT JOIN btc_usd_price c
-            ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {}
-        ) as w
-        WHERE open IS NOT NULL
-        GROUP BY window_ts
+                window_start,
+                sum(entryprice) as usd_volume,
+                sum(positionsize) as btc_volume,
+                count(*) as trades
+            FROM (
+                SELECT
+                    t.timestamp as window_start,
+                    c.entryprice,
+                    c.positionsize
+                FROM generate_series('{}', now(), {}) t(timestamp)
+                LEFT JOIN trader_order c
+                ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {}
+            ) as sq
+            GROUP BY window_start
         "#,
             since, interval, interval
+        );
+
+        let ohlc_subquery = format!(
+            r#"
+            SELECT
+                window_ts,
+                min(timestamp) as start,
+                max(timestamp) as end,
+                min(open) as open,
+                min(close) as close,
+                max(price) as high,
+                min(price) as low
+            FROM (
+                SELECT
+                     t.timestamp as window_ts,
+                     c.*,
+                     first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp asc) AS open,
+                     first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp desc) AS close
+                FROM generate_series('{}', now(), {}) t(timestamp)
+                LEFT JOIN btc_usd_price c
+                ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {} 
+            ) as w
+            WHERE open IS NOT NULL
+            GROUP BY window_ts
+        "#,
+            since, interval, interval
+        );
+
+        let query = format!(
+            r#"
+                WITH volumes AS (
+                    {}
+                ), ohlc AS (
+                    {}
+                )
+        SELECT
+            ohlc.start,
+            ohlc.end,
+            ohlc.open,
+            ohlc.close,
+            ohlc.high,
+            ohlc.low,
+            {} as resolution,
+            volumes.btc_volume as btc_volume,
+            volumes.trades as trades,
+            volumes.usd_volume as usd_volume
+        FROM volumes
+         JOIN ohlc ON volumes.window_start = ohlc.window_ts
+        "#,
+            trader_subquery, ohlc_subquery, interval
         );
 
         diesel::sql_query(query).get_results(conn)
@@ -829,16 +900,42 @@ impl TraderOrder {
         query.execute(conn)
     }
 
-    pub fn list_open_limit_orders(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
+    pub fn list_open_limit_orders(conn: &mut PgConnection) -> QueryResult<OrderBook> {
         use crate::database::schema::trader_order::dsl::*;
 
-        trader_order
+        let orders = trader_order
             .filter(
                 order_type
                     .eq(OrderType::LIMIT)
                     .and(order_status.eq(OrderStatus::PENDING)),
             )
-            .load(conn)
+            .load(conn)?;
+
+        let mut ask = Vec::new();
+        let mut bid = Vec::new();
+        for order in orders {
+            let TraderOrder {
+                positionsize: ps,
+                position_type: pt,
+                entryprice: ep,
+                ..
+            } = order;
+            if pt == PositionType::LONG {
+                bid.push(Bid {
+                    positionsize: ps.to_f64().unwrap(),
+                    price: ep.to_f64().unwrap(),
+                });
+            } else {
+                ask.push(Ask {
+                    positionsize: ps.to_f64().unwrap(),
+                    price: ep.to_f64().unwrap(),
+                });
+            }
+        }
+
+        let ob = OrderBook { bid, ask };
+
+        Ok(ob)
     }
 
     pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
@@ -847,6 +944,24 @@ impl TraderOrder {
         let start = Utc::now() - chrono::Duration::days(1);
         trader_order.filter(timestamp.ge(start)).load(conn)
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct OrderBook {
+    pub bid: Vec<Bid>,
+    pub ask: Vec<Ask>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Ask {
+    pub positionsize: f64,
+    pub price: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Bid {
+    pub positionsize: f64,
+    pub price: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
