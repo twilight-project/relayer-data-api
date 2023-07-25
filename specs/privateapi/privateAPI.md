@@ -56,10 +56,10 @@ As image above api should create unique customer id and link the public key to t
 now whenever customer place order using the same api key, database should maintain customerid <-> public key <-> orderid linking.
 customer can use different account (different public key) to place order. api key will be a _unified key_ which will track/link the different public key to customer id.
 
-### Retrive Api Key (regenerate API key)
+### Retrieve Api Key (regenerate API key)
 
 In case of client lose the api key/ passphrase.
-client can regerate regenrate the apikey and passphrase from any of thier public key signature (we need to look for the order id from that public key and then search the linked customer id). In this case , old api key will be inactive and new key will be responded to client.
+client can regenerate the apikey and passphrase from any of their public key signature (we need to look for the order id from that public key and then search the linked customer id). In this case , old api key will be inactive and new key will be responded to client.
 
 # Trader Order
 
