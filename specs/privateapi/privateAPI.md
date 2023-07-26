@@ -19,6 +19,7 @@
     - submit bulk settle request
     - customer trade volume
     - get funding payment
+    - get last order detail
 
 ## Lendorder
 
@@ -84,6 +85,12 @@ Response:Array of [TraderOrder]
 ### get order history by id(order id)
 
 Input: orderID (Uuid)
+
+Response: [TraderOrder]
+
+### get last order detail
+
+Input: Public Key
 
 Response: [TraderOrder]
 
