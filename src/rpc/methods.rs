@@ -19,7 +19,7 @@ pub(super) fn trader_order_info(
 }
 
 pub(super) fn lend_pool_info(
-    params: Params<'_>,
+    _params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     match ctx.pool.get() {
@@ -66,7 +66,7 @@ pub(super) fn historical_price(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args = match params.parse::<Option<HistoricalPriceArgs>>() {
+    let args = match params.parse::<HistoricalPriceArgs>() {
         Ok(args) => args,
         Err(e) => return Err(Error::Custom(format!("Invalid argument: {:?}", e))),
     };
@@ -84,7 +84,7 @@ pub(super) fn historical_funding_rate(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args = match params.parse::<Option<HistoricalFundingArgs>>() {
+    let args = match params.parse::<HistoricalFundingArgs>() {
         Ok(args) => args,
         Err(e) => return Err(Error::Custom(format!("Invalid argument: {:?}", e))),
     };
@@ -141,16 +141,23 @@ pub(super) fn candle_data(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let Candles { interval, since } = params.parse()?;
+    let Candles {
+        interval,
+        since,
+        limit,
+        offset,
+    } = params.parse()?;
 
     match ctx.pool.get() {
-        Ok(mut conn) => match BtcUsdPrice::candles(&mut conn, interval, since) {
-            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
-            Err(e) => Err(Error::Custom(format!(
-                "Error fetching candles info: {:?}",
-                e
-            ))),
-        },
+        Ok(mut conn) => {
+            match BtcUsdPrice::candles(&mut conn, interval, since, Some(limit), Some(offset)) {
+                Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+                Err(e) => Err(Error::Custom(format!(
+                    "Error fetching candles info: {:?}",
+                    e
+                ))),
+            }
+        }
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
 }

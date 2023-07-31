@@ -78,7 +78,7 @@ pub fn start_consumer(
                         }
                         Err(e) => {
                             connection_status = false;
-                            error!("The consumed channel is closed");
+                            error!("The consumed channel is closed: {:?}", e);
                             break;
                         }
                     }

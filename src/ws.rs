@@ -12,7 +12,10 @@ use tokio::{
     sync::broadcast::{channel, Sender},
     task::JoinHandle,
 };
-use twilight_relayer_rust::{db::Event, relayer};
+use twilight_relayer_rust::{
+    db::Event,
+    relayer::{self, OrderStatus, TraderOrder},
+};
 
 mod methods;
 
@@ -22,6 +25,9 @@ const WS_UPDATE_INTERVAL: u64 = 250;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 20;
 
+type ManagedConnection = ConnectionManager<PgConnection>;
+type ManagedPool = r2d2::Pool<ManagedConnection>;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NewOrderBookOrder {
     Bid { positionsize: f64, price: f64 },
@@ -29,7 +35,7 @@ pub enum NewOrderBookOrder {
 }
 
 impl NewOrderBookOrder {
-    pub fn new(to: relayer::TraderOrder) -> Self {
+    pub fn new(to: TraderOrder) -> Self {
         if to.position_type == relayer::PositionType::LONG {
             Self::Bid {
                 positionsize: to.positionsize.to_f64().unwrap(),
@@ -47,18 +53,22 @@ impl NewOrderBookOrder {
 pub struct WsContext {
     price_feed: Sender<(f64, DateTime<Utc>)>,
     order_book: Sender<NewOrderBookOrder>,
+    recent_trades: Sender<TraderOrder>,
+    pub pool: ManagedPool,
     _completions: CrossbeamSender<crate::kafka::Completion>,
     _watcher: JoinHandle<()>,
     _kafka_sub: std::thread::JoinHandle<()>,
 }
 
 impl WsContext {
-    pub fn new() -> WsContext {
+    pub fn with_pool(pool: ManagedPool) -> WsContext {
         let (price_feed, _) = channel::<(f64, DateTime<Utc>)>(BROADCAST_CHANNEL_CAPACITY);
         let (order_book, _) = channel::<NewOrderBookOrder>(BROADCAST_CHANNEL_CAPACITY);
+        let (recent_trades, _) = channel::<TraderOrder>(BROADCAST_CHANNEL_CAPACITY);
 
         let price_feed2 = price_feed.clone();
         let order_book2 = order_book.clone();
+        let recent_trades2 = recent_trades.clone();
 
         let (completions, rx, _kafka_sub) = {
             let (tx, rx) = unbounded();
@@ -82,10 +92,17 @@ impl WsContext {
                                 | Event::TraderOrderFundingUpdate(to, ..)
                                 | Event::TraderOrderLiquidation(to, ..) => {
                                     if to.order_type == relayer::OrderType::LIMIT {
-                                        let order = NewOrderBookOrder::new(to);
+                                        let order = NewOrderBookOrder::new(to.clone());
                                         if let Err(e) = order_book2.send(order) {
                                             info!("No order book subscribers present {:?}", e);
                                         }
+                                    }
+
+                                    match to.order_status {
+                                        OrderStatus::PENDING | OrderStatus::FILLED => {
+                                            recent_trades2.send(to);
+                                        }
+                                        _ => {}
                                     }
                                 }
                                 Event::LendOrder(_lend_order, _cmd, _seq) => {}
@@ -133,6 +150,8 @@ impl WsContext {
         WsContext {
             price_feed,
             order_book,
+            recent_trades,
+            pool,
             _completions: completions,
             _watcher,
             _kafka_sub,
@@ -148,7 +167,7 @@ pub fn init_methods(database_url: &str) -> RpcModule<WsContext> {
 
     migrations::run_migrations(&mut *conn).expect("Failed to run database migrations!");
 
-    let mut module = RpcModule::new(WsContext::new());
+    let mut module = RpcModule::new(WsContext::with_pool(pool));
 
     module
         .register_subscription(
@@ -168,6 +187,23 @@ pub fn init_methods(database_url: &str) -> RpcModule<WsContext> {
         )
         .unwrap();
 
+    module
+        .register_subscription(
+            "subscribe_candle_data",
+            "s_candle_data",
+            "unsubscribe_candle_data",
+            methods::candle_update,
+        )
+        .unwrap();
+
+    module
+        .register_subscription(
+            "subscribe_recent_trades",
+            "s_recent_trades",
+            "unsubscribe_recent_trades",
+            methods::recent_trades,
+        )
+        .unwrap();
     module
 }
 

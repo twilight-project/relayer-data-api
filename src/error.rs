@@ -8,4 +8,8 @@ pub enum ApiError {
     DatabaseError(#[from] diesel::result::Error),
     #[error("Crossbeam error {0:?}")]
     CrossbeamChannel(String),
+    #[error("Json serde error {0:?}")]
+    JsonError(#[from] serde_json::Error),
+    #[error("Connection pool error {0:?}")]
+    R2d2(#[from] r2d2::Error),
 }

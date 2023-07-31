@@ -38,10 +38,10 @@ pub struct NewCustomerAccount {
 }
 
 impl CustomerAccount {
-    pub fn get(conn: &mut PgConnection, id: i64) -> QueryResult<CustomerAccount> {
+    pub fn get(conn: &mut PgConnection, ident: i64) -> QueryResult<CustomerAccount> {
         use crate::database::schema::customer_account::dsl::*;
 
-        customer_account.find(id).first(conn)
+        customer_account.find(ident).first(conn)
     }
 
     pub fn create(conn: &mut PgConnection, new_account: NewCustomerAccount) -> QueryResult<usize> {
@@ -83,10 +83,10 @@ pub struct NewCustomerApiKeyLinking {
 }
 
 impl CustomerApiKeyLinking {
-    pub fn get(conn: &mut PgConnection, id: i64) -> QueryResult<CustomerApiKeyLinking> {
+    pub fn get(conn: &mut PgConnection, ident: i64) -> QueryResult<CustomerApiKeyLinking> {
         use crate::database::schema::customer_apikey_linking::dsl::*;
 
-        customer_apikey_linking.find(id).first(conn)
+        customer_apikey_linking.find(ident).first(conn)
     }
 
     pub fn insert(
@@ -123,10 +123,10 @@ pub struct NewCustomerOrderLinking {
 }
 
 impl CustomerOrderLinking {
-    pub fn get(conn: &mut PgConnection, id: i64) -> QueryResult<CustomerOrderLinking> {
+    pub fn get(conn: &mut PgConnection, ident: i64) -> QueryResult<CustomerOrderLinking> {
         use crate::database::schema::customer_order_linking::dsl::*;
 
-        customer_order_linking.find(id).first(conn)
+        customer_order_linking.find(ident).first(conn)
     }
 
     pub fn insert(
@@ -640,28 +640,32 @@ impl BtcUsdPrice {
 
     pub fn get_historical(
         conn: &mut PgConnection,
-        args: Option<HistoricalPriceArgs>,
+        args: HistoricalPriceArgs,
     ) -> QueryResult<Vec<BtcUsdPrice>> {
         use crate::database::schema::btc_usd_price::dsl::*;
+        let HistoricalPriceArgs {
+            from,
+            to,
+            limit,
+            offset,
+        } = args;
 
-        if let Some(args) = args {
-            let HistoricalPriceArgs { from, to } = args;
-
-            btc_usd_price
-                .filter(diesel::BoolExpressionMethods::and(
-                    timestamp.ge(from),
-                    timestamp.lt(to),
-                ))
-                .load(conn)
-        } else {
-            btc_usd_price.load(conn)
-        }
+        btc_usd_price
+            .filter(diesel::BoolExpressionMethods::and(
+                timestamp.ge(from),
+                timestamp.lt(to),
+            ))
+            .limit(limit)
+            .offset(offset)
+            .load(conn)
     }
 
     pub fn candles(
         conn: &mut PgConnection,
         interval: Interval,
         since: DateTime<Utc>,
+        limit: Option<i64>,
+        offset: Option<i64>,
     ) -> QueryResult<Vec<CandleData>> {
         let interval = interval.interval_sql();
 
@@ -736,6 +740,18 @@ impl BtcUsdPrice {
             trader_subquery, ohlc_subquery, interval
         );
 
+        let query = if let Some(limit) = limit {
+            format!(" LIMIT {}", limit)
+        } else {
+            query
+        };
+
+        let query = if let Some(offset) = offset {
+            format!(" OFFSET {}", offset)
+        } else {
+            query
+        };
+
         diesel::sql_query(query).get_results(conn)
     }
 }
@@ -784,22 +800,24 @@ impl FundingRate {
 
     pub fn get_historical(
         conn: &mut PgConnection,
-        args: Option<HistoricalFundingArgs>,
+        args: HistoricalFundingArgs,
     ) -> QueryResult<Vec<FundingRate>> {
         use crate::database::schema::funding_rate::dsl::*;
+        let HistoricalFundingArgs {
+            from,
+            to,
+            limit,
+            offset,
+        } = args;
 
-        if let Some(args) = args {
-            let HistoricalFundingArgs { from, to } = args;
-
-            funding_rate
-                .filter(diesel::BoolExpressionMethods::and(
-                    timestamp.ge(from),
-                    timestamp.lt(to),
-                ))
-                .load(conn)
-        } else {
-            funding_rate.load(conn)
-        }
+        funding_rate
+            .filter(diesel::BoolExpressionMethods::and(
+                timestamp.ge(from),
+                timestamp.lt(to),
+            ))
+            .limit(limit)
+            .offset(offset)
+            .load(conn)
     }
 }
 
@@ -889,7 +907,7 @@ impl TraderOrder {
     pub fn get(conn: &mut PgConnection, id: Uuid) -> QueryResult<TraderOrder> {
         use crate::database::schema::trader_order::dsl::*;
 
-        trader_order.find(id).first(&mut *conn)
+        trader_order.find(id).first(conn)
     }
 
     pub fn insert(conn: &mut PgConnection, orders: Vec<InsertTraderOrder>) -> QueryResult<usize> {
@@ -1023,7 +1041,7 @@ impl LendOrder {
     pub fn get(conn: &mut PgConnection, id: Uuid) -> QueryResult<LendOrder> {
         use crate::database::schema::lend_order::dsl::*;
 
-        lend_order.find(id).first(&mut *conn)
+        lend_order.find(id).first(conn)
     }
 
     pub fn insert(conn: &mut PgConnection, orders: Vec<InsertLendOrder>) -> QueryResult<usize> {

@@ -6,7 +6,9 @@ use serde::Serialize;
 
 mod methods;
 mod types;
-pub use types::{Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval, OrderId};
+pub use types::{
+    CandleSubscription, Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval, OrderId,
+};
 
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;

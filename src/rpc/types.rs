@@ -147,9 +147,16 @@ pub struct MarketInfo {
 pub struct Candles {
     pub interval: Interval,
     pub since: DateTime<Utc>,
+    pub limit: i64,
+    pub offset: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct CandleSubscription {
+    pub interval: Interval,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Interval {
     ONE_MINUTE,
     FIVE_MINUTE,
@@ -183,12 +190,14 @@ impl Interval {
 pub struct HistoricalPriceArgs {
     pub from: DateTime<Utc>,
     pub to: DateTime<Utc>,
-    //TODO: paginate?
+    pub limit: i64,
+    pub offset: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HistoricalFundingArgs {
     pub from: DateTime<Utc>,
     pub to: DateTime<Utc>,
-    //TODO: paginate?
+    pub limit: i64,
+    pub offset: i64,
 }

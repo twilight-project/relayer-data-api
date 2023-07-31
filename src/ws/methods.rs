@@ -1,10 +1,15 @@
+use crate::{database::BtcUsdPrice, error::ApiError, rpc::CandleSubscription};
+use chrono::prelude::*;
 use jsonrpsee::{
     server::{logger::Params, SubscriptionSink},
     types::error::SubscriptionResult,
 };
 use log::{error, info, warn};
 use serde::Serialize;
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::{
     sync::broadcast::{error::TryRecvError, Receiver},
     task::JoinHandle,
@@ -46,6 +51,33 @@ where
     })
 }
 
+pub(super) fn candle_update(
+    params: Params<'_>,
+    mut sink: SubscriptionSink,
+    ctx: Arc<WsContext>,
+) -> SubscriptionResult {
+    sink.accept()?;
+
+    let CandleSubscription { interval } = params.parse()?;
+
+    let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
+        loop {
+            let mut conn = ctx.pool.get()?;
+            let since = Utc::now() - chrono::Duration::minutes(5);
+            let candles = BtcUsdPrice::candles(&mut conn, interval.clone(), since, None, None)?;
+            let result = serde_json::to_value(&candles)?;
+
+            if let Err(e) = sink.send(&result) {
+                error!("Error sending candle updates: {:?}", e);
+            }
+            sleep(Duration::from_secs(5)).await;
+        }
+        Ok(())
+    });
+
+    Ok(())
+}
+
 pub(super) fn spawn_order_book(
     _params: Params<'_>,
     mut sink: SubscriptionSink,
@@ -55,6 +87,19 @@ pub(super) fn spawn_order_book(
     sink.accept()?;
 
     let _ = pipe("Order Book".into(), rx, sink);
+
+    Ok(())
+}
+
+pub(super) fn recent_trades(
+    _params: Params<'_>,
+    mut sink: SubscriptionSink,
+    ctx: Arc<WsContext>,
+) -> SubscriptionResult {
+    let rx = ctx.recent_trades.subscribe();
+    sink.accept()?;
+
+    let _ = pipe("Recent Trades".into(), rx, sink);
 
     Ok(())
 }
