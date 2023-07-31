@@ -14,7 +14,8 @@ specs/database_insertion.md
 # specs/publicAPI.md
 specs/RelayerAPI.md
 codes.zip
-/specs/privateapi/roughwork.md
+/specs/APIDocs/roughwork.md
+/specs/APIDocs/privateAPI.md
 
 # Added by cargo
 
