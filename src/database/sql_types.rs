@@ -125,7 +125,7 @@ impl ToSql<LendPoolCommandTypeSql, Pg> for LendPoolCommandType {
 }
 
 impl FromSql<LendPoolCommandTypeSql, Pg> for LendPoolCommandType {
-    fn from_sql(bytes: <Pg as Backend>::RawValue<'_>) -> deserialize::Result<LendPoolCommandType> {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<LendPoolCommandType> {
         match bytes.as_bytes() {
             b"ADD_TRADER_ORDER_SETTLEMENT" => Ok(LendPoolCommandType::ADD_TRADER_ORDER_SETTLEMENT),
             b"ADD_TRADER_LIMIT_ORDER_SETTLEMENT" => {
@@ -187,7 +187,7 @@ impl ToSql<SortedSetCommandTypeSql, Pg> for SortedSetCommandType {
 }
 
 impl FromSql<SortedSetCommandTypeSql, Pg> for SortedSetCommandType {
-    fn from_sql(bytes: <Pg as Backend>::RawValue<'_>) -> deserialize::Result<SortedSetCommandType> {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<SortedSetCommandType> {
         match bytes.as_bytes() {
             b"ADD_LIQUIDATION_PRICE" => Ok(SortedSetCommandType::ADD_LIQUIDATION_PRICE),
             b"ADD_OPEN_LIMIT_PRICE" => Ok(SortedSetCommandType::ADD_OPEN_LIMIT_PRICE),
@@ -227,7 +227,7 @@ impl ToSql<OrderStatusSql, Pg> for OrderStatus {
 }
 
 impl FromSql<PositionSizeCommandSql, Pg> for PositionSizeCommand {
-    fn from_sql(bytes: <Pg as Backend>::RawValue<'_>) -> deserialize::Result<PositionSizeCommand> {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<PositionSizeCommand> {
         match bytes.as_bytes() {
             b"ADD" => Ok(PositionSizeCommand::ADD),
             b"REMOVE" => Ok(PositionSizeCommand::REMOVE),
@@ -247,7 +247,7 @@ impl ToSql<PositionSizeCommandSql, Pg> for PositionSizeCommand {
 }
 
 impl FromSql<OrderStatusSql, Pg> for OrderStatus {
-    fn from_sql(bytes: <Pg as Backend>::RawValue<'_>) -> deserialize::Result<OrderStatus> {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<OrderStatus> {
         match bytes.as_bytes() {
             b"SETTLED" => Ok(OrderStatus::SETTLED),
             b"LENDED" => Ok(OrderStatus::LENDED),
@@ -273,7 +273,7 @@ impl ToSql<OrderTypeSql, Pg> for OrderType {
 }
 
 impl FromSql<OrderTypeSql, Pg> for OrderType {
-    fn from_sql(bytes: <Pg as Backend>::RawValue<'_>) -> deserialize::Result<OrderType> {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<OrderType> {
         match bytes.as_bytes() {
             b"LIMIT" => Ok(OrderType::LIMIT),
             b"MARKET" => Ok(OrderType::MARKET),
@@ -295,7 +295,7 @@ impl ToSql<PositionTypeSql, Pg> for PositionType {
 }
 
 impl FromSql<PositionTypeSql, Pg> for PositionType {
-    fn from_sql(bytes: <Pg as Backend>::RawValue<'_>) -> deserialize::Result<PositionType> {
+    fn from_sql(bytes: backend::RawValue<Pg>) -> deserialize::Result<PositionType> {
         match bytes.as_bytes() {
             b"LONG" => Ok(PositionType::LONG),
             b"SHORT" => Ok(PositionType::SHORT),

@@ -1,4 +1,3 @@
-use crate::migrations;
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
@@ -34,10 +33,6 @@ fn register_method<R: Serialize + 'static>(
 pub fn init_methods(database_url: &str) -> RpcModule<RelayerContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
-
-    let mut conn = pool.get().expect("Could not get pooled connection!");
-
-    migrations::run_migrations(&mut *conn).expect("Failed to run database migrations!");
 
     let mut module = RpcModule::new(RelayerContext { pool });
 

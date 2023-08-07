@@ -1,4 +1,4 @@
-use crate::{kafka::start_consumer, migrations};
+use crate::kafka::start_consumer;
 use bigdecimal::ToPrimitive;
 use chrono::prelude::*;
 use crossbeam_channel::{unbounded, Sender as CrossbeamSender};
@@ -162,10 +162,6 @@ impl WsContext {
 pub fn init_methods(database_url: &str) -> RpcModule<WsContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
-
-    let mut conn = pool.get().expect("Could not get pooled connection!");
-
-    migrations::run_migrations(&mut *conn).expect("Failed to run database migrations!");
 
     let mut module = RpcModule::new(WsContext::with_pool(pool));
 
