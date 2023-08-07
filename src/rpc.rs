@@ -7,7 +7,8 @@ use serde::Serialize;
 mod methods;
 mod types;
 pub use types::{
-    CandleSubscription, Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval, OrderId,
+    CandleSubscription, Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval,
+    OrderHistoryArgs, OrderId, PnlArgs, TradeVolumeArgs,
 };
 
 type ManagedConnection = ConnectionManager<PgConnection>;
@@ -40,6 +41,28 @@ pub fn init_methods(database_url: &str) -> RpcModule<RelayerContext> {
 
     let mut module = RpcModule::new(RelayerContext { pool });
 
+    register_method(
+        &mut module,
+        "unrealized_pnl",
+        Box::new(methods::unrealized_pnl),
+    );
+    register_method(&mut module, "open_orders", Box::new(methods::open_orders));
+    register_method(
+        &mut module,
+        "order_history",
+        Box::new(methods::order_history),
+    );
+    register_method(&mut module, "trade_volume", Box::new(methods::trade_volume));
+    register_method(
+        &mut module,
+        "get_funding_payment",
+        Box::new(methods::get_funding_payment),
+    );
+    register_method(
+        &mut module,
+        "last_order_detail",
+        Box::new(methods::last_order_detail),
+    );
     register_method(
         &mut module,
         "lend_pool_info",

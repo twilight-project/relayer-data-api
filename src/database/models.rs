@@ -6,8 +6,11 @@ use crate::database::{
     },
     sql_types::*,
 };
-use crate::rpc::{HistoricalFundingArgs, HistoricalPriceArgs, Interval};
-use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
+use crate::rpc::{
+    HistoricalFundingArgs, HistoricalPriceArgs, Interval, OrderHistoryArgs, PnlArgs,
+    TradeVolumeArgs,
+};
+use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
 use chrono::prelude::*;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -903,6 +906,12 @@ pub struct InsertTraderOrder {
     pub entry_sequence: i64,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct UnrealizedPnl {
+    order_ids: Vec<String>,
+    pnl: f64,
+}
+
 impl TraderOrder {
     pub fn get(conn: &mut PgConnection, id: Uuid) -> QueryResult<TraderOrder> {
         use crate::database::schema::trader_order::dsl::*;
@@ -916,6 +925,100 @@ impl TraderOrder {
         let query = diesel::insert_into(trader_order).values(&orders);
 
         query.execute(conn)
+    }
+
+    pub fn unrealized_pnl(
+        conn: &mut PgConnection,
+        pnl_args: PnlArgs,
+    ) -> QueryResult<UnrealizedPnl> {
+        use crate::database::schema::trader_order::dsl::*;
+
+        let price = BtcUsdPrice::get(conn)?;
+        let closed = vec![
+            OrderStatus::FILLED,
+            OrderStatus::CANCELLED,
+            OrderStatus::LIQUIDATE,
+            OrderStatus::SETTLED,
+        ];
+
+        let orders: Vec<TraderOrder> = match pnl_args {
+            PnlArgs::OrderId(oid) => {
+                //TODO: uuid??
+                //vec![trader_order.filter(id.eq(oid).and(order_status.ne_all(closed)).order_by(timestamp.desc()).load(conn)?]
+                vec![]
+            }
+            PnlArgs::PublicKey(key) => trader_order
+                .filter(account_id.eq(key).and(order_status.ne_all(closed)))
+                .load(conn)?,
+            PnlArgs::All => trader_order
+                .filter(order_status.ne_all(closed))
+                .load(conn)?,
+        };
+
+        let mut pnl = BigDecimal::zero();
+        let order_ids = orders
+            .into_iter()
+            .map(|o| {
+                pnl += o.unrealized_pnl;
+                o.uuid.to_string()
+            })
+            .collect();
+
+        Ok(UnrealizedPnl {
+            order_ids,
+            pnl: pnl.to_f64().unwrap(),
+        })
+    }
+
+    pub fn order_history(
+        conn: &mut PgConnection,
+        args: OrderHistoryArgs,
+    ) -> QueryResult<Vec<TraderOrder>> {
+        use crate::database::schema::trader_order::dsl::*;
+
+        match args {
+            OrderHistoryArgs::OrderId(order_id) => {
+                //TODO: by id??
+                Ok(vec![])
+            }
+            OrderHistoryArgs::ClientId {
+                client_id,
+                offset,
+                limit,
+            } => {
+                trader_order
+                    .filter(account_id.eq(client_id))
+                    //TODO: uuid...
+                    //.group_by(uuid)
+                    .limit(limit)
+                    .offset(offset)
+                    .order_by(timestamp.desc())
+                    .load(conn)
+            }
+        }
+    }
+
+    pub fn order_volume(conn: &mut PgConnection, args: TradeVolumeArgs) -> QueryResult<usize> {
+        use crate::database::schema::trader_order::dsl::*;
+        trader_order
+            .count()
+            .filter(timestamp.between(args.start, args.end))
+            .distinct_on(uuid)
+            .execute(conn)
+    }
+
+    pub fn open_orders(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
+        use crate::database::schema::trader_order::dsl::*;
+
+        // TODO: filter by user-id??
+        let closed = vec![
+            OrderStatus::FILLED,
+            OrderStatus::CANCELLED,
+            OrderStatus::LIQUIDATE,
+            OrderStatus::SETTLED,
+        ];
+
+        trader_order.filter(order_status.ne_all(closed)).load(conn)
     }
 
     pub fn list_open_limit_orders(conn: &mut PgConnection) -> QueryResult<OrderBook> {

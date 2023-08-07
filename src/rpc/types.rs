@@ -144,6 +144,29 @@ pub struct MarketInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct TradeVolumeArgs {
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum OrderHistoryArgs {
+    OrderId(Uuid),
+    ClientId {
+        client_id: String,
+        offset: i64,
+        limit: i64,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum PnlArgs {
+    OrderId(Uuid),
+    PublicKey(String),
+    All,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Candles {
     pub interval: Interval,
     pub since: DateTime<Utc>,
