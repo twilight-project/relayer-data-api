@@ -744,13 +744,13 @@ impl BtcUsdPrice {
         );
 
         let query = if let Some(limit) = limit {
-            format!(" LIMIT {}", limit)
+            format!("{} LIMIT {}", query, limit)
         } else {
             query
         };
 
         let query = if let Some(offset) = offset {
-            format!(" OFFSET {}", offset)
+            format!("{} OFFSET {}", query, offset)
         } else {
             query
         };
