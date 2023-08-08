@@ -682,8 +682,8 @@ impl BtcUsdPrice {
             FROM (
                 SELECT
                     t.timestamp as window_start,
-                    c.entryprice,
-                    c.positionsize
+                    coalesce(c.entryprice, 0) as entryprice,
+                    coalesce(c.positionsize, 0) as positionsize
                 FROM generate_series('{}', now(), {}) t(timestamp)
                 LEFT JOIN trader_order c
                 ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {}
