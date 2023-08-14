@@ -108,7 +108,7 @@ impl CustomerApiKeyLinking {
 #[diesel(table_name = customer_order_linking)]
 pub struct CustomerOrderLinking {
     id: i64,
-    order_id: Uuid,
+    order_id: String,
     public_key: String,
     customer_account_id: i64,
     order_status: String,
@@ -118,7 +118,7 @@ pub struct CustomerOrderLinking {
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
 #[diesel(table_name = customer_order_linking)]
 pub struct NewCustomerOrderLinking {
-    order_id: Uuid,
+    order_id: String,
     public_key: String,
     customer_account_id: i64,
     order_status: String,
@@ -252,7 +252,7 @@ impl LendPool {
 pub struct LendPoolCommand {
     id: i64,
     command: LendPoolCommandType,
-    order_id: Uuid,
+    order_id: String,
     payment: Option<BigDecimal>,
 }
 
@@ -260,12 +260,12 @@ pub struct LendPoolCommand {
 #[diesel(table_name = lend_pool_command)]
 pub struct LendPoolCommandUpdate {
     command: LendPoolCommandType,
-    order_id: Uuid,
+    order_id: String,
     payment: Option<BigDecimal>,
 }
 
-impl From<(LendPoolCommandType, Uuid, Option<BigDecimal>)> for LendPoolCommandUpdate {
-    fn from(tuple: (LendPoolCommandType, Uuid, Option<BigDecimal>)) -> LendPoolCommandUpdate {
+impl From<(LendPoolCommandType, String, Option<BigDecimal>)> for LendPoolCommandUpdate {
+    fn from(tuple: (LendPoolCommandType, String, Option<BigDecimal>)) -> LendPoolCommandUpdate {
         let (command, order_id, payment) = tuple;
 
         LendPoolCommandUpdate {
@@ -303,12 +303,12 @@ fn lend_pool_to_batch(
     match item {
         relayer_db::LendPoolCommand::AddTraderOrderSettlement(_, order, p) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
-            let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+            let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::ADD_TRADER_ORDER_SETTLEMENT, uuid, pay).into()]
         }
         relayer_db::LendPoolCommand::AddTraderLimitOrderSettlement(_, order, p) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
-            let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+            let uuid = order.uuid.to_string();
             vec![(
                 LendPoolCommandType::ADD_TRADER_LIMIT_ORDER_SETTLEMENT,
                 uuid,
@@ -318,22 +318,22 @@ fn lend_pool_to_batch(
         }
         relayer_db::LendPoolCommand::AddFundingData(order, p) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
-            let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+            let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::ADD_FUNDING_DATA, uuid, pay).into()]
         }
         relayer_db::LendPoolCommand::AddTraderOrderLiquidation(_, order, p) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
-            let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+            let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::ADD_TRADER_ORDER_LIQUIDATION, uuid, pay).into()]
         }
         relayer_db::LendPoolCommand::LendOrderCreateOrder(_, order, p) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
-            let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+            let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::LEND_ORDER_CREATE_ORDER, uuid, pay).into()]
         }
         relayer_db::LendPoolCommand::LendOrderSettleOrder(_, order, p) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
-            let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+            let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::LEND_ORDER_SETTLE_ORDER, uuid, pay).into()]
         }
         relayer_db::LendPoolCommand::BatchExecuteTraderOrder(relayer_command) => {
@@ -358,7 +358,7 @@ fn lend_pool_to_batch(
             }
         }
         relayer_db::LendPoolCommand::InitiateNewPool(order, _) => {
-            let uuid = Uuid::from_bytes(*order.uuid.as_bytes());
+            let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::INITIATE_NEW_POOL, uuid, None).into()]
         }
     }
@@ -857,7 +857,7 @@ impl FundingRateUpdate {
 #[diesel(table_name = trader_order)]
 pub struct TraderOrder {
     pub id: i64,
-    pub uuid: Uuid,
+    pub uuid: String,
     pub account_id: String,
     pub position_type: PositionType,
     pub order_status: OrderStatus,
@@ -883,7 +883,7 @@ pub struct TraderOrder {
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
 #[diesel(table_name = trader_order)]
 pub struct InsertTraderOrder {
-    pub uuid: Uuid,
+    pub uuid: String,
     pub account_id: String,
     pub position_type: PositionType,
     pub order_status: OrderStatus,
@@ -913,7 +913,7 @@ pub struct UnrealizedPnl {
 }
 
 impl TraderOrder {
-    pub fn get(conn: &mut PgConnection, id: Uuid) -> QueryResult<TraderOrder> {
+    pub fn get(conn: &mut PgConnection, id: String) -> QueryResult<TraderOrder> {
         use crate::database::schema::trader_order::dsl::*;
 
         trader_order.find(id).first(conn)
@@ -1067,11 +1067,14 @@ impl TraderOrder {
         use crate::database::schema::trader_order::dsl::*;
 
         let start = Utc::now() - chrono::Duration::days(1);
-        trader_order.filter(
-            timestamp.ge(start)
-            .and(order_status.ne(OrderStatus::PENDING))
-            .and(order_type.ne(OrderType::LIMIT))
-        ).load(conn)
+        trader_order
+            .filter(
+                timestamp
+                    .ge(start)
+                    .and(order_status.ne(OrderStatus::PENDING))
+                    .and(order_type.ne(OrderType::LIMIT)),
+            )
+            .load(conn)
     }
 }
 
@@ -1097,7 +1100,7 @@ pub struct Bid {
 #[diesel(table_name = lend_order)]
 pub struct LendOrder {
     pub id: i64,
-    pub uuid: Uuid,
+    pub uuid: String,
     pub account_id: String,
     pub balance: BigDecimal,
     pub order_status: OrderStatus,
@@ -1124,7 +1127,7 @@ pub struct LendOrder {
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
 #[diesel(table_name = lend_order)]
 pub struct InsertLendOrder {
-    pub uuid: Uuid,
+    pub uuid: String,
     pub account_id: String,
     pub balance: BigDecimal,
     pub order_status: OrderStatus,
@@ -1149,7 +1152,7 @@ pub struct InsertLendOrder {
 }
 
 impl LendOrder {
-    pub fn get(conn: &mut PgConnection, id: Uuid) -> QueryResult<LendOrder> {
+    pub fn get(conn: &mut PgConnection, id: String) -> QueryResult<LendOrder> {
         use crate::database::schema::lend_order::dsl::*;
 
         lend_order.find(id).first(conn)
@@ -1191,7 +1194,7 @@ impl From<relayer::TraderOrder> for InsertTraderOrder {
         } = src;
 
         InsertTraderOrder {
-            uuid: Uuid::from_bytes(*uuid.as_bytes()),
+            uuid: uuid.to_string(),
             account_id,
             position_type: position_type.into(),
             order_status: order_status.into(),
@@ -1247,7 +1250,7 @@ impl From<relayer::LendOrder> for InsertLendOrder {
         } = src;
 
         InsertLendOrder {
-            uuid: Uuid::from_bytes(*uuid.as_bytes()),
+            uuid: uuid.to_string(),
             account_id,
             balance: BigDecimal::from_f64(balance).unwrap(),
             order_status: order_status.into(),
@@ -1287,7 +1290,7 @@ mod tests {
         getrandom(&mut bytes).expect("Could not get randomness");
 
         TraderOrder {
-            uuid: Uuid::from_slice(&bytes).unwrap(),
+            uuid: bytes.encode_hex::<String>(),
             account_id: "my-id".into(),
             position_type: PositionType::LONG,
             order_status: OrderStatus::PENDING,
@@ -1317,7 +1320,7 @@ mod tests {
         getrandom(&mut bytes).expect("Could not get randomness");
 
         LendOrder {
-            uuid: Uuid::from_slice(&bytes).unwrap(),
+            uuid: bytes.encode_hex::<String>(),
             account_id: "lender-id".into(),
             balance: BigDecimal::from_f64(balance).unwrap(),
             order_status: OrderStatus::PENDING,

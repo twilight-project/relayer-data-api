@@ -13,11 +13,10 @@
 // •	Server Time
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OrderId {
-    pub id: Uuid,
+    pub id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -151,7 +150,7 @@ pub struct TradeVolumeArgs {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum OrderHistoryArgs {
-    OrderId(Uuid),
+    OrderId(String),
     ClientId {
         client_id: String,
         offset: i64,
@@ -161,7 +160,7 @@ pub enum OrderHistoryArgs {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PnlArgs {
-    OrderId(Uuid),
+    OrderId(String),
     PublicKey(String),
     All,
 }
