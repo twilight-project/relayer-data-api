@@ -943,8 +943,12 @@ impl TraderOrder {
 
         let orders: Vec<TraderOrder> = match pnl_args {
             PnlArgs::OrderId(oid) => {
-                //TODO: uuid??
-                //vec![trader_order.filter(id.eq(oid).and(order_status.ne_all(closed)).order_by(timestamp.desc()).load(conn)?]
+                // TODO: uuid broken...
+                //let order = trader_order
+                //    .filter(
+                //        id.eq(oid).and(order_status.ne_all(closed))
+                //    ).order_by(timestamp.desc()).first(conn)?;
+                //vec![order]
                 vec![]
             }
             PnlArgs::PublicKey(key) => trader_order
@@ -1063,7 +1067,11 @@ impl TraderOrder {
         use crate::database::schema::trader_order::dsl::*;
 
         let start = Utc::now() - chrono::Duration::days(1);
-        trader_order.filter(timestamp.ge(start)).load(conn)
+        trader_order.filter(
+            timestamp.ge(start)
+            .and(order_status.ne(OrderStatus::PENDING))
+            .and(order_type.ne(OrderType::LIMIT))
+        ).load(conn)
     }
 }
 
