@@ -1,4 +1,8 @@
-use crate::{database::BtcUsdPrice, error::ApiError, rpc::CandleSubscription};
+use crate::{
+    database::{BtcUsdPrice, TraderOrder},
+    error::ApiError,
+    rpc::CandleSubscription,
+};
 use chrono::prelude::*;
 use jsonrpsee::{
     server::{logger::Params, SubscriptionSink},
@@ -83,10 +87,36 @@ pub(super) fn spawn_order_book(
     mut sink: SubscriptionSink,
     ctx: Arc<WsContext>,
 ) -> SubscriptionResult {
-    let rx = ctx.order_book.subscribe();
+    let mut rx = ctx.order_book.subscribe();
     sink.accept()?;
 
-    let _ = pipe("Order Book".into(), rx, sink);
+    let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
+        loop {
+            match rx.try_recv() {
+                Ok(mesg) => {
+                    let mut conn = ctx.pool.get()?;
+                    let orders = TraderOrder::order_book(&mut conn)?;
+                    let result = serde_json::to_value(&orders)?;
+
+                    if let Err(e) = sink.send(&result) {
+                        error!("Error sending candle updates: {:?}", e);
+                    }
+                    sleep(Duration::from_secs(5)).await;
+                }
+                Err(TryRecvError::Closed) => {
+                    info!("order_book: Channel closed");
+                    break;
+                }
+                Err(TryRecvError::Lagged(by)) => {
+                    warn!("order_book: Channel is lagging by {} messages", by);
+                }
+                Err(TryRecvError::Empty) => {
+                    sleep(Duration::from_millis(200)).await;
+                }
+            }
+        }
+        Ok(())
+    });
 
     Ok(())
 }

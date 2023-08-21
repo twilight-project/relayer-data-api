@@ -116,7 +116,7 @@ pub(super) fn open_limit_orders(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     match ctx.pool.get() {
-        Ok(mut conn) => match TraderOrder::list_open_limit_orders(&mut conn) {
+        Ok(mut conn) => match TraderOrder::order_book(&mut conn) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
         },

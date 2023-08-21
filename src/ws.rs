@@ -1,3 +1,4 @@
+use crate::database::{NewOrderBookOrder, TraderOrder};
 use crate::kafka::start_consumer;
 use bigdecimal::ToPrimitive;
 use chrono::prelude::*;
@@ -14,7 +15,7 @@ use tokio::{
 };
 use twilight_relayer_rust::{
     db::Event,
-    relayer::{self, OrderStatus, TraderOrder},
+    relayer::{self, OrderStatus},
 };
 
 mod methods;
@@ -28,32 +29,10 @@ const BROADCAST_CHANNEL_CAPACITY: usize = 20;
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum NewOrderBookOrder {
-    Bid { positionsize: f64, price: f64 },
-    Ask { positionsize: f64, price: f64 },
-}
-
-impl NewOrderBookOrder {
-    pub fn new(to: TraderOrder) -> Self {
-        if to.position_type == relayer::PositionType::LONG {
-            Self::Bid {
-                positionsize: to.positionsize.to_f64().unwrap(),
-                price: to.entryprice.to_f64().unwrap(),
-            }
-        } else {
-            Self::Ask {
-                positionsize: to.positionsize.to_f64().unwrap(),
-                price: to.entryprice.to_f64().unwrap(),
-            }
-        }
-    }
-}
-
 pub struct WsContext {
     price_feed: Sender<(f64, DateTime<Utc>)>,
     order_book: Sender<NewOrderBookOrder>,
-    recent_trades: Sender<TraderOrder>,
+    recent_trades: Sender<relayer::TraderOrder>,
     pub pool: ManagedPool,
     _completions: CrossbeamSender<crate::kafka::Completion>,
     _watcher: JoinHandle<()>,
@@ -64,7 +43,7 @@ impl WsContext {
     pub fn with_pool(pool: ManagedPool) -> WsContext {
         let (price_feed, _) = channel::<(f64, DateTime<Utc>)>(BROADCAST_CHANNEL_CAPACITY);
         let (order_book, _) = channel::<NewOrderBookOrder>(BROADCAST_CHANNEL_CAPACITY);
-        let (recent_trades, _) = channel::<TraderOrder>(BROADCAST_CHANNEL_CAPACITY);
+        let (recent_trades, _) = channel::<relayer::TraderOrder>(BROADCAST_CHANNEL_CAPACITY);
 
         let price_feed2 = price_feed.clone();
         let order_book2 = order_book.clone();
@@ -92,7 +71,8 @@ impl WsContext {
                                 | Event::TraderOrderFundingUpdate(to, ..)
                                 | Event::TraderOrderLiquidation(to, ..) => {
                                     if to.order_type == relayer::OrderType::LIMIT {
-                                        let order = NewOrderBookOrder::new(to.clone());
+                                        let order =
+                                            NewOrderBookOrder::new(TraderOrder::from(to.clone()));
                                         if let Err(e) = order_book2.send(order) {
                                             info!("No order book subscribers present {:?}", e);
                                         }

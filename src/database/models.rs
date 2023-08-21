@@ -906,6 +906,48 @@ pub struct InsertTraderOrder {
     pub entry_sequence: i64,
 }
 
+#[derive(
+    Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName, Insertable, AsChangeset,
+)]
+#[diesel(table_name = trader_order)]
+pub struct OrderBookOrder {
+    uuid: String,
+    entryprice: BigDecimal,
+    positionsize: BigDecimal,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum NewOrderBookOrder {
+    Bid {
+        id: String,
+        positionsize: f64,
+        price: f64,
+    },
+    Ask {
+        id: String,
+        positionsize: f64,
+        price: f64,
+    },
+}
+
+impl NewOrderBookOrder {
+    pub fn new(to: TraderOrder) -> Self {
+        if to.position_type == PositionType::LONG {
+            Self::Bid {
+                id: to.uuid,
+                positionsize: to.positionsize.to_f64().unwrap(),
+                price: to.entryprice.to_f64().unwrap(),
+            }
+        } else {
+            Self::Ask {
+                id: to.uuid,
+                positionsize: to.positionsize.to_f64().unwrap(),
+                price: to.entryprice.to_f64().unwrap(),
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UnrealizedPnl {
     order_ids: Vec<String>,
@@ -1011,6 +1053,61 @@ impl TraderOrder {
             .execute(conn)
     }
 
+    pub fn order_book(conn: &mut PgConnection) -> QueryResult<OrderBook> {
+        use crate::database::schema::trader_order::dsl::*;
+        use diesel::dsl::{max, sum};
+
+        let query = r#"
+            select
+                max(uuid) as uuid,
+                entryprice,
+                sum(positionsize) as positionsize
+            from trader_order
+            where order_type = 'LIMIT' and position_type = 'SHORT' and order_status = 'PENDING'
+            group by entryprice
+            order by positionsize desc
+            limit 10;
+        "#;
+
+        let shorts: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
+
+        let mut ask: Vec<_> = shorts
+            .into_iter()
+            .map(|order| Ask {
+                id: order.uuid,
+                positionsize: order.positionsize.to_f64().unwrap(),
+                price: order.entryprice.to_f64().unwrap(),
+            })
+            .collect();
+
+        let query = r#"
+            select
+                max(uuid) as uuid,
+                entryprice,
+                sum(positionsize) as positionsize
+            from trader_order
+            where order_type = 'LIMIT' and position_type = 'LONG' and order_status = 'PENDING'
+            group by entryprice
+            order by positionsize desc
+            limit 10;
+        "#;
+
+        let longs: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
+
+        let mut bid = longs
+            .into_iter()
+            .map(|order| Bid {
+                id: order.uuid,
+                positionsize: order.positionsize.to_f64().unwrap(),
+                price: order.entryprice.to_f64().unwrap(),
+            })
+            .collect();
+
+        let ob = OrderBook { bid, ask };
+
+        Ok(ob)
+    }
+
     pub fn open_orders(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
         use crate::database::schema::trader_order::dsl::*;
 
@@ -1023,44 +1120,6 @@ impl TraderOrder {
         ];
 
         trader_order.filter(order_status.ne_all(closed)).load(conn)
-    }
-
-    pub fn list_open_limit_orders(conn: &mut PgConnection) -> QueryResult<OrderBook> {
-        use crate::database::schema::trader_order::dsl::*;
-
-        let orders = trader_order
-            .filter(
-                order_type
-                    .eq(OrderType::LIMIT)
-                    .and(order_status.eq(OrderStatus::PENDING)),
-            )
-            .load(conn)?;
-
-        let mut ask = Vec::new();
-        let mut bid = Vec::new();
-        for order in orders {
-            let TraderOrder {
-                positionsize: ps,
-                position_type: pt,
-                entryprice: ep,
-                ..
-            } = order;
-            if pt == PositionType::LONG {
-                bid.push(Bid {
-                    positionsize: ps.to_f64().unwrap(),
-                    price: ep.to_f64().unwrap(),
-                });
-            } else {
-                ask.push(Ask {
-                    positionsize: ps.to_f64().unwrap(),
-                    price: ep.to_f64().unwrap(),
-                });
-            }
-        }
-
-        let ob = OrderBook { bid, ask };
-
-        Ok(ob)
     }
 
     pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
@@ -1086,12 +1145,14 @@ pub struct OrderBook {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Ask {
+    pub id: String,
     pub positionsize: f64,
     pub price: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Bid {
+    pub id: String,
     pub positionsize: f64,
     pub price: f64,
 }
@@ -1167,6 +1228,61 @@ impl LendOrder {
     }
 }
 
+impl From<relayer::TraderOrder> for TraderOrder {
+    fn from(src: relayer::TraderOrder) -> TraderOrder {
+        let relayer::TraderOrder {
+            uuid,
+            account_id,
+            position_type,
+            order_status,
+            order_type,
+            entryprice,
+            execution_price,
+            positionsize,
+            leverage,
+            initial_margin,
+            available_margin,
+            timestamp,
+            bankruptcy_price,
+            bankruptcy_value,
+            maintenance_margin,
+            liquidation_price,
+            unrealized_pnl,
+            settlement_price,
+            entry_nonce,
+            exit_nonce,
+            entry_sequence,
+        } = src;
+
+        TraderOrder {
+            id: 0,
+            uuid: uuid.to_string(),
+            account_id,
+            position_type: position_type.into(),
+            order_status: order_status.into(),
+            order_type: order_type.into(),
+            // TODO: maybe a TryFrom impl instead...
+            entryprice: BigDecimal::from_f64(entryprice).unwrap(),
+            execution_price: BigDecimal::from_f64(execution_price).unwrap(),
+            positionsize: BigDecimal::from_f64(positionsize).unwrap(),
+            leverage: BigDecimal::from_f64(leverage).unwrap(),
+            initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
+            available_margin: BigDecimal::from_f64(available_margin).unwrap(),
+            timestamp: DateTime::parse_from_rfc3339(&timestamp)
+                .expect("Bad datetime format")
+                .into(),
+            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap(),
+            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap(),
+            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap(),
+            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap(),
+            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap(),
+            settlement_price: BigDecimal::from_f64(settlement_price).unwrap(),
+            entry_nonce: entry_nonce as i64,
+            exit_nonce: exit_nonce as i64,
+            entry_sequence: entry_sequence as i64,
+        }
+    }
+}
 impl From<relayer::TraderOrder> for InsertTraderOrder {
     fn from(src: relayer::TraderOrder) -> InsertTraderOrder {
         let relayer::TraderOrder {
