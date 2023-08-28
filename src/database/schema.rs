@@ -70,6 +70,7 @@ diesel::table! {
 diesel::table! {
     customer_order_linking (id) {
         id -> Int8,
+        #[max_length = 64]
         order_id -> Varchar,
         public_key -> Varchar,
         customer_account_id -> Int8,
@@ -94,6 +95,7 @@ diesel::table! {
 
     lend_order (id) {
         id -> Int8,
+        #[max_length = 64]
         uuid -> Varchar,
         account_id -> Varchar,
         balance -> Numeric,
@@ -139,6 +141,7 @@ diesel::table! {
     lend_pool_command (id) {
         id -> Int8,
         command -> LendPoolCommandType,
+        #[max_length = 64]
         order_id -> Varchar,
         payment -> Nullable<Numeric>,
     }
@@ -182,6 +185,7 @@ diesel::table! {
 
     trader_order (id) {
         id -> Int8,
+        #[max_length = 64]
         uuid -> Varchar,
         account_id -> Varchar,
         position_type -> PositionType,

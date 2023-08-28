@@ -1,19 +1,44 @@
+use chrono::prelude::*;
+use chrono::Days;
 use futures_util::future::BoxFuture;
 use hmac::{Hmac, Mac};
 use http::{header::AUTHORIZATION, Request, Response, StatusCode};
 use hyper::Body;
-use jwt::{Header, Token, VerifyWithKey};
+use jwt::{Header, SignWithKey, Token, VerifyWithKey};
 use log::error;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use tower_http::auth::AsyncAuthorizeRequest;
 
-#[derive(Deserialize, Debug)]
+const TOKEN_EXPIRY_DAYS: u64 = 1;
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AuthToken {
     userid: String,
     is_admin: bool,
     // TODO: parse as DateTime<Utc>
     exp: usize,
+}
+
+impl AuthToken {
+    // TODO: perms on this.
+    pub fn new(userid: String) -> AuthToken {
+        let expiry_days = Days::new(TOKEN_EXPIRY_DAYS);
+        let exp = Utc::now()
+            .checked_add_days(expiry_days)
+            .unwrap()
+            .timestamp() as usize;
+        AuthToken {
+            userid,
+            is_admin: false,
+            exp,
+        }
+    }
+
+    pub fn signed_token(self) -> Result<String, jwt::error::Error> {
+        let key: Hmac<Sha256> = Hmac::new_from_slice(b"test_secret").expect("Bad key");
+        self.sign_with_key(&key)
+    }
 }
 
 pub struct UserId(String);
