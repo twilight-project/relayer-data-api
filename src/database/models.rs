@@ -955,10 +955,10 @@ pub struct UnrealizedPnl {
 }
 
 impl TraderOrder {
-    pub fn get(conn: &mut PgConnection, id: String) -> QueryResult<TraderOrder> {
+    pub fn get(conn: &mut PgConnection, order_id: String) -> QueryResult<TraderOrder> {
         use crate::database::schema::trader_order::dsl::*;
 
-        trader_order.find(id).first(conn)
+        trader_order.filter(uuid.eq(order_id)).first(conn)
     }
 
     pub fn insert(conn: &mut PgConnection, orders: Vec<InsertTraderOrder>) -> QueryResult<usize> {
@@ -1058,15 +1058,23 @@ impl TraderOrder {
         use diesel::dsl::{max, sum};
 
         let query = r#"
-            select
-                max(uuid) as uuid,
+            WITH orders AS (
+                SELECT * FROM trader_order
+                WHERE id IN (
+                    SELECT MAX(id) FROM trader_order
+                    WHERE order_type = 'LIMIT' AND position_type = 'SHORT'
+                    GROUP BY uuid
+                )
+                AND order_status <> 'FILLED'
+            )
+            SELECT
+                MAX(uuid) AS uuid,
                 entryprice,
-                sum(positionsize) as positionsize
-            from trader_order
-            where order_type = 'LIMIT' and position_type = 'SHORT' and order_status = 'PENDING'
-            group by entryprice
-            order by positionsize desc
-            limit 10;
+                SUM(positionsize) AS positionsize
+            FROM orders
+            GROUP BY entryprice
+            ORDER BY positionsize DESC
+            LIMIT 10;
         "#;
 
         let shorts: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
@@ -1081,15 +1089,23 @@ impl TraderOrder {
             .collect();
 
         let query = r#"
-            select
-                max(uuid) as uuid,
+            WITH orders AS (
+                SELECT * FROM trader_order
+                WHERE id IN (
+                    SELECT MAX(id) FROM trader_order
+                    WHERE order_type = 'LIMIT' AND position_type = 'LONG'
+                    GROUP BY uuid
+                )
+                AND order_status <> 'FILLED'
+            )
+            SELECT
+                MAX(uuid) AS uuid,
                 entryprice,
-                sum(positionsize) as positionsize
-            from trader_order
-            where order_type = 'LIMIT' and position_type = 'LONG' and order_status = 'PENDING'
-            group by entryprice
-            order by positionsize desc
-            limit 10;
+                SUM(positionsize) AS positionsize
+            FROM orders
+            GROUP BY entryprice
+            ORDER BY positionsize DESC
+            LIMIT 10;
         "#;
 
         let longs: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
@@ -1130,8 +1146,7 @@ impl TraderOrder {
             .filter(
                 timestamp
                     .ge(start)
-                    .and(order_status.ne(OrderStatus::PENDING))
-                    .and(order_type.ne(OrderType::LIMIT)),
+                    .and(order_status.ne(OrderStatus::FILLED)),
             )
             .load(conn)
     }
@@ -1213,10 +1228,10 @@ pub struct InsertLendOrder {
 }
 
 impl LendOrder {
-    pub fn get(conn: &mut PgConnection, id: String) -> QueryResult<LendOrder> {
+    pub fn get(conn: &mut PgConnection, order_id: String) -> QueryResult<LendOrder> {
         use crate::database::schema::lend_order::dsl::*;
 
-        lend_order.find(id).first(conn)
+        lend_order.filter(uuid.eq(order_id)).first(conn)
     }
 
     pub fn insert(conn: &mut PgConnection, orders: Vec<InsertLendOrder>) -> QueryResult<usize> {
@@ -1500,12 +1515,16 @@ mod tests {
                 ],
             )?;
 
-            let o1: TraderOrder = trader_order.find(order1.uuid).first(&mut *conn)?;
+            let o1: TraderOrder = trader_order
+                .filter(uuid.eq(order1.uuid))
+                .first(&mut *conn)?;
 
             assert_eq!(o1.entryprice, order1.entryprice);
             assert_eq!(o1.execution_price, order1.execution_price);
 
-            let o2: TraderOrder = trader_order.find(order2.uuid).first(&mut *conn)?;
+            let o2: TraderOrder = trader_order
+                .filter(uuid.eq(order2.uuid))
+                .first(&mut *conn)?;
 
             assert_eq!(o2.entryprice, order2.entryprice);
             assert_eq!(o2.execution_price, order2.execution_price);
@@ -1553,12 +1572,12 @@ mod tests {
                 ],
             )?;
 
-            let o1: LendOrder = lend_order.find(order1.uuid).first(&mut *conn)?;
+            let o1: LendOrder = lend_order.filter(uuid.eq(order1.uuid)).first(&mut *conn)?;
 
             assert_eq!(o1.balance, order1.balance);
             assert_eq!(o1.payment, order1.payment);
 
-            let o2: LendOrder = lend_order.find(order2.uuid).first(&mut *conn)?;
+            let o2: LendOrder = lend_order.filter(uuid.eq(order2.uuid)).first(&mut *conn)?;
 
             assert_eq!(o2.balance, order2.balance);
             assert_eq!(o2.payment, order2.payment);
