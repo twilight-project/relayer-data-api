@@ -1,7 +1,16 @@
 ---
 services:
+  frontend:
+    build:
+      context: ./authenticator
+    ports:
+      - 80:80
+    networks:
+      - archiver
   api:
     image: relayer-api
+    build:
+      context: .
     command: api
     env_file: .compose.env
     depends_on:
@@ -13,6 +22,16 @@ services:
       - archiver
     volumes:
       - log-data:/var/log/relayer-api
+  auth:
+    image: relayer-api
+    command: auth
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - archiver
+    volumes:
+      - log-data:/var/log/relayer-archiver
   archiver:
     image: relayer-api
     command: archiver

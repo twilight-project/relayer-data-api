@@ -17,6 +17,9 @@ then
 elif [ $1 == "api" ]
 then
 	/app/api
+elif [ $1 == "auth" ]
+then
+	/app/auth
 else
 	echo "Invalid command: ${1}"
 fi

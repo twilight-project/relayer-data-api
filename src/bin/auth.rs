@@ -1,10 +1,9 @@
 use http::{Request, StatusCode};
 use hyper::{body::to_bytes, server::Server, Body, Response};
+use log::debug;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tower::{make::Shared, ServiceBuilder};
-use tower_http::validate_request::ValidateRequestHeaderLayer;
-use twilight_relayerAPI::auth::AuthToken;
 use verify_keplr_sign::{verify_arbitrary, Signature};
 
 #[derive(Deserialize)]
@@ -16,11 +15,12 @@ pub struct Auth {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AuthResponse {
-    pub auth_token: String,
+    pub account_address: String,
 }
 
 async fn handler(request: Request<Body>) -> Result<Response<Body>, http::Error> {
-    if request.uri() != "/auth" {
+    debug!("Auth request");
+    if request.uri() != "/login" {
         return Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Body::empty());
@@ -58,31 +58,19 @@ async fn handler(request: Request<Body>) -> Result<Response<Body>, http::Error> 
 
     // TODO: check if user exists in DB!
 
-    let auth_token = AuthToken::new(account_address);
+    let token = AuthResponse { account_address };
+    let response = serde_json::to_string(&token).expect("Could not serialize");
 
-    match auth_token.signed_token() {
-        Ok(auth_token) => {
-            let token = AuthResponse { auth_token };
-            let response = serde_json::to_string(&token).expect("Could not serialize");
-
-            return Response::builder()
-                .status(StatusCode::OK)
-                .body(response.into());
-        }
-        Err(_) => {
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(Body::empty());
-        }
-    }
+    return Response::builder()
+        .status(StatusCode::OK)
+        .body(response.into());
 }
 
 #[tokio::main]
 async fn main() {
     let service = ServiceBuilder::new().service_fn(handler);
 
-    // And run our service using `hyper`
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3112));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 5000));
     Server::bind(&addr)
         .serve(Shared::new(service))
         .await

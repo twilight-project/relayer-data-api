@@ -23,6 +23,7 @@ RUN apk add --no-cache ca-certificates curl libpq-dev openssh
 WORKDIR /app
 COPY --from=builder ./twilight-relayerAPI/target/release/api ./
 COPY --from=builder ./twilight-relayerAPI/target/release/archiver ./
+COPY --from=builder ./twilight-relayerAPI/target/release/auth ./
 COPY ./scripts/run.sh ./
 
 

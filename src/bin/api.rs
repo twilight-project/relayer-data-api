@@ -1,16 +1,11 @@
-use http::header::AUTHORIZATION;
 use jsonrpsee::server::ServerBuilder;
 use log::info;
-use std::{iter::once, net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, time::Duration};
 use structopt::StructOpt;
 use tokio::time::sleep;
 use tower::ServiceBuilder;
-use tower_http::{
-    auth::AsyncRequireAuthorizationLayer,
-    cors::{Any, CorsLayer},
-    sensitive_headers::SetSensitiveRequestHeadersLayer,
-};
-use twilight_relayerAPI::{auth, rpc, ws};
+use tower_http::cors::{Any, CorsLayer};
+use twilight_relayerAPI::{rpc, ws};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Relayer API", about = "Twilight Relayer API server")]
@@ -53,10 +48,7 @@ async fn main() {
         .allow_headers([hyper::header::CONTENT_TYPE]);
 
     // TODO: env var
-    let middleware = ServiceBuilder::new()
-        .layer(cors)
-        .layer(SetSensitiveRequestHeadersLayer::new(once(AUTHORIZATION)))
-        .layer(AsyncRequireAuthorizationLayer::new(auth::TwilightAuth));
+    let middleware = ServiceBuilder::new().layer(cors);
 
     info!("Starting RPC server on {:?}", opts.listen_addr);
     let server = ServerBuilder::new()
