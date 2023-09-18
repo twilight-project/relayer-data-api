@@ -1,7 +1,7 @@
-FROM rust:1.67-alpine as builder
+FROM rust:1.72.0-slim-buster as builder
 
 ARG SSH_KEY
-RUN apk update && apk add alpine-sdk openssh git openssl-dev libpq-dev
+RUN apt-get update && apt-get install -y openssh-client git libssl-dev build-essential libpq-dev pkg-config
 RUN mkdir /root/.ssh
 RUN echo "${SSH_KEY}" > /root/.ssh/id_rsa && \
     touch /root/.ssh/known_hosts && \
@@ -15,16 +15,15 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cd ./twilight-relayerAPI && \
     cargo --config "net.git-fetch-with-cli = true" b --release --bins
 
-FROM alpine:3.17
-RUN apk add --no-cache ca-certificates curl libpq-dev openssh
-#RUN curl -LO http://nz2.archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb && \
-#     DEBIAN_FRONTEND=noninteractive dpkg -i ./libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb
+FROM debian:10-slim
+RUN apt-get update && apt-get install -y ca-certificates curl libpq-dev libssl-dev
 
 WORKDIR /app
 COPY --from=builder ./twilight-relayerAPI/target/release/api ./
 COPY --from=builder ./twilight-relayerAPI/target/release/archiver ./
 COPY --from=builder ./twilight-relayerAPI/target/release/auth ./
 COPY ./scripts/run.sh ./
+COPY ./.compose.env .env
 
 
 ENTRYPOINT ["/app/run.sh"]

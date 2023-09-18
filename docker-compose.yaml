@@ -1,12 +1,13 @@
 ---
 services:
+  pingpong:
+    image: busybox
+    command: ping kafka
   frontend:
     build:
       context: ./authenticator
     ports:
       - 80:80
-    networks:
-      - archiver
   api:
     image: relayer-api
     build:
@@ -18,8 +19,6 @@ services:
         condition: service_healthy
     ports:
       - "8989:8989"
-    networks:
-      - archiver
     volumes:
       - log-data:/var/log/relayer-api
   auth:
@@ -28,8 +27,6 @@ services:
     depends_on:
       database:
         condition: service_healthy
-    networks:
-      - archiver
     volumes:
       - log-data:/var/log/relayer-archiver
   archiver:
@@ -39,24 +36,22 @@ services:
     depends_on:
       database:
         condition: service_healthy
-    networks:
-      - archiver
     volumes:
       - log-data:/var/log/relayer-archiver
     extra_hosts:
       - "host.docker.internal:host-gateway"
   database:
     image: postgres
-    networks:
-      - archiver
     environment:
       POSTGRES_PASSWORD: relayer
       POSTGRES_USER: relayer
       POSTGRES_DB: relayer
+    ports:
+      - "5433:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready", "-d", "relayer", "-U", "relayer"]
+      test: ["CMD-SHELL", "pg_isready -d relayer -U relayer"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -64,4 +59,6 @@ volumes:
   log-data:
   db-data:
 networks:
-  archiver: {}
+  default:
+    external:
+      name: twilight-relayer_default
