@@ -1,13 +1,13 @@
 ---
 services:
-  pingpong:
-    image: busybox
-    command: ping kafka
   frontend:
     build:
       context: ./authenticator
     ports:
-      - 80:80
+      - 8088:8088
+    depends_on:
+      - auth
+      - api
   api:
     image: relayer-api
     build:
@@ -18,7 +18,8 @@ services:
       database:
         condition: service_healthy
     ports:
-      - "8989:8989"
+      - 8989:8989
+      - 8990:8990
     volumes:
       - log-data:/var/log/relayer-api
   auth:
