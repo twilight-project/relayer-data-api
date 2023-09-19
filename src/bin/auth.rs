@@ -4,6 +4,7 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tower::{make::Shared, ServiceBuilder};
+use twilight_relayerAPI::auth::AuthInfo;
 use verify_keplr_sign::{verify_arbitrary, Signature};
 
 #[derive(Deserialize)]
@@ -11,11 +12,6 @@ pub struct Auth {
     pub account_address: String,
     pub signature: Signature,
     pub data: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct AuthResponse {
-    pub account_address: String,
 }
 
 async fn handler(request: Request<Body>) -> Result<Response<Body>, http::Error> {
@@ -58,7 +54,7 @@ async fn handler(request: Request<Body>) -> Result<Response<Body>, http::Error> 
 
     // TODO: check if user exists in DB!
 
-    let token = AuthResponse { account_address };
+    let token = AuthInfo { account_address };
     let response = serde_json::to_string(&token).expect("Could not serialize");
 
     return Response::builder()

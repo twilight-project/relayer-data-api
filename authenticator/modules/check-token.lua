@@ -3,6 +3,11 @@ local header = ngx.var.http_authorization
 local secret = require "jwt-secret"
 local json = require 'cjson'
 
+if header == nil or header == '' then
+	ngx.log(ngx.STDERR, "NO BEARER TOKEN")
+	return ngx.exit(ngx.HTTP_FORBIDDEN)
+end
+
 local token = string.gmatch(header, "(Bearer)[ ]+(.+)")
 local t = {}
 for k,v in token do
@@ -21,6 +26,11 @@ ngx.req.read_body()
 local data = ngx.req.get_body_data()
 
 local body = json.decode(data)
-body["user"] = jwt_obj.payload
+local new_params = {}
+new_params["params"] = body["params"]
+new_params["user"] = jwt_obj.payload
+body["params"] = new_params
 
-ngx.req.set_body_data(json.encode(body))
+local jsonified = json.encode(body)
+ngx.log(ngx.STDERR, jsonified)
+ngx.req.set_body_data(jsonified)

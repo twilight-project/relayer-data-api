@@ -7,10 +7,6 @@ function exit_now() {
 
 trap exit_now SIGINT SIGKILL SIGABRT
 
-HOSTS=$(cat /etc/hosts)
-
-echo "Hosts file: ${HOSTS}"
-
 if [ $1 == "archiver" ]
 then
 	/app/archiver

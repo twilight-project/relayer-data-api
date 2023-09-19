@@ -7,7 +7,7 @@ mod methods;
 mod types;
 pub use types::{
     CandleSubscription, Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval,
-    OrderHistoryArgs, OrderId, PnlArgs, TradeVolumeArgs,
+    OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs,
 };
 
 type ManagedConnection = ConnectionManager<PgConnection>;

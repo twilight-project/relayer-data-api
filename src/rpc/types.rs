@@ -11,8 +11,15 @@
 // •	Candle data (Kline data: 1min, 5min, 15min, 30min, 1hr, 4hr, 8hr, 12hr, 24hr)
 // •	Position Size (For Long, Short and Total)
 // •	Server Time
+use crate::auth::AuthInfo;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RpcArgs<T> {
+    pub user: AuthInfo,
+    pub params: T,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OrderId {

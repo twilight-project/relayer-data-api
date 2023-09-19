@@ -7,10 +7,10 @@ pub(super) fn trader_order_info(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let OrderId { id } = params.parse()?;
+    let args: RpcArgs<OrderId> = params.parse()?;
 
     match ctx.pool.get() {
-        Ok(mut conn) => match TraderOrder::get(&mut conn, id) {
+        Ok(mut conn) => match TraderOrder::get(&mut conn, args.params.id) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
         },
@@ -38,10 +38,10 @@ pub(super) fn lend_order_info(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let OrderId { id } = params.parse()?;
+    let args: RpcArgs<OrderId> = params.parse()?;
 
     match ctx.pool.get() {
-        Ok(mut conn) => match LendOrder::get(&mut conn, id) {
+        Ok(mut conn) => match LendOrder::get(&mut conn, args.params.id) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
         },
@@ -66,13 +66,13 @@ pub(super) fn historical_price(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args = match params.parse::<HistoricalPriceArgs>() {
+    let args = match params.parse::<RpcArgs<HistoricalPriceArgs>>() {
         Ok(args) => args,
         Err(e) => return Err(Error::Custom(format!("Invalid argument: {:?}", e))),
     };
 
     match ctx.pool.get() {
-        Ok(mut conn) => match BtcUsdPrice::get_historical(&mut conn, args) {
+        Ok(mut conn) => match BtcUsdPrice::get_historical(&mut conn, args.params) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
         },
@@ -84,13 +84,13 @@ pub(super) fn historical_funding_rate(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args = match params.parse::<HistoricalFundingArgs>() {
+    let args = match params.parse::<RpcArgs<HistoricalFundingArgs>>() {
         Ok(args) => args,
         Err(e) => return Err(Error::Custom(format!("Invalid argument: {:?}", e))),
     };
 
     match ctx.pool.get() {
-        Ok(mut conn) => match FundingRate::get_historical(&mut conn, args) {
+        Ok(mut conn) => match FundingRate::get_historical(&mut conn, args.params) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
         },
@@ -141,12 +141,14 @@ pub(super) fn candle_data(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
+    let args: RpcArgs<Candles> = params.parse()?;
+
     let Candles {
         interval,
         since,
         limit,
         offset,
-    } = params.parse()?;
+    } = args.params;
 
     match ctx.pool.get() {
         Ok(mut conn) => {
@@ -193,9 +195,9 @@ pub(super) fn unrealized_pnl(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args = params.parse()?;
+    let args: RpcArgs<PnlArgs> = params.parse()?;
     match ctx.pool.get() {
-        Ok(mut conn) => match TraderOrder::unrealized_pnl(&mut conn, args) {
+        Ok(mut conn) => match TraderOrder::unrealized_pnl(&mut conn, args.params) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!("Error fetching pnl: {:?}", e))),
         },
@@ -217,9 +219,9 @@ pub(super) fn order_history(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args = params.parse()?;
+    let args: RpcArgs<OrderHistoryArgs> = params.parse()?;
     match ctx.pool.get() {
-        Ok(mut conn) => match TraderOrder::order_history(&mut conn, args) {
+        Ok(mut conn) => match TraderOrder::order_history(&mut conn, args.params) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!(
                 "Error fetching order history: {:?}",
@@ -234,9 +236,9 @@ pub(super) fn trade_volume(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args = params.parse()?;
+    let args: RpcArgs<TradeVolumeArgs> = params.parse()?;
     match ctx.pool.get() {
-        Ok(mut conn) => match TraderOrder::order_volume(&mut conn, args) {
+        Ok(mut conn) => match TraderOrder::order_volume(&mut conn, args.params) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!(
                 "Error fetching order volume: {:?}",
