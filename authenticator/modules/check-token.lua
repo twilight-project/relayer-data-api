@@ -1,6 +1,6 @@
 local jwt = require "resty.jwt"
 local header = ngx.var.http_authorization
-local secret = require "jwt-secret"
+local secret = os.getenv("NGINX_AUTH_SECRET")
 local json = require 'cjson'
 
 if header == nil or header == '' then
@@ -17,6 +17,11 @@ end
 local jwt_obj = jwt:verify(secret, t["Bearer"])
 
 if jwt_obj.valid ~= true then
+    ngx.log(ngx.STDERR, "INVALID TOKEN")
+    return ngx.exit(ngx.HTTP_BAD_REQUEST)
+end
+
+if jwt_obj.verified ~= true then
 	ngx.log(ngx.STDERR, "FORBIDDEN")
 	return ngx.exit(ngx.HTTP_FORBIDDEN)
 end
@@ -32,5 +37,4 @@ new_params["user"] = jwt_obj.payload
 body["params"] = new_params
 
 local jsonified = json.encode(body)
-ngx.log(ngx.STDERR, jsonified)
 ngx.req.set_body_data(jsonified)

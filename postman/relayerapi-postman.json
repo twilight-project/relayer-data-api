@@ -1,0 +1,491 @@
+{
+	"info": {
+		"_postman_id": "ba8ce684-6bed-4667-83d6-4c1f5a3836c7",
+		"name": "Twilight RelayerAPI Postman Requests",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "27185915"
+	},
+	"item": [
+		{
+			"name": "CandleData",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"candle_data\", \"id\":123, \"params\": {\"interval\": \"FIVE_MINUTE\", \"since\": \"2023-09-25T00:01:00.0Z\", \"limit\": 20, \"offset\": 0}  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetFundingRate",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"get_funding_rate\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "BtcUsdPrice",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"btc_usd_price\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "HistoricalPrice",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"historical_price\", \"id\":123, \"params\": {\"from\": \"2023-09-25T00:00:00Z\", \"to\": \"2023-09-26T01:00:00Z\", \"limit\": 20, \"offset\": 0}  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "TraderOrderInfo",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"trader_order_info\", \"id\":123, \"params\": {\"id\": \"1a7fded3-7487-47ca-b88e-6aa438fda631\"}  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "LendOrderInfo",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"lend_order_info\", \"id\":123, \"params\": {\"id\": \"1a7fded3-7487-47ca-b88e-6aa438fda631\"}  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "ServerTime",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"server_time\", \"id\":123 }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Login",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"account_address\": \"twilight1l03j8j5nwegy9fkz9p0whkxch2e2zqcq6lvfda\",\n    \"data\": \"hello\",\n    \"signature\": {\n        \"pub_key\": {\"type\": \"tendermint/PubKeySecp256k1\", \"value\": \"AkNImdlt3/+4axILXJsyiBigMWheg8i8npwTX/AzBrSC\"},\n        \"signature\": \"waaVXJnXIYQd2BG4rVA12q5OTuctzcDt7BLyHw7Yx/1b2iDFrl4kOcC/VlvE3tvLZq7Dd/qSiMEdYK1DvDPmZw==\"\n    }\n}"
+				},
+				"url": {
+					"raw": "{{endpoint}}/login",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"login"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "jwt",
+		"jwt": [
+			{
+				"key": "secret",
+				"value": "FNiPGdfBuvqToL7PHu4EHzu7ehSr8+L5yV2kkxSutSo",
+				"type": "string"
+			},
+			{
+				"key": "payload",
+				"value": "{\"account_address\": \"twilight1l03j8j5nwegy9fkz9p0whkxch2e2zqcq6lvfda\"}",
+				"type": "string"
+			},
+			{
+				"key": "algorithm",
+				"value": "HS256",
+				"type": "string"
+			},
+			{
+				"key": "isSecretBase64Encoded",
+				"value": false,
+				"type": "boolean"
+			},
+			{
+				"key": "addTokenTo",
+				"value": "header",
+				"type": "string"
+			},
+			{
+				"key": "headerPrefix",
+				"value": "Bearer",
+				"type": "string"
+			},
+			{
+				"key": "queryParamKey",
+				"value": "token",
+				"type": "string"
+			},
+			{
+				"key": "header",
+				"value": "{}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

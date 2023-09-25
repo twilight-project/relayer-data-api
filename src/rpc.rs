@@ -3,7 +3,8 @@ use diesel::r2d2::ConnectionManager;
 use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
 use serde::Serialize;
 
-mod methods;
+mod private_methods;
+mod public_methods;
 mod types;
 pub use types::{
     CandleSubscription, Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval,
@@ -30,7 +31,35 @@ fn register_method<R: Serialize + 'static>(
     }
 }
 
-pub fn init_methods(database_url: &str) -> RpcModule<RelayerContext> {
+pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
+    let manager = ConnectionManager::<PgConnection>::new(database_url);
+    let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
+
+    let mut module = RpcModule::new(RelayerContext { pool });
+    register_method(
+        &mut module,
+        "btc_usd_price",
+        Box::new(public_methods::btc_usd_price),
+    );
+    register_method(
+        &mut module,
+        "historical_price",
+        Box::new(public_methods::historical_price),
+    );
+    register_method(
+        &mut module,
+        "candle_data",
+        Box::new(public_methods::candle_data),
+    );
+    register_method(
+        &mut module,
+        "server_time",
+        Box::new(public_methods::server_time),
+    );
+    module
+}
+
+pub fn init_private_methods(database_url: &str) -> RpcModule<RelayerContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
 
@@ -39,82 +68,78 @@ pub fn init_methods(database_url: &str) -> RpcModule<RelayerContext> {
     register_method(
         &mut module,
         "unrealized_pnl",
-        Box::new(methods::unrealized_pnl),
+        Box::new(private_methods::unrealized_pnl),
     );
-    register_method(&mut module, "open_orders", Box::new(methods::open_orders));
+    register_method(
+        &mut module,
+        "open_orders",
+        Box::new(private_methods::open_orders),
+    );
     register_method(
         &mut module,
         "order_history",
-        Box::new(methods::order_history),
+        Box::new(private_methods::order_history),
     );
-    register_method(&mut module, "trade_volume", Box::new(methods::trade_volume));
+    register_method(
+        &mut module,
+        "trade_volume",
+        Box::new(private_methods::trade_volume),
+    );
     register_method(
         &mut module,
         "get_funding_payment",
-        Box::new(methods::get_funding_payment),
+        Box::new(private_methods::get_funding_payment),
     );
     register_method(
         &mut module,
         "last_order_detail",
-        Box::new(methods::last_order_detail),
+        Box::new(private_methods::last_order_detail),
     );
     register_method(
         &mut module,
         "lend_pool_info",
-        Box::new(methods::lend_pool_info),
+        Box::new(private_methods::lend_pool_info),
     );
     register_method(
         &mut module,
         "trader_order_info",
-        Box::new(methods::trader_order_info),
+        Box::new(private_methods::trader_order_info),
     );
     register_method(
         &mut module,
         "lend_order_info",
-        Box::new(methods::lend_order_info),
+        Box::new(private_methods::lend_order_info),
     );
     register_method(
         &mut module,
         "get_funding_rate",
-        Box::new(methods::get_funding_rate),
-    );
-    register_method(
-        &mut module,
-        "btc_usd_price",
-        Box::new(methods::btc_usd_price),
-    );
-    register_method(
-        &mut module,
-        "historical_price",
-        Box::new(methods::historical_price),
+        Box::new(private_methods::get_funding_rate),
     );
     register_method(
         &mut module,
         "historical_funding_rate",
-        Box::new(methods::historical_funding_rate),
+        Box::new(private_methods::historical_funding_rate),
     );
     register_method(
         &mut module,
         "open_limit_orders",
-        Box::new(methods::open_limit_orders),
+        Box::new(private_methods::open_limit_orders),
     );
     register_method(
         &mut module,
         "recent_trade_orders",
-        Box::new(methods::recent_trade_orders),
+        Box::new(private_methods::recent_trade_orders),
     );
-    register_method(&mut module, "candle_data", Box::new(methods::candle_data));
-    register_method(&mut module, "server_time", Box::new(methods::server_time));
     register_method(
         &mut module,
         "position_size",
-        Box::new(methods::position_size),
+        Box::new(private_methods::position_size),
     );
     // TODO:
     //register_method(
     //    &mut module,
     //    "last_day_apy",
-    //    Box::new(methods::last_day_apy),
+    //    Box::new(private_methods::last_day_apy),
     //);
 
     module

@@ -1,5 +1,5 @@
 local jwt = require "resty.jwt"
-local secret = require "jwt-secret"
+local secret = os.getenv("NGINX_AUTH_SECRET")
 local authenticator = "/authenticate"
 local json = require 'cjson'
 

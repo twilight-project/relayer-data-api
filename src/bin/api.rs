@@ -11,12 +11,19 @@ use twilight_relayerAPI::{rpc, ws};
 #[structopt(name = "Relayer API", about = "Twilight Relayer API server")]
 struct Opt {
     #[structopt(
-        short = "-l",
-        long,
-        default_value("0.0.0.0:8989"),
-        help = "Address the server will listen on"
+        short = "-p",
+        long = "--public-rpc",
+        default_value("0.0.0.0:8987"),
+        help = "Endpoint for the public API."
     )]
-    listen_addr: SocketAddr,
+    public_rpc: SocketAddr,
+    #[structopt(
+        short = "-s",
+        long = "--private-rpc",
+        default_value("0.0.0.0:8989"),
+        help = "Endpoint for the private API."
+    )]
+    private_rpc: SocketAddr,
     #[structopt(
         short = "-w",
         long,
@@ -37,7 +44,6 @@ async fn main() {
         .with_line_number(true)
         .init();
 
-    let addrs: &[SocketAddr] = &[opts.listen_addr];
     let database_url = std::env::var("DATABASE_URL").expect("No database url found!");
     info!("Database backend: {}", database_url);
 
@@ -50,15 +56,31 @@ async fn main() {
     // TODO: env var
     let middleware = ServiceBuilder::new().layer(cors);
 
-    info!("Starting RPC server on {:?}", opts.listen_addr);
-    let server = ServerBuilder::new()
-        .set_middleware(middleware)
+    info!("Starting public RPC server on {:?}", opts.public_rpc);
+    let addrs: &[SocketAddr] = &[opts.public_rpc];
+    let public_server = ServerBuilder::new()
+        .set_middleware(middleware.clone())
         .build(addrs)
         .await
-        .expect("Failed to build API server");
+        .expect("Failed to build public API server");
 
-    let methods = rpc::init_methods(&database_url);
-    let _handle = server.start(methods).expect("Failed to start API server");
+    let methods = rpc::init_public_methods(&database_url);
+    let _pub_handle = public_server
+        .start(methods)
+        .expect("Failed to start API server");
+
+    info!("Starting private RPC server on {:?}", opts.private_rpc);
+    let addrs: &[SocketAddr] = &[opts.private_rpc];
+    let private_server = ServerBuilder::new()
+        .set_middleware(middleware.clone())
+        .build(addrs)
+        .await
+        .expect("Failed to build private API server");
+
+    let methods = rpc::init_private_methods(&database_url);
+    let _priv_handle = private_server
+        .start(methods)
+        .expect("Failed to start API server");
 
     let ws_addrs: &[SocketAddr] = &[opts.ws_listen_addr];
     info!("Starting WS server on {:?}", opts.ws_listen_addr);
