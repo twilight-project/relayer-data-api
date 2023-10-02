@@ -1181,3 +1181,9 @@ VALUES (
 INSERT INTO funding_rate ( rate, price, timestamp)
 VALUES ( 234, 99595, now() );
 
+INSERT INTO customer_account
+    ( customer_registration_id, username, password, created_on, password_hint, id)
+VALUES ( 'woo', 'tjsharp', 'asdf', now(), 'hint', 3 );
+
+INSERT INTO address_customer_id (address, customer_id)
+VALUES ('twilight1l03j8j5nwegy9fkz9p0whkxch2e2zqcq6lvfda', 2);

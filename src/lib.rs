@@ -14,5 +14,6 @@ pub mod auth {
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub struct AuthInfo {
         pub account_address: String,
+        pub customer_id: i64,
     }
 }

@@ -27,6 +27,14 @@ pub mod sql_types {
 }
 
 diesel::table! {
+    address_customer_id (id) {
+        id -> Int8,
+        address -> Varchar,
+        customer_id -> Int8,
+    }
+}
+
+diesel::table! {
     btc_usd_price (id) {
         id -> Int8,
         price -> Numeric,
@@ -210,10 +218,12 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(address_customer_id -> customer_account (customer_id));
 diesel::joinable!(customer_apikey_linking -> customer_account (customer_account_id));
 diesel::joinable!(customer_order_linking -> customer_account (customer_account_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    address_customer_id,
     btc_usd_price,
     current_nonce,
     customer_account,

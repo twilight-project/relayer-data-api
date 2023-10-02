@@ -1,8 +1,8 @@
 use crate::database::{
     schema::{
-        btc_usd_price, current_nonce, customer_account, customer_apikey_linking,
-        customer_order_linking, funding_rate, lend_order, lend_pool, lend_pool_command,
-        position_size_log, sorted_set_command, trader_order,
+        address_customer_id, btc_usd_price, current_nonce, customer_account,
+        customer_apikey_linking, customer_order_linking, funding_rate, lend_order, lend_pool,
+        lend_pool_command, position_size_log, sorted_set_command, trader_order,
     },
     sql_types::*,
 };
@@ -22,22 +22,22 @@ pub type PositionSizeUpdate = (relayer::PositionSizeLogCommand, relayer_db::Posi
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
 #[diesel(table_name = customer_account)]
 pub struct CustomerAccount {
-    id: i64,
-    customer_registration_id: String,
-    username: String,
-    password: String,
-    created_on: DateTime<Utc>,
-    password_hint: String,
+    pub id: i64,
+    pub customer_registration_id: String,
+    pub username: String,
+    pub password: String,
+    pub created_on: DateTime<Utc>,
+    pub password_hint: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
 #[diesel(table_name = customer_account)]
 pub struct NewCustomerAccount {
-    customer_registration_id: String,
-    username: String,
-    password: String,
-    created_on: DateTime<Utc>,
-    password_hint: String,
+    pub customer_registration_id: String,
+    pub username: String,
+    pub password: String,
+    pub created_on: DateTime<Utc>,
+    pub password_hint: String,
 }
 
 impl CustomerAccount {
@@ -53,6 +53,22 @@ impl CustomerAccount {
         diesel::insert_into(customer_account)
             .values(new_account)
             .execute(conn)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
+#[diesel(table_name = address_customer_id)]
+pub struct AddressCustomerId {
+    pub id: i64,
+    pub address: String,
+    pub customer_id: i64,
+}
+
+impl AddressCustomerId {
+    pub fn get(conn: &mut PgConnection, addr: &String) -> QueryResult<AddressCustomerId> {
+        use crate::database::schema::address_customer_id::dsl::*;
+
+        address_customer_id.filter(address.eq(addr)).first(conn)
     }
 }
 

@@ -121,6 +121,27 @@ pub(super) fn spawn_order_book(
     Ok(())
 }
 
+pub(super) fn heartbeat(
+    _params: Params<'_>,
+    mut sink: SubscriptionSink,
+    ctx: Arc<WsContext>,
+) -> SubscriptionResult {
+    sink.accept()?;
+
+    let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
+        loop {
+            let result = serde_json::to_value(&"BEAT")?;
+            if let Err(e) = sink.send(&result) {
+                error!("Error sending hearbeat: {:?}", e);
+            }
+            sleep(Duration::from_secs(5)).await;
+        }
+        Ok(())
+    });
+
+    Ok(())
+}
+
 pub(super) fn recent_trades(
     _params: Params<'_>,
     mut sink: SubscriptionSink,

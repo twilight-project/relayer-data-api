@@ -180,6 +180,16 @@ pub fn init_methods(database_url: &str) -> RpcModule<WsContext> {
             methods::recent_trades,
         )
         .unwrap();
+
+    module
+        .register_subscription(
+            "subscribe_heartbeat",
+            "s_heartbeat",
+            "unsubscribe_heartbeat",
+            methods::heartbeat,
+        )
+        .unwrap();
+
     module
 }
 

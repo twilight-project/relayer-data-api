@@ -27,6 +27,7 @@ services:
   auth:
     image: relayer-api
     command: auth
+    env_file: .compose.env
     depends_on:
       database:
         condition: service_healthy

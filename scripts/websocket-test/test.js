@@ -1,6 +1,6 @@
 const WebSocket = require('websocket').w3cwebsocket;
 
-let ws = new WebSocket("ws://localhost:8990");
+let ws = new WebSocket("ws://localhost:8088/ws");
 
 var subscriptions = {};
 
@@ -18,6 +18,13 @@ ws.addEventListener('open', () => {
 		method: "subscribe_order_book",
 		params: null,
 	}));
+
+    ws.send(JSON.stringify({
+        jsonrpc: "2.0",
+        id: "heartbeat",
+        method: "subscribe_heartbeat",
+        params: null,
+    }));
 });
 
 process.on('SIGINT', function () {
@@ -50,6 +57,8 @@ ws.addEventListener('message', (message) => {
           console.log(`Got live_data method: ${JSON.stringify(obj.params)}`);
       } else if (obj.method == "s_order_book") {
           console.log(`Got order_book method: ${JSON.stringify(obj.params)}`);
+      } else if (obj.method == "s_heartbeat") {
+          console.log(`Got heartbeat method: ${JSON.stringify(obj.params)}`);
       } else {
 	      console.log(`Other method: ${JSON.stringify(obj.params)}`);
       }
