@@ -21,6 +21,16 @@ pub struct RpcArgs<T> {
     pub params: T,
 }
 
+impl<T> RpcArgs<T> {
+    pub fn unpack(self) -> (i64, T) {
+        let RpcArgs {
+            user: AuthInfo { customer_id, .. },
+            params,
+        } = self;
+        (customer_id, params)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OrderId {
     pub id: String,
@@ -158,11 +168,7 @@ pub struct TradeVolumeArgs {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum OrderHistoryArgs {
     OrderId(String),
-    ClientId {
-        client_id: String,
-        offset: i64,
-        limit: i64,
-    },
+    ClientId { offset: i64, limit: i64 },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

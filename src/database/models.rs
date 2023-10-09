@@ -987,9 +987,15 @@ impl TraderOrder {
 
     pub fn unrealized_pnl(
         conn: &mut PgConnection,
+        customer_id: i64,
         pnl_args: PnlArgs,
     ) -> QueryResult<UnrealizedPnl> {
+        use crate::database::schema::address_customer_id::dsl as addr_dsl;
+        use crate::database::schema::customer_account::dsl as acct_dsl;
         use crate::database::schema::trader_order::dsl::*;
+
+        let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
+        let acct_id = account.customer_registration_id;
 
         let price = BtcUsdPrice::get(conn)?;
         let closed = vec![
@@ -1001,19 +1007,27 @@ impl TraderOrder {
 
         let orders: Vec<TraderOrder> = match pnl_args {
             PnlArgs::OrderId(oid) => {
-                // TODO: uuid broken...
-                //let order = trader_order
-                //    .filter(
-                //        id.eq(oid).and(order_status.ne_all(closed))
-                //    ).order_by(timestamp.desc()).first(conn)?;
-                //vec![order]
-                vec![]
+                let order = trader_order
+                    .filter(
+                        uuid.eq(oid)
+                            .and(order_status.ne_all(closed))
+                            .and(account_id.eq(acct_id)),
+                    )
+                    .order_by(timestamp.desc())
+                    .first(conn)?;
+                vec![order]
             }
-            PnlArgs::PublicKey(key) => trader_order
-                .filter(account_id.eq(key).and(order_status.ne_all(closed)))
-                .load(conn)?,
+            PnlArgs::PublicKey(key) => {
+                let addresses: Vec<AddressCustomerId> = addr_dsl::address_customer_id
+                    .filter(addr_dsl::id.eq(customer_id).and(addr_dsl::address.eq(&key)))
+                    .load(conn)?;
+
+                trader_order
+                    .filter(account_id.eq(key).and(order_status.ne_all(closed)))
+                    .load(conn)?
+            }
             PnlArgs::All => trader_order
-                .filter(order_status.ne_all(closed))
+                .filter(order_status.ne_all(closed).and(account_id.eq(acct_id)))
                 .load(conn)?,
         };
 
@@ -1034,22 +1048,22 @@ impl TraderOrder {
 
     pub fn order_history(
         conn: &mut PgConnection,
+        customer_id: i64,
         args: OrderHistoryArgs,
     ) -> QueryResult<Vec<TraderOrder>> {
+        use crate::database::schema::customer_account::dsl as acct_dsl;
         use crate::database::schema::trader_order::dsl::*;
 
+        let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
+        let acct_id = account.customer_registration_id;
+
         match args {
-            OrderHistoryArgs::OrderId(order_id) => {
-                //TODO: by id??
-                Ok(vec![])
-            }
-            OrderHistoryArgs::ClientId {
-                client_id,
-                offset,
-                limit,
-            } => {
+            OrderHistoryArgs::OrderId(order_id) => trader_order
+                .filter(account_id.eq(acct_id).and(uuid.eq(order_id)))
+                .load(conn),
+            OrderHistoryArgs::ClientId { offset, limit } => {
                 trader_order
-                    .filter(account_id.eq(client_id))
+                    .filter(account_id.eq(acct_id))
                     //TODO: uuid...
                     //.group_by(uuid)
                     .limit(limit)
@@ -1060,11 +1074,24 @@ impl TraderOrder {
         }
     }
 
-    pub fn order_volume(conn: &mut PgConnection, args: TradeVolumeArgs) -> QueryResult<usize> {
+    pub fn order_volume(
+        conn: &mut PgConnection,
+        customer_id: i64,
+        args: TradeVolumeArgs,
+    ) -> QueryResult<usize> {
+        use crate::database::schema::customer_account::dsl as acct_dsl;
         use crate::database::schema::trader_order::dsl::*;
+
+        let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
+        let acct_id = account.customer_registration_id;
+
         trader_order
             .count()
-            .filter(timestamp.between(args.start, args.end))
+            .filter(
+                account_id
+                    .eq(acct_id)
+                    .and(timestamp.between(args.start, args.end)),
+            )
             .distinct_on(uuid)
             .execute(conn)
     }
@@ -1140,10 +1167,13 @@ impl TraderOrder {
         Ok(ob)
     }
 
-    pub fn open_orders(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
+    pub fn open_orders(conn: &mut PgConnection, customer_id: i64) -> QueryResult<Vec<TraderOrder>> {
+        use crate::database::schema::customer_account::dsl as acct_dsl;
         use crate::database::schema::trader_order::dsl::*;
 
-        // TODO: filter by user-id??
+        let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
+        let acct_id = account.customer_registration_id;
+
         let closed = vec![
             OrderStatus::FILLED,
             OrderStatus::CANCELLED,
@@ -1151,7 +1181,9 @@ impl TraderOrder {
             OrderStatus::SETTLED,
         ];
 
-        trader_order.filter(order_status.ne_all(closed)).load(conn)
+        trader_order
+            .filter(order_status.ne_all(closed).and(account_id.eq(acct_id)))
+            .load(conn)
     }
 
     pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {

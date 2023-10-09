@@ -56,6 +56,31 @@ pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
         "server_time",
         Box::new(public_methods::server_time),
     );
+    register_method(
+        &mut module,
+        "get_funding_rate",
+        Box::new(public_methods::get_funding_rate),
+    );
+    register_method(
+        &mut module,
+        "historical_funding_rate",
+        Box::new(public_methods::historical_funding_rate),
+    );
+    register_method(
+        &mut module,
+        "open_limit_orders",
+        Box::new(public_methods::open_limit_orders),
+    );
+    register_method(
+        &mut module,
+        "recent_trade_orders",
+        Box::new(public_methods::recent_trade_orders),
+    );
+    register_method(
+        &mut module,
+        "position_size",
+        Box::new(public_methods::position_size),
+    );
     module
 }
 
@@ -109,31 +134,6 @@ pub fn init_private_methods(database_url: &str) -> RpcModule<RelayerContext> {
         &mut module,
         "lend_order_info",
         Box::new(private_methods::lend_order_info),
-    );
-    register_method(
-        &mut module,
-        "get_funding_rate",
-        Box::new(private_methods::get_funding_rate),
-    );
-    register_method(
-        &mut module,
-        "historical_funding_rate",
-        Box::new(private_methods::historical_funding_rate),
-    );
-    register_method(
-        &mut module,
-        "open_limit_orders",
-        Box::new(private_methods::open_limit_orders),
-    );
-    register_method(
-        &mut module,
-        "recent_trade_orders",
-        Box::new(private_methods::recent_trade_orders),
-    );
-    register_method(
-        &mut module,
-        "position_size",
-        Box::new(private_methods::position_size),
     );
     // TODO:
     //register_method(
