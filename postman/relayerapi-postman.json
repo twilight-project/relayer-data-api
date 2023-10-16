@@ -107,13 +107,236 @@
 					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"get_funding_rate\", \"id\":123, \"params\": null  }"
 				},
 				"url": {
-					"raw": "{{endpoint}}/api/private",
+					"raw": "{{endpoint}}/api",
 					"host": [
 						"{{endpoint}}"
 					],
 					"path": [
-						"api",
-						"private"
+						"api"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetHistoricalFundingRate",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"historical_funding_rate\", \"id\":123, \"params\": {\"from\": \"2023-09-25T00:00:00Z\", \"to\": \"2023-09-26T01:00:00Z\", \"limit\": 20, \"offset\": 0 }  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "OpenLimitOrders",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"open_limit_orders\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "RecentTradeOrders",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"recent_trade_orders\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "PositionSize",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"position_size\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api"
 					]
 				}
 			},
@@ -289,6 +512,177 @@
 			"response": []
 		},
 		{
+			"name": "OrderHistoryById",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"order_history\", \"id\":123, \"params\": {\"OrderId\": \"1a7fded3-7487-47ca-b88e-6aa438fda631\"}  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "OrderHistoryByClient",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"order_history\", \"id\":123, \"params\": {\"ClientId\": { \"offset\": 0, \"limit\": 20}}  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "TradeVolume",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"trade_volume\", \"id\":123, \"params\": {\"start\": \"2023-09-25T00:00:00Z\", \"end\": \"2023-09-26T00:00:00Z\"}  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "LendOrderInfo",
 			"event": [
 				{
@@ -331,6 +725,234 @@
 				"body": {
 					"mode": "raw",
 					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"lend_order_info\", \"id\":123, \"params\": {\"id\": \"1a7fded3-7487-47ca-b88e-6aa438fda631\"}  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "UnrealizedPnlPubkey",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"unrealized_pnl\", \"id\":123, \"params\": {\"PublicKey\": \"twilight1l03j8j5nwegy9fkz9p0whkxch2e2zqcq6lvfda\"}  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "OpenOrders",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"open_orders\", \"id\":123, \"params\": null  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "UnrealizedPnlPubkeyOrderId",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"unrealized_pnl\", \"id\":123, \"params\": {\"OrderId\": \"1a7fded3-7487-47ca-b88e-6aa438fda631\"}  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "UnrealizedPnlPubkeyAll",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"unrealized_pnl\", \"id\":123, \"params\": \"All\"  }"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",
@@ -427,13 +1049,13 @@
 		"type": "jwt",
 		"jwt": [
 			{
-				"key": "secret",
-				"value": "FNiPGdfBuvqToL7PHu4EHzu7ehSr8+L5yV2kkxSutSo",
+				"key": "payload",
+				"value": "{\"account_address\": \"twilight1l03j8j5nwegy9fkz9p0whkxch2e2zqcq6lvfda\",\n \"customer_id\": 2}",
 				"type": "string"
 			},
 			{
-				"key": "payload",
-				"value": "{\"account_address\": \"twilight1l03j8j5nwegy9fkz9p0whkxch2e2zqcq6lvfda\"}",
+				"key": "secret",
+				"value": "FNiPGdfBuvqToL7PHu4EHzu7ehSr8+L5yV2kkxSutSo",
 				"type": "string"
 			},
 			{

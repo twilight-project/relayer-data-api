@@ -166,6 +166,11 @@ pub struct TradeVolumeArgs {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub enum LendOrderArgs {
+    OrderId(String),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub enum OrderHistoryArgs {
     OrderId(String),
     ClientId { offset: i64, limit: i64 },

@@ -8,7 +8,7 @@ use crate::database::{
 };
 use crate::rpc::{
     HistoricalFundingArgs, HistoricalPriceArgs, Interval, OrderHistoryArgs, PnlArgs,
-    TradeVolumeArgs,
+    TradeVolumeArgs, OrderId,
 };
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
 use chrono::prelude::*;
@@ -30,7 +30,7 @@ pub struct CustomerAccount {
     pub password_hint: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Insertable, Queryable)]
 #[diesel(table_name = customer_account)]
 pub struct NewCustomerAccount {
     pub customer_registration_id: String,
@@ -47,12 +47,12 @@ impl CustomerAccount {
         customer_account.find(ident).first(conn)
     }
 
-    pub fn create(conn: &mut PgConnection, new_account: NewCustomerAccount) -> QueryResult<usize> {
+    pub fn create(conn: &mut PgConnection, new_account: NewCustomerAccount) -> QueryResult<Vec<CustomerAccount>> {
         use crate::database::schema::customer_account::dsl::*;
 
         diesel::insert_into(customer_account)
             .values(new_account)
-            .execute(conn)
+            .get_results(conn)
     }
 }
 
@@ -64,11 +64,37 @@ pub struct AddressCustomerId {
     pub customer_id: i64,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
+#[diesel(table_name = address_customer_id)]
+pub struct NewAddressCustomerId {
+    pub address: String,
+    pub customer_id: i64,
+}
+
 impl AddressCustomerId {
-    pub fn get(conn: &mut PgConnection, addr: &String) -> QueryResult<AddressCustomerId> {
+    pub fn get_or_create(conn: &mut PgConnection, addr: &String) -> QueryResult<AddressCustomerId> {
         use crate::database::schema::address_customer_id::dsl::*;
 
-        address_customer_id.filter(address.eq(addr)).first(conn)
+        match address_customer_id.filter(address.eq(addr)).first(conn) {
+            Ok(o) => return Ok(o),
+            Err(diesel::result::Error::NotFound) => {
+                let mut account = NewCustomerAccount::default();
+                account.customer_registration_id = Uuid::new_v4().to_string();
+
+                let customer = CustomerAccount::create(conn, account)?;
+                let address_id = NewAddressCustomerId {
+                    customer_id: customer[0].id,
+                    address: addr.to_string(),
+                };
+
+                let account: Vec<AddressCustomerId> = diesel::insert_into(address_customer_id)
+                    .values(address_id)
+                    .get_results(conn)?;
+
+                return Ok(account[0].clone());
+            }
+            Err(e) => return Err(e),
+        }
     }
 }
 
@@ -869,7 +895,7 @@ impl FundingRateUpdate {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
+#[derive(Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable, Insertable, AsChangeset)]
 #[diesel(table_name = trader_order)]
 pub struct TraderOrder {
     pub id: i64,
@@ -1085,15 +1111,13 @@ impl TraderOrder {
         let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
         let acct_id = account.customer_registration_id;
 
-        trader_order
-            .count()
-            .filter(
-                account_id
-                    .eq(acct_id)
-                    .and(timestamp.between(args.start, args.end)),
-            )
-            .distinct_on(uuid)
-            .execute(conn)
+        let query = format!(r#"
+            SELECT count(distinct uuid) from trader_order
+            where account_id = '{}'
+            and timestamp between '{}' and '{}'
+        "#, acct_id, args.start, args.end);
+
+        diesel::sql_query(query).execute(conn)
     }
 
     pub fn order_book(conn: &mut PgConnection) -> QueryResult<OrderBook> {
@@ -1174,16 +1198,22 @@ impl TraderOrder {
         let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
         let acct_id = account.customer_registration_id;
 
-        let closed = vec![
-            OrderStatus::FILLED,
-            OrderStatus::CANCELLED,
-            OrderStatus::LIQUIDATE,
-            OrderStatus::SETTLED,
-        ];
+        let query = format!(r#"select * from trader_order
+            inner join (
+                select uuid,max(id) as latest_id
+                from trader_order
+                group by uuid
+            ) mo
+            on id = latest_id
+            where 
+            account_id = '{}'
+            and
+            order_status not in ('FILLED', 'CANCELLED', 'LIQUIDATE', 'SETTLED');
+        "#,
+            acct_id
+        );
 
-        trader_order
-            .filter(order_status.ne_all(closed).and(account_id.eq(acct_id)))
-            .load(conn)
+        diesel::sql_query(query).get_results(conn)
     }
 
     pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
@@ -1276,10 +1306,17 @@ pub struct InsertLendOrder {
 }
 
 impl LendOrder {
-    pub fn get(conn: &mut PgConnection, order_id: String) -> QueryResult<LendOrder> {
+    pub fn get(conn: &mut PgConnection, customer_id: i64, params: OrderId) -> QueryResult<LendOrder> {
         use crate::database::schema::lend_order::dsl::*;
+        use crate::database::schema::customer_account::dsl as acct_dsl;
 
-        lend_order.filter(uuid.eq(order_id)).first(conn)
+        let account: CustomerAccount = acct_dsl::customer_account
+            .find(customer_id)
+            .first(conn)?;
+
+        let acct_id = account.customer_registration_id;
+
+        lend_order.filter(uuid.eq(params.id).and(account_id.eq(acct_id))).first(conn)
     }
 
     pub fn insert(conn: &mut PgConnection, orders: Vec<InsertLendOrder>) -> QueryResult<usize> {

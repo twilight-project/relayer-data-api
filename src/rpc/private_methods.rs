@@ -39,9 +39,10 @@ pub(super) fn lend_order_info(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<OrderId> = params.parse()?;
+    let (id, params) = args.unpack();
 
     match ctx.pool.get() {
-        Ok(mut conn) => match LendOrder::get(&mut conn, args.params.id) {
+        Ok(mut conn) => match LendOrder::get(&mut conn, id, params) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
         },

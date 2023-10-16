@@ -60,13 +60,8 @@ async fn login_handler(account_address: String) -> Result<Response<Body>, http::
         }
     };
 
-    let customer_id = match AddressCustomerId::get(&mut conn, &account_address) {
+    let customer_id = match AddressCustomerId::get_or_create(&mut conn, &account_address) {
         Ok(customer) => customer.customer_id,
-        Err(diesel::result::Error::NotFound) => {
-            return Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body("Customer not found".into());
-        }
         Err(e) => {
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
