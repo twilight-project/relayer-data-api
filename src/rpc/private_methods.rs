@@ -2,6 +2,109 @@ use super::*;
 use crate::{auth::AuthInfo, database::*};
 use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
+use kafka::producer::Record;
+use log::info;
+use twilight_relayer_rust::relayer;
+
+pub(super) fn submit_order(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let topic = std::env::var("RPC_CLIENT_REQUEST").expect("No client topic!");
+    let args: RpcArgs<Order> = params.parse()?;
+    let (account_id, _, order) = args.unpack();
+
+    let Order {
+        position_type,
+        order_type,
+        leverage,
+        initial_margin,
+        available_margin,
+        order_status,
+        entryprice,
+        execution_price,
+        request_time,
+        order_kill_time,
+    } = order;
+
+    let order = relayer::CreateTraderOrder {
+        account_id,
+        position_type,
+        order_type,
+        leverage,
+        initial_margin,
+        available_margin,
+        order_status,
+        entryprice,
+        execution_price,
+    };
+
+    let order = relayer::RpcCommand::CreateTraderOrder(order.clone(), relayer::Meta::default());
+    let Ok(serialized) = serde_json::to_vec(&order) else {
+        return Ok(format!("Could not serialize order").into());
+    };
+
+    let record = Record::from_key_value(&topic, "CreateTraderOrder", serialized);
+    if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
+        Ok(format!("Could not send order {:?}", e).into())
+    } else {
+        Ok("OK".into())
+    }
+}
+
+pub(super) fn submit_bulk_order(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let topic = std::env::var("RPC_CLIENT_REQUEST").expect("No client topic!");
+    let args: RpcArgs<Vec<Order>> = params.parse()?;
+    let (account_id, _, orders) = args.unpack();
+
+    let mut records = Vec::new();
+    for order in orders.into_iter() {
+        let Order {
+            position_type,
+            order_type,
+            leverage,
+            initial_margin,
+            available_margin,
+            order_status,
+            entryprice,
+            execution_price,
+            request_time,
+            order_kill_time,
+        } = order;
+
+        let order = relayer::CreateTraderOrder {
+            account_id: account_id.clone(),
+            position_type,
+            order_type,
+            leverage,
+            initial_margin,
+            available_margin,
+            order_status,
+            entryprice,
+            execution_price,
+        };
+
+        let order = relayer::RpcCommand::CreateTraderOrder(order, relayer::Meta::default());
+        let Ok(serialized) = serde_json::to_vec(&order) else {
+            return Ok(format!("Could not serialize order").into());
+        };
+
+        records.push(Record::from_key_value(
+            &topic,
+            "CreateTraderOrder",
+            serialized,
+        ));
+    }
+
+    if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send_all(&records) {
+        Ok(format!("Could not send order {:?}", e).into())
+    } else {
+        Ok("OK".into())
+    }
+}
 
 pub(super) fn trader_order_info(
     params: Params<'_>,
@@ -39,7 +142,7 @@ pub(super) fn lend_order_info(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<OrderId> = params.parse()?;
-    let (id, params) = args.unpack();
+    let (_, id, params) = args.unpack();
 
     match ctx.pool.get() {
         Ok(mut conn) => match LendOrder::get(&mut conn, id, params) {
@@ -62,7 +165,7 @@ pub(super) fn unrealized_pnl(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<PnlArgs> = params.parse()?;
-    let (id, params) = args.unpack();
+    let (_, id, params) = args.unpack();
 
     match ctx.pool.get() {
         Ok(mut conn) => match TraderOrder::unrealized_pnl(&mut conn, id, params) {
@@ -78,7 +181,7 @@ pub(super) fn open_orders(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<()> = params.parse()?;
-    let (id, _) = args.unpack();
+    let (_, id, _) = args.unpack();
 
     match ctx.pool.get() {
         Ok(mut conn) => match TraderOrder::open_orders(&mut conn, id) {
@@ -94,7 +197,7 @@ pub(super) fn order_history(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<OrderHistoryArgs> = params.parse()?;
-    let (id, params) = args.unpack();
+    let (_, id, params) = args.unpack();
 
     match ctx.pool.get() {
         Ok(mut conn) => match TraderOrder::order_history(&mut conn, id, params) {
@@ -113,7 +216,7 @@ pub(super) fn trade_volume(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<TradeVolumeArgs> = params.parse()?;
-    let (id, params) = args.unpack();
+    let (_, id, params) = args.unpack();
 
     match ctx.pool.get() {
         Ok(mut conn) => match TraderOrder::order_volume(&mut conn, id, params) {

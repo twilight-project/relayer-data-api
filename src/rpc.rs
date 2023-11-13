@@ -1,13 +1,16 @@
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
+use kafka::producer::{Producer, Record, RequiredAcks};
 use serde::Serialize;
+use std::sync::{Arc, Mutex};
+use tokio::time::Duration;
 
 mod private_methods;
 mod public_methods;
 mod types;
 pub use types::{
-    CandleSubscription, Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval,
+    CandleSubscription, Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval, Order,
     OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs,
 };
 
@@ -19,6 +22,7 @@ type HandlerType<R> =
 
 pub struct RelayerContext {
     pub pool: ManagedPool,
+    pub kafka: Arc<Mutex<Producer>>,
 }
 
 fn register_method<R: Serialize + 'static>(
@@ -35,7 +39,16 @@ pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
 
-    let mut module = RpcModule::new(RelayerContext { pool });
+    let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
+    let broker = vec![broker_host.to_owned()];
+    let mut kafka = Producer::from_hosts(broker)
+        .with_ack_timeout(Duration::from_secs(1))
+        .with_required_acks(RequiredAcks::One)
+        .create()
+        .unwrap();
+    let kafka = Arc::new(Mutex::new(kafka));
+
+    let mut module = RpcModule::new(RelayerContext { pool, kafka });
     register_method(
         &mut module,
         "btc_usd_price",
@@ -88,8 +101,27 @@ pub fn init_private_methods(database_url: &str) -> RpcModule<RelayerContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
 
-    let mut module = RpcModule::new(RelayerContext { pool });
+    let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
+    let broker = vec![broker_host.to_owned()];
+    let mut kafka = Producer::from_hosts(broker)
+        .with_ack_timeout(Duration::from_secs(1))
+        .with_required_acks(RequiredAcks::One)
+        .create()
+        .unwrap();
+    let kafka = Arc::new(Mutex::new(kafka));
 
+    let mut module = RpcModule::new(RelayerContext { pool, kafka });
+
+    register_method(
+        &mut module,
+        "submit_order",
+        Box::new(private_methods::submit_order),
+    );
+    register_method(
+        &mut module,
+        "submit_bulk_order",
+        Box::new(private_methods::submit_bulk_order),
+    );
     register_method(
         &mut module,
         "unrealized_pnl",

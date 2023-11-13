@@ -14,6 +14,7 @@
 use crate::auth::AuthInfo;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
+use twilight_relayer_rust::relayer::{OrderStatus, OrderType, PositionType};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RpcArgs<T> {
@@ -22,13 +23,31 @@ pub struct RpcArgs<T> {
 }
 
 impl<T> RpcArgs<T> {
-    pub fn unpack(self) -> (i64, T) {
+    pub fn unpack(self) -> (String, i64, T) {
         let RpcArgs {
-            user: AuthInfo { customer_id, .. },
+            user:
+                AuthInfo {
+                    account_address,
+                    customer_id,
+                },
             params,
         } = self;
-        (customer_id, params)
+        (account_address, customer_id, params)
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Order {
+    pub position_type: PositionType,
+    pub order_type: OrderType,
+    pub leverage: f64,
+    pub initial_margin: f64,
+    pub available_margin: f64,
+    pub order_status: OrderStatus,
+    pub entryprice: f64,
+    pub execution_price: f64,
+    pub request_time: DateTime<Utc>,
+    pub order_kill_time: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

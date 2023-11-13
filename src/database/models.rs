@@ -7,8 +7,8 @@ use crate::database::{
     sql_types::*,
 };
 use crate::rpc::{
-    HistoricalFundingArgs, HistoricalPriceArgs, Interval, OrderHistoryArgs, PnlArgs,
-    TradeVolumeArgs, OrderId,
+    HistoricalFundingArgs, HistoricalPriceArgs, Interval, OrderHistoryArgs, OrderId, PnlArgs,
+    TradeVolumeArgs,
 };
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
 use chrono::prelude::*;
@@ -47,7 +47,10 @@ impl CustomerAccount {
         customer_account.find(ident).first(conn)
     }
 
-    pub fn create(conn: &mut PgConnection, new_account: NewCustomerAccount) -> QueryResult<Vec<CustomerAccount>> {
+    pub fn create(
+        conn: &mut PgConnection,
+        new_account: NewCustomerAccount,
+    ) -> QueryResult<Vec<CustomerAccount>> {
         use crate::database::schema::customer_account::dsl::*;
 
         diesel::insert_into(customer_account)
@@ -895,7 +898,9 @@ impl FundingRateUpdate {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable, Insertable, AsChangeset)]
+#[derive(
+    Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable, Insertable, AsChangeset,
+)]
 #[diesel(table_name = trader_order)]
 pub struct TraderOrder {
     pub id: i64,
@@ -1111,11 +1116,14 @@ impl TraderOrder {
         let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
         let acct_id = account.customer_registration_id;
 
-        let query = format!(r#"
+        let query = format!(
+            r#"
             SELECT count(distinct uuid) from trader_order
             where account_id = '{}'
             and timestamp between '{}' and '{}'
-        "#, acct_id, args.start, args.end);
+        "#,
+            acct_id, args.start, args.end
+        );
 
         diesel::sql_query(query).execute(conn)
     }
@@ -1198,7 +1206,8 @@ impl TraderOrder {
         let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
         let acct_id = account.customer_registration_id;
 
-        let query = format!(r#"select * from trader_order
+        let query = format!(
+            r#"select * from trader_order
             inner join (
                 select uuid,max(id) as latest_id
                 from trader_order
@@ -1306,17 +1315,21 @@ pub struct InsertLendOrder {
 }
 
 impl LendOrder {
-    pub fn get(conn: &mut PgConnection, customer_id: i64, params: OrderId) -> QueryResult<LendOrder> {
-        use crate::database::schema::lend_order::dsl::*;
+    pub fn get(
+        conn: &mut PgConnection,
+        customer_id: i64,
+        params: OrderId,
+    ) -> QueryResult<LendOrder> {
         use crate::database::schema::customer_account::dsl as acct_dsl;
+        use crate::database::schema::lend_order::dsl::*;
 
-        let account: CustomerAccount = acct_dsl::customer_account
-            .find(customer_id)
-            .first(conn)?;
+        let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
 
         let acct_id = account.customer_registration_id;
 
-        lend_order.filter(uuid.eq(params.id).and(account_id.eq(acct_id))).first(conn)
+        lend_order
+            .filter(uuid.eq(params.id).and(account_id.eq(acct_id)))
+            .first(conn)
     }
 
     pub fn insert(conn: &mut PgConnection, orders: Vec<InsertLendOrder>) -> QueryResult<usize> {
