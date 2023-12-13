@@ -41,8 +41,13 @@ pub fn start_consumer(
                         .map(|m| {
                             max_offset = max_offset.max(m.offset);
 
-                            let message: Event =
-                                serde_json::from_str(&String::from_utf8_lossy(&m.value)).unwrap();
+                            let msg_data = String::from_utf8_lossy(&m.value);
+                            let message: Event = match serde_json::from_str(&msg_data) {
+                                Ok(event) => event,
+                                Err(e) => {
+                                    panic!("Invalid message! {:?} {}", e, msg_data);
+                                }
+                            };
                             message
                         })
                         .collect();
