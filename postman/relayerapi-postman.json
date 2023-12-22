@@ -471,10 +471,9 @@
 				"method": "POST",
 				"header": [
 					{
-						"key": "headers",
+						"key": "signature",
 						"type": "text",
-						"value": "\"5\"",
-						"disabled": true
+						"value": "6c50f9d22fba87c575b3df9b147ee49e40f27da199d2d4ae925c4f5723d3d47a"
 					},
 					{
 						"key": "Content-Type",
@@ -482,21 +481,19 @@
 						"value": "application/json"
 					},
 					{
-						"key": "Metadata",
+						"key": "datetime",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "1"
 					},
 					{
-						"key": "",
+						"key": "relayer-api-key",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"trader_order_info\", \"id\":123, \"params\": {\"id\": \"1a7fded3-7487-47ca-b88e-6aa438fda631\"}  }"
+					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"trader_order_info\",\"id\":123,\"params\":{\"id\":\"1a7fded3-7487-47ca-b88e-6aa438fda631\"}}"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",
@@ -528,10 +525,9 @@
 				"method": "POST",
 				"header": [
 					{
-						"key": "headers",
+						"key": "signature",
 						"type": "text",
-						"value": "\"5\"",
-						"disabled": true
+						"value": "0654af800eef8ccbf5989c846dc0470d3d0efc4f1b807d32a23d5ba4b35abeb4"
 					},
 					{
 						"key": "Content-Type",
@@ -539,21 +535,19 @@
 						"value": "application/json"
 					},
 					{
-						"key": "Metadata",
+						"key": "datetime",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "1"
 					},
 					{
-						"key": "",
+						"key": "relayer-api-key",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"order_history\", \"id\":123, \"params\": {\"OrderId\": \"1a7fded3-7487-47ca-b88e-6aa438fda631\"}  }"
+					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"order_history\",\"id\":123,\"params\":{\"OrderId\":\"1a7fded3-7487-47ca-b88e-6aa438fda631\"}}"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",
@@ -699,10 +693,9 @@
 				"method": "POST",
 				"header": [
 					{
-						"key": "headers",
+						"key": "signature",
 						"type": "text",
-						"value": "\"5\"",
-						"disabled": true
+						"value": "9477b22b5cff83120c8fb4a18a2af05e19689e99cbc756c3258ab79b4149e2c9"
 					},
 					{
 						"key": "Content-Type",
@@ -710,21 +703,19 @@
 						"value": "application/json"
 					},
 					{
-						"key": "Metadata",
+						"key": "datetime",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "1"
 					},
 					{
-						"key": "",
+						"key": "relayer-api-key",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"order_history\", \"id\":123, \"params\": {\"ClientId\": { \"offset\": 0, \"limit\": 20}}  }"
+					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"order_history\",\"id\":123,\"params\":{\"ClientId\":{\"offset\":0,\"limit\":20}}}"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",
@@ -756,10 +747,9 @@
 				"method": "POST",
 				"header": [
 					{
-						"key": "headers",
+						"key": "signature",
 						"type": "text",
-						"value": "\"5\"",
-						"disabled": true
+						"value": "e1442a348f3a1f0c5af6d00e03ff687adf90c2ada3e11aadf11d48f14ee18e0c"
 					},
 					{
 						"key": "Content-Type",
@@ -767,21 +757,19 @@
 						"value": "application/json"
 					},
 					{
-						"key": "Metadata",
+						"key": "datetime",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "1"
 					},
 					{
-						"key": "",
+						"key": "relayer-api-key",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"trade_volume\", \"id\":123, \"params\": {\"start\": \"2023-09-25T00:00:00Z\", \"end\": \"2023-09-26T00:00:00Z\"}  }"
+					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"trade_volume\",\"id\":123,\"params\":{\"start\":\"2023-09-25T00:00:00Z\",\"end\":\"2023-09-26T00:00:00Z\"}}"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",
@@ -813,10 +801,9 @@
 				"method": "POST",
 				"header": [
 					{
-						"key": "headers",
+						"key": "signature",
 						"type": "text",
-						"value": "\"5\"",
-						"disabled": true
+						"value": "37840aaba5df39c7dca7477672fa620fe6bd38a39b56b0396d3b904c6cb4f845"
 					},
 					{
 						"key": "Content-Type",
@@ -824,21 +811,19 @@
 						"value": "application/json"
 					},
 					{
-						"key": "Metadata",
+						"key": "datetime",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "1"
 					},
 					{
-						"key": "",
+						"key": "relayer-api-key",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"lend_order_info\", \"id\":123, \"params\": {\"id\": \"1a7fded3-7487-47ca-b88e-6aa438fda631\"}  }"
+					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"lend_order_info\",\"id\":123,\"params\":{\"id\":\"1a7fded3-7487-47ca-b88e-6aa438fda631\"}}"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",
@@ -870,10 +855,9 @@
 				"method": "POST",
 				"header": [
 					{
-						"key": "headers",
+						"key": "relayer-api-key",
 						"type": "text",
-						"value": "\"5\"",
-						"disabled": true
+						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
 					},
 					{
 						"key": "Content-Type",
@@ -881,21 +865,19 @@
 						"value": "application/json"
 					},
 					{
-						"key": "Metadata",
+						"key": "signature",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "a0cbe1b301e62b4a7a9eb1208a6735a7aba461b0e6d21e1bdd2fa1d821826246"
 					},
 					{
-						"key": "",
+						"key": "datetime",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "1"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"unrealized_pnl\", \"id\":123, \"params\": {\"PublicKey\": \"twilight1l03j8j5nwegy9fkz9p0whkxch2e2zqcq6lvfda\"}  }"
+					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"unrealized_pnl\",\"id\":123,\"params\":{\"PublicKey\":\"twilight1l03j8j5nwegy9fkz9p0whkxch2e2zqcq6lvfda\"}}"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",
@@ -927,10 +909,9 @@
 				"method": "POST",
 				"header": [
 					{
-						"key": "headers",
+						"key": "signature",
 						"type": "text",
-						"value": "\"5\"",
-						"disabled": true
+						"value": "88eabdfe10c7c2c6b26d6fefe35ff4dfe1da4a5d02417fac9c814195982e9db5"
 					},
 					{
 						"key": "Content-Type",
@@ -938,21 +919,19 @@
 						"value": "application/json"
 					},
 					{
-						"key": "Metadata",
+						"key": "relayer-api-key",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
 					},
 					{
-						"key": "",
+						"key": "datetime",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "1"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"open_orders\", \"id\":123, \"params\": null  }"
+					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"open_orders\",\"id\":123,\"params\":null}"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",
@@ -984,10 +963,9 @@
 				"method": "POST",
 				"header": [
 					{
-						"key": "headers",
+						"key": "signature",
 						"type": "text",
-						"value": "\"5\"",
-						"disabled": true
+						"value": "a4b459365c56a8a98e22d92ed51676b4fb458065ede926d6813f5e613b8d6f08"
 					},
 					{
 						"key": "Content-Type",
@@ -995,21 +973,19 @@
 						"value": "application/json"
 					},
 					{
-						"key": "Metadata",
+						"key": "relayer-api-key",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
 					},
 					{
-						"key": "",
+						"key": "datetime",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "1"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"unrealized_pnl\", \"id\":123, \"params\": {\"OrderId\": \"1a7fded3-7487-47ca-b88e-6aa438fda631\"}  }"
+					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"unrealized_pnl\",\"id\":123,\"params\":{\"OrderId\":\"1a7fded3-7487-47ca-b88e-6aa438fda631\"}}"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",
@@ -1041,10 +1017,9 @@
 				"method": "POST",
 				"header": [
 					{
-						"key": "headers",
+						"key": "relayer-api-key",
 						"type": "text",
-						"value": "\"5\"",
-						"disabled": true
+						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
 					},
 					{
 						"key": "Content-Type",
@@ -1052,21 +1027,19 @@
 						"value": "application/json"
 					},
 					{
-						"key": "Metadata",
+						"key": "signature",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "0f536f92583a2213fca69e5ee8b67bc0bedab69bc88ed28db7fe7207e37df179"
 					},
 					{
-						"key": "",
+						"key": "datetime",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "1"
 					}
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"unrealized_pnl\", \"id\":123, \"params\": \"All\"  }"
+					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"unrealized_pnl\",\"id\":123,\"params\":\"All\"}"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",
@@ -1147,63 +1120,18 @@
 					"raw": "{\n    \"account_address\": \"twilight1l03j8j5nwegy9fkz9p0whkxch2e2zqcq6lvfda\",\n    \"data\": \"hello\",\n    \"signature\": {\n        \"pub_key\": {\"type\": \"tendermint/PubKeySecp256k1\", \"value\": \"AkNImdlt3/+4axILXJsyiBigMWheg8i8npwTX/AzBrSC\"},\n        \"signature\": \"waaVXJnXIYQd2BG4rVA12q5OTuctzcDt7BLyHw7Yx/1b2iDFrl4kOcC/VlvE3tvLZq7Dd/qSiMEdYK1DvDPmZw==\"\n    }\n}"
 				},
 				"url": {
-					"raw": "{{endpoint}}/login",
+					"raw": "{{endpoint}}/register",
 					"host": [
 						"{{endpoint}}"
 					],
 					"path": [
-						"login"
+						"register"
 					]
 				}
 			},
 			"response": []
 		}
 	],
-	"auth": {
-		"type": "jwt",
-		"jwt": [
-			{
-				"key": "payload",
-				"value": "{\"account_address\": \"twilight1l03j8j5nwegy9fkz9p0whkxch2e2zqcq6lvfda\",\n \"customer_id\": 2}",
-				"type": "string"
-			},
-			{
-				"key": "secret",
-				"value": "FNiPGdfBuvqToL7PHu4EHzu7ehSr8+L5yV2kkxSutSo",
-				"type": "string"
-			},
-			{
-				"key": "algorithm",
-				"value": "HS256",
-				"type": "string"
-			},
-			{
-				"key": "isSecretBase64Encoded",
-				"value": false,
-				"type": "boolean"
-			},
-			{
-				"key": "addTokenTo",
-				"value": "header",
-				"type": "string"
-			},
-			{
-				"key": "headerPrefix",
-				"value": "Bearer",
-				"type": "string"
-			},
-			{
-				"key": "queryParamKey",
-				"value": "token",
-				"type": "string"
-			},
-			{
-				"key": "header",
-				"value": "{}",
-				"type": "string"
-			}
-		]
-	},
 	"event": [
 		{
 			"listen": "prerequest",

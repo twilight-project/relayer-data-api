@@ -1073,13 +1073,17 @@ impl TraderOrder {
                 vec![order]
             }
             PnlArgs::PublicKey(key) => {
-                let addresses: Vec<AddressCustomerId> = addr_dsl::address_customer_id
-                    .filter(addr_dsl::id.eq(customer_id).and(addr_dsl::address.eq(&key)))
-                    .load(conn)?;
+                let address: AddressCustomerId = addr_dsl::address_customer_id
+                    .filter(addr_dsl::customer_id.eq(customer_id).and(addr_dsl::address.eq(&key)))
+                    .first(conn)?;
 
-                trader_order
-                    .filter(account_id.eq(key).and(order_status.ne_all(closed)))
-                    .load(conn)?
+                if address.customer_id != customer_id {
+                    vec![]
+                } else {
+                    trader_order
+                        .filter(account_id.eq(acct_id).and(order_status.ne_all(closed)))
+                        .load(conn)?
+                }
             }
             PnlArgs::All => trader_order
                 .filter(order_status.ne_all(closed).and(account_id.eq(acct_id)))
