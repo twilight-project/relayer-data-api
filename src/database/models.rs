@@ -104,48 +104,72 @@ impl AddressCustomerId {
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
 #[diesel(table_name = customer_apikey_linking)]
 pub struct CustomerApiKeyLinking {
-    id: i64,
-    customer_account_id: i64,
-    api_key: String,
-    api_salt_key: String,
-    created_on: DateTime<Utc>,
-    expires_on: DateTime<Utc>,
-    is_active: bool,
-    remark: Option<String>,
-    authorities: Option<String>,
-    limit_remaining: Option<i64>,
+    pub id: i64,
+    pub customer_account_id: i64,
+    pub api_key: String,
+    pub api_salt_key: String,
+    pub created_on: DateTime<Utc>,
+    pub expires_on: DateTime<Utc>,
+    pub is_active: bool,
+    pub remark: Option<String>,
+    pub authorities: Option<String>,
+    pub limit_remaining: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
 #[diesel(table_name = customer_apikey_linking)]
 pub struct NewCustomerApiKeyLinking {
-    customer_account_id: i64,
-    api_key: String,
-    api_salt_key: String,
-    created_on: DateTime<Utc>,
-    expires_on: DateTime<Utc>,
-    is_active: bool,
-    remark: Option<String>,
-    authorities: Option<String>,
-    limit_remaining: Option<i64>,
+    pub customer_account_id: i64,
+    pub api_key: String,
+    pub api_salt_key: String,
+    pub created_on: DateTime<Utc>,
+    pub expires_on: DateTime<Utc>,
+    pub is_active: bool,
+    pub remark: Option<String>,
+    pub authorities: Option<String>,
+    pub limit_remaining: Option<i64>,
 }
 
 impl CustomerApiKeyLinking {
-    pub fn get(conn: &mut PgConnection, ident: i64) -> QueryResult<CustomerApiKeyLinking> {
+    pub fn get_key(conn: &mut PgConnection, key: String) -> QueryResult<CustomerApiKeyLinking> {
         use crate::database::schema::customer_apikey_linking::dsl::*;
 
-        customer_apikey_linking.find(ident).first(conn)
+        customer_apikey_linking.filter(api_key.eq(key)).first(conn)
     }
 
-    pub fn insert(
-        conn: &mut PgConnection,
-        new_apikey: NewCustomerApiKeyLinking,
-    ) -> QueryResult<usize> {
+    pub fn get_or_create(conn: &mut PgConnection, customer_id: i64) -> QueryResult<CustomerApiKeyLinking> {
         use crate::database::schema::customer_apikey_linking::dsl::*;
 
-        diesel::insert_into(customer_apikey_linking)
-            .values(new_apikey)
-            .execute(conn)
+        let query = customer_apikey_linking
+            .filter(
+                customer_account_id
+                    .eq(customer_id)
+                    .and(is_active.eq(true))
+            );
+
+        match query.first(conn) {
+            Ok(o) => return Ok(o),
+            Err(diesel::result::Error::NotFound) => {
+                let linking = NewCustomerApiKeyLinking {
+                    api_key: Uuid::new_v4().to_string(),
+                    api_salt_key: Uuid::new_v4().to_string(),
+                    customer_account_id: customer_id,
+                    created_on: Utc::now(),
+                    expires_on: Utc::now() + chrono::Duration::days(7),
+                    is_active: true,
+                    remark: None,
+                    authorities: None,
+                    limit_remaining: None,
+                };
+
+                let result: Vec<CustomerApiKeyLinking> = diesel::insert_into(customer_apikey_linking)
+                    .values(linking)
+                    .get_results(conn)?;
+
+                return Ok(result[0].clone());
+            }
+            Err(e) => return Err(e),
+        }
     }
 }
 

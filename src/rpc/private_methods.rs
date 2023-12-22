@@ -12,7 +12,7 @@ pub(super) fn submit_order(
 ) -> Result<serde_json::Value, Error> {
     let topic = std::env::var("RPC_CLIENT_REQUEST").expect("No client topic!");
     let args: RpcArgs<Order> = params.parse()?;
-    let (account_id, _, order) = args.unpack();
+    let (account_id, order) = args.unpack();
 
     let Order {
         position_type,
@@ -28,7 +28,7 @@ pub(super) fn submit_order(
     } = order;
 
     let order = relayer::CreateTraderOrder {
-        account_id,
+        account_id: format!("{:016x}", account_id),
         position_type,
         order_type,
         leverage,
@@ -58,7 +58,8 @@ pub(super) fn submit_bulk_order(
 ) -> Result<serde_json::Value, Error> {
     let topic = std::env::var("RPC_CLIENT_REQUEST").expect("No client topic!");
     let args: RpcArgs<Vec<Order>> = params.parse()?;
-    let (account_id, _, orders) = args.unpack();
+    let (account_id, orders) = args.unpack();
+    let account_id = format!("{:016x}", account_id);
 
     let mut records = Vec::new();
     for order in orders.into_iter() {
@@ -142,7 +143,7 @@ pub(super) fn lend_order_info(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<OrderId> = params.parse()?;
-    let (_, id, params) = args.unpack();
+    let (id, params) = args.unpack();
 
     match ctx.pool.get() {
         Ok(mut conn) => match LendOrder::get(&mut conn, id, params) {
@@ -165,7 +166,7 @@ pub(super) fn unrealized_pnl(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<PnlArgs> = params.parse()?;
-    let (_, id, params) = args.unpack();
+    let (id, params) = args.unpack();
 
     match ctx.pool.get() {
         Ok(mut conn) => match TraderOrder::unrealized_pnl(&mut conn, id, params) {
@@ -181,7 +182,7 @@ pub(super) fn open_orders(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<()> = params.parse()?;
-    let (_, id, _) = args.unpack();
+    let (id, params) = args.unpack();
 
     match ctx.pool.get() {
         Ok(mut conn) => match TraderOrder::open_orders(&mut conn, id) {
@@ -197,7 +198,7 @@ pub(super) fn order_history(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<OrderHistoryArgs> = params.parse()?;
-    let (_, id, params) = args.unpack();
+    let (id, params) = args.unpack();
 
     match ctx.pool.get() {
         Ok(mut conn) => match TraderOrder::order_history(&mut conn, id, params) {
@@ -216,7 +217,7 @@ pub(super) fn trade_volume(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<TradeVolumeArgs> = params.parse()?;
-    let (_, id, params) = args.unpack();
+    let (id, params) = args.unpack();
 
     match ctx.pool.get() {
         Ok(mut conn) => match TraderOrder::order_volume(&mut conn, id, params) {

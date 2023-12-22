@@ -11,28 +11,28 @@
 // •	Candle data (Kline data: 1min, 5min, 15min, 30min, 1hr, 4hr, 8hr, 12hr, 24hr)
 // •	Position Size (For Long, Short and Total)
 // •	Server Time
-use crate::auth::AuthInfo;
+use crate::auth::UserInfo;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use twilight_relayer_rust::relayer::{OrderStatus, OrderType, PositionType};
 
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RpcArgs<T> {
-    pub user: AuthInfo,
+    pub user: UserInfo,
     pub params: T,
 }
 
 impl<T> RpcArgs<T> {
-    pub fn unpack(self) -> (String, i64, T) {
+    pub fn unpack(self) -> (i64, T) {
         let RpcArgs {
             user:
-                AuthInfo {
-                    account_address,
+                UserInfo {
                     customer_id,
                 },
             params,
         } = self;
-        (account_address, customer_id, params)
+        (customer_id, params)
     }
 }
 

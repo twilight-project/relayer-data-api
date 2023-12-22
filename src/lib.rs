@@ -13,7 +13,12 @@ pub mod auth {
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     pub struct AuthInfo {
-        pub account_address: String,
+        pub api_key: String,
+        pub api_secret: String,
+    }
+
+    #[derive(Debug, Clone, Deserialize, Serialize)]
+    pub struct UserInfo {
         pub customer_id: i64,
     }
 }
