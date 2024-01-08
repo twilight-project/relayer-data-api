@@ -124,14 +124,14 @@ async fn check_signature(request: Request<Body>) -> Result<Response<Body>, http:
         Err(e) => {
             return Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
-                .body(Body::empty());
+                .body("No customer with that key".into());
         }
     };
 
     let Ok(received) = hex::decode(&sig) else {
         return Response::builder()
             .status(StatusCode::BAD_REQUEST)
-            .body(Body::empty());
+            .body("Bad request".into());
     };
 
     if received.len() != HS::output_size() {
@@ -153,7 +153,7 @@ async fn check_signature(request: Request<Body>) -> Result<Response<Body>, http:
     if calced != digest {
         return Response::builder()
             .status(StatusCode::UNAUTHORIZED)
-            .body(Body::empty());
+            .body("Invalid digest".into());
     }
 
     let response = UserInfo {
@@ -185,7 +185,7 @@ async fn handler(request: Request<Body>) -> Result<Response<Body>, http::Error> 
     if &uri != "/login" && &uri != "/register" {
         return Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(Body::empty());
+            .body("Not found".into());
     }
 
     let address = match verify_signature(request).await {
@@ -193,12 +193,12 @@ async fn handler(request: Request<Body>) -> Result<Response<Body>, http::Error> 
         VerifyResult::InvalidJson => {
             return Response::builder()
                 .status(StatusCode::BAD_REQUEST)
-                .body(Body::empty());
+                .body("Invalid signature".into());
         }
         VerifyResult::Unauthorized => {
             return Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
-                .body(Body::empty());
+                .body("Unauthorized".into());
         }
     };
 

@@ -18,11 +18,17 @@ req['body'] = body
 local args = { method = ngx.HTTP_POST, body = json.encode(req) }
 local resp = ngx.location.capture("/check", args)
 
-local decoded = json.decode(body)
-local new_params = {}
-new_params["params"] = decoded["params"]
-new_params["user"] = json.decode(resp.body)
-decoded["params"] = new_params
+if resp.status == 200 then
+    local decoded = json.decode(body)
+    local new_params = {}
+    new_params["params"] = decoded["params"]
+    new_params["user"] = json.decode(resp.body)
+    decoded["params"] = new_params
 
-local jsonified = json.encode(decoded)
-ngx.req.set_body_data(jsonified)
+    local jsonified = json.encode(decoded)
+    ngx.req.set_body_data(jsonified)
+else
+    ngx.status = resp.status
+    ngx.say(resp.body)
+    ngx.exit(ngx.HTTP_OK)
+end

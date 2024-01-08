@@ -473,7 +473,7 @@
 					{
 						"key": "signature",
 						"type": "text",
-						"value": "6c50f9d22fba87c575b3df9b147ee49e40f27da199d2d4ae925c4f5723d3d47a"
+						"value": "{{signature}}"
 					},
 					{
 						"key": "Content-Type",
@@ -488,7 +488,7 @@
 					{
 						"key": "relayer-api-key",
 						"type": "text",
-						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
+						"value": "{{relayer-api-key}}"
 					}
 				],
 				"body": {
@@ -527,7 +527,7 @@
 					{
 						"key": "signature",
 						"type": "text",
-						"value": "0654af800eef8ccbf5989c846dc0470d3d0efc4f1b807d32a23d5ba4b35abeb4"
+						"value": "{{signature}}"
 					},
 					{
 						"key": "Content-Type",
@@ -542,7 +542,7 @@
 					{
 						"key": "relayer-api-key",
 						"type": "text",
-						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
+						"value": "{{relayer-api-key}}"
 					}
 				],
 				"body": {
@@ -590,16 +590,19 @@
 						"value": "application/json"
 					},
 					{
-						"key": "Metadata",
+						"key": "relayer-api-key",
 						"type": "text",
-						"value": "1",
-						"disabled": true
+						"value": "{{relayer-api-key}}"
 					},
 					{
-						"key": "",
+						"key": "signature",
 						"type": "text",
+						"value": "{{signature}}"
+					},
+					{
+						"key": "datetime",
 						"value": "1",
-						"disabled": true
+						"type": "text"
 					}
 				],
 				"body": {
@@ -653,10 +656,19 @@
 						"disabled": true
 					},
 					{
-						"key": "",
+						"key": "signature",
 						"type": "text",
+						"value": "{{signature}}"
+					},
+					{
+						"key": "relayer-api-key",
+						"value": "{{relayer-api-key}}",
+						"type": "text"
+					},
+					{
+						"key": "datetime",
 						"value": "1",
-						"disabled": true
+						"type": "text"
 					}
 				],
 				"body": {
@@ -695,7 +707,7 @@
 					{
 						"key": "signature",
 						"type": "text",
-						"value": "9477b22b5cff83120c8fb4a18a2af05e19689e99cbc756c3258ab79b4149e2c9"
+						"value": "{{signature}}"
 					},
 					{
 						"key": "Content-Type",
@@ -710,7 +722,7 @@
 					{
 						"key": "relayer-api-key",
 						"type": "text",
-						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
+						"value": "{{relayer-api-key}}"
 					}
 				],
 				"body": {
@@ -749,7 +761,7 @@
 					{
 						"key": "signature",
 						"type": "text",
-						"value": "e1442a348f3a1f0c5af6d00e03ff687adf90c2ada3e11aadf11d48f14ee18e0c"
+						"value": "{{signature}}"
 					},
 					{
 						"key": "Content-Type",
@@ -764,7 +776,7 @@
 					{
 						"key": "relayer-api-key",
 						"type": "text",
-						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
+						"value": "{{relayer-api-key}}"
 					}
 				],
 				"body": {
@@ -803,7 +815,7 @@
 					{
 						"key": "signature",
 						"type": "text",
-						"value": "37840aaba5df39c7dca7477672fa620fe6bd38a39b56b0396d3b904c6cb4f845"
+						"value": "{{signature}}"
 					},
 					{
 						"key": "Content-Type",
@@ -818,7 +830,7 @@
 					{
 						"key": "relayer-api-key",
 						"type": "text",
-						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
+						"value": "{{relayer-api-key}}"
 					}
 				],
 				"body": {
@@ -857,7 +869,7 @@
 					{
 						"key": "relayer-api-key",
 						"type": "text",
-						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
+						"value": "{{relayer-api-key}}"
 					},
 					{
 						"key": "Content-Type",
@@ -867,7 +879,7 @@
 					{
 						"key": "signature",
 						"type": "text",
-						"value": "a0cbe1b301e62b4a7a9eb1208a6735a7aba461b0e6d21e1bdd2fa1d821826246"
+						"value": "{{signature}}"
 					},
 					{
 						"key": "datetime",
@@ -911,7 +923,7 @@
 					{
 						"key": "signature",
 						"type": "text",
-						"value": "88eabdfe10c7c2c6b26d6fefe35ff4dfe1da4a5d02417fac9c814195982e9db5"
+						"value": "{{signature}}"
 					},
 					{
 						"key": "Content-Type",
@@ -921,7 +933,7 @@
 					{
 						"key": "relayer-api-key",
 						"type": "text",
-						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
+						"value": "{{relayer-api-key}}"
 					},
 					{
 						"key": "datetime",
@@ -965,7 +977,7 @@
 					{
 						"key": "signature",
 						"type": "text",
-						"value": "a4b459365c56a8a98e22d92ed51676b4fb458065ede926d6813f5e613b8d6f08"
+						"value": "{{signature}}"
 					},
 					{
 						"key": "Content-Type",
@@ -975,7 +987,7 @@
 					{
 						"key": "relayer-api-key",
 						"type": "text",
-						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
+						"value": "{{relayer-api-key}}"
 					},
 					{
 						"key": "datetime",
@@ -1019,7 +1031,7 @@
 					{
 						"key": "relayer-api-key",
 						"type": "text",
-						"value": "32c0d898-6879-4628-8e52-87ee08dce1be"
+						"value": "{{relayer-api-key}}"
 					},
 					{
 						"key": "Content-Type",
@@ -1029,12 +1041,18 @@
 					{
 						"key": "signature",
 						"type": "text",
-						"value": "0f536f92583a2213fca69e5ee8b67bc0bedab69bc88ed28db7fe7207e37df179"
+						"value": "{{signature}}"
 					},
 					{
 						"key": "datetime",
 						"type": "text",
 						"value": "1"
+					},
+					{
+						"key": "",
+						"value": "",
+						"type": "text",
+						"disabled": true
 					}
 				],
 				"body": {
@@ -1138,7 +1156,15 @@
 			"script": {
 				"type": "text/javascript",
 				"exec": [
-					""
+					"const relayer_api_secret = pm.environment.get(\"relayer_api_secret\");",
+					"console.log(relayer_api_secret);",
+					"const parameters = pm.request.url.query;",
+					"console.log(pm.request.body.raw);",
+					"",
+					"",
+					"const signature = CryptoJS.HmacSHA256(pm.request.body.raw, relayer_api_secret).toString();",
+					"console.log(signature);",
+					"pm.environment.set(\"signature\", signature);"
 				]
 			}
 		},
