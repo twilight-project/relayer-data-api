@@ -14,7 +14,7 @@ use tokio::{
     task::JoinHandle,
 };
 use twilight_relayer_rust::{db::Event, relayer};
-use zkoswalletlib::relayer_types::{OrderType, OrderStatus};
+use zkoswalletlib::relayer_types::{OrderStatus, OrderType};
 
 mod methods;
 

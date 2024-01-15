@@ -1,14 +1,17 @@
 use diesel::{prelude::PgConnection, Connection};
 use digest::{CtOutput, Output, OutputSizeUser};
-use http::{Request, StatusCode};
 use hmac::{Hmac, Mac};
+use http::{Request, StatusCode};
 use hyper::{body::to_bytes, server::Server, Body, Response};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::net::SocketAddr;
 use tower::{make::Shared, ServiceBuilder};
-use twilight_relayerAPI::{auth::{AuthInfo, UserInfo}, database::{AddressCustomerId, CustomerApiKeyLinking}};
+use twilight_relayerAPI::{
+    auth::{AuthInfo, UserInfo},
+    database::{AddressCustomerId, CustomerApiKeyLinking},
+};
 use verify_keplr_sign::{verify_arbitrary, Signature};
 
 type HS = Hmac<Sha256>;
@@ -117,7 +120,12 @@ async fn check_signature(request: Request<Body>) -> Result<Response<Body>, http:
         .await
         .expect("Bad bytes")
         .to_vec();
-    let SigCheck { api_key, sig, body, datetime } = serde_json::from_slice(&request).expect("f");
+    let SigCheck {
+        api_key,
+        sig,
+        body,
+        datetime,
+    } = serde_json::from_slice(&request).expect("f");
 
     let key = match CustomerApiKeyLinking::get_key(&mut conn, api_key) {
         Ok(k) => k,
@@ -142,7 +150,7 @@ async fn check_signature(request: Request<Body>) -> Result<Response<Body>, http:
     let output = Output::<HS>::clone_from_slice(&received);
     let digest: CtOutput<HS> = CtOutput::from(&output);
 
-    let Ok(mut mac) = HS::new_from_slice(key.api_salt_key.as_bytes()) else { 
+    let Ok(mut mac) = HS::new_from_slice(key.api_salt_key.as_bytes()) else {
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .body("Hasher error".into());
@@ -160,14 +168,13 @@ async fn check_signature(request: Request<Body>) -> Result<Response<Body>, http:
         customer_id: key.customer_account_id,
     };
 
-    let Ok(body) = serde_json::to_string(&response) else { 
+    let Ok(body) = serde_json::to_string(&response) else {
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .body("JSON serde error".into());
     };
 
-    return Response::builder()
-        .status(StatusCode::OK).body(body.into());
+    return Response::builder().status(StatusCode::OK).body(body.into());
 }
 
 async fn register_handler(address: String) -> Result<Response<Body>, http::Error> {

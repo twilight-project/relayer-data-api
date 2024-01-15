@@ -16,7 +16,6 @@ use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use zkoswalletlib::relayer_types::{OrderStatus, OrderType, PositionType};
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RpcArgs<T> {
     pub user: UserInfo,
@@ -26,10 +25,7 @@ pub struct RpcArgs<T> {
 impl<T> RpcArgs<T> {
     pub fn unpack(self) -> (i64, T) {
         let RpcArgs {
-            user:
-                UserInfo {
-                    customer_id,
-                },
+            user: UserInfo { customer_id },
             params,
         } = self;
         (customer_id, params)

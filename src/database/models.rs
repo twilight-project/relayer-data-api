@@ -137,15 +137,14 @@ impl CustomerApiKeyLinking {
         customer_apikey_linking.filter(api_key.eq(key)).first(conn)
     }
 
-    pub fn get_or_create(conn: &mut PgConnection, customer_id: i64) -> QueryResult<CustomerApiKeyLinking> {
+    pub fn get_or_create(
+        conn: &mut PgConnection,
+        customer_id: i64,
+    ) -> QueryResult<CustomerApiKeyLinking> {
         use crate::database::schema::customer_apikey_linking::dsl::*;
 
         let query = customer_apikey_linking
-            .filter(
-                customer_account_id
-                    .eq(customer_id)
-                    .and(is_active.eq(true))
-            );
+            .filter(customer_account_id.eq(customer_id).and(is_active.eq(true)));
 
         match query.first(conn) {
             Ok(o) => return Ok(o),
@@ -162,9 +161,10 @@ impl CustomerApiKeyLinking {
                     limit_remaining: None,
                 };
 
-                let result: Vec<CustomerApiKeyLinking> = diesel::insert_into(customer_apikey_linking)
-                    .values(linking)
-                    .get_results(conn)?;
+                let result: Vec<CustomerApiKeyLinking> =
+                    diesel::insert_into(customer_apikey_linking)
+                        .values(linking)
+                        .get_results(conn)?;
 
                 return Ok(result[0].clone());
             }
@@ -1074,7 +1074,11 @@ impl TraderOrder {
             }
             PnlArgs::PublicKey(key) => {
                 let address: AddressCustomerId = addr_dsl::address_customer_id
-                    .filter(addr_dsl::customer_id.eq(customer_id).and(addr_dsl::address.eq(&key)))
+                    .filter(
+                        addr_dsl::customer_id
+                            .eq(customer_id)
+                            .and(addr_dsl::address.eq(&key)),
+                    )
                     .first(conn)?;
 
                 if address.customer_id != customer_id {

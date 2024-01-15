@@ -4,8 +4,8 @@ use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
 use kafka::producer::Record;
 use log::info;
-use twilight_relayer_rust::relayer;
 use relayerwalletlib::verify_client_message::verify_trade_lend_order;
+use twilight_relayer_rust::relayer;
 
 pub(super) fn submit_lend_order(
     params: Params<'_>,
@@ -16,20 +16,22 @@ pub(super) fn submit_lend_order(
     let (account_id, order) = args.unpack();
     let account_id = format!("{:016x}", account_id);
 
-    let Order {
-        data
-    } = order;
+    let Order { data } = order;
 
-    let Ok(bytes) = hex::decode(&data) else { return Ok(format!("Invalid hex data").into()); };
+    let Ok(bytes) = hex::decode(&data) else {
+        return Ok(format!("Invalid hex data").into());
+    };
 
-    let Ok(tx) = bincode::deserialize::<relayer::CreateLendOrderZkos>(&bytes) else { return Ok(format!("Invalid bincode").into()); };
+    let Ok(tx) = bincode::deserialize::<relayer::CreateLendOrderZkos>(&bytes) else {
+        return Ok(format!("Invalid bincode").into());
+    };
 
     if let Err(_) = verify_trade_lend_order(&tx.input) {
         return Ok(format!("Invalid order params").into());
     }
 
     let mut order = tx.create_lend_order.clone();
-    let mut meta = relayer::Meta::default();
+    let meta = relayer::Meta::default();
 
     order.account_id = account_id;
     let deposit = order.deposit / 10000.0;
@@ -37,12 +39,7 @@ pub(super) fn submit_lend_order(
     order.deposit = deposit;
     order.balance = balance;
 
-    let Ok(input) = bincode::serialize(&tx.input) else { return Ok(format!("Bincode serialize").into()); };
-    let Ok(json) = serde_json::to_string(&input) else { return Ok(format!("JSON serialize").into()); };
-
-    meta.metadata.insert("zkos_data".into(), Some(json));
-
-    let order = relayer::RpcCommand::CreateLendOrder(order.clone(), meta);
+    let order = relayer::RpcCommand::CreateLendOrder(order.clone(), meta, tx.input.encode_as_hex_string());
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -64,32 +61,29 @@ pub(super) fn submit_trade_order(
     let (account_id, order) = args.unpack();
     let account_id = format!("{:016x}", account_id);
 
-    let Order {
-        data
-    } = order;
+    let Order { data } = order;
 
-    let Ok(bytes) = hex::decode(&data) else { return Ok(format!("Invalid hex data").into()); };
+    let Ok(bytes) = hex::decode(&data) else {
+        return Ok(format!("Invalid hex data").into());
+    };
 
-    let Ok(tx) = bincode::deserialize::<relayer::CreateTraderOrderZkos>(&bytes) else { return Ok(format!("Invalid bincode").into()); };
+    let Ok(tx) = bincode::deserialize::<relayer::CreateTraderOrderZkos>(&bytes) else {
+        return Ok(format!("Invalid bincode").into());
+    };
 
     if let Err(_) = verify_trade_lend_order(&tx.input) {
         return Ok(format!("Invalid order params").into());
     }
 
     let mut order = tx.create_trader_order.clone();
-    let mut meta = relayer::Meta::default();
+    let meta = relayer::Meta::default();
 
     order.account_id = account_id;
     let margin = order.initial_margin / 10000.0;
     order.initial_margin = margin;
     order.available_margin = margin;
 
-    let Ok(input) = bincode::serialize(&tx.input) else { return Ok(format!("Bincode serialize").into()); };
-    let Ok(json) = serde_json::to_string(&input) else { return Ok(format!("JSON serialize").into()); };
-
-    meta.metadata.insert("zkos_data".into(), Some(json));
-
-    let order = relayer::RpcCommand::CreateTraderOrder(order.clone(), meta);
+    let order = relayer::RpcCommand::CreateTraderOrder(order.clone(), meta, tx.input.encode_as_hex_string());
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -111,7 +105,7 @@ pub(super) fn submit_bulk_order(
     let (account_id, orders) = args.unpack();
     let account_id = format!("{:016x}", account_id);
 
-// TODO: bulk orders with ZkOS??
+    // TODO: bulk orders with ZkOS??
     Ok("OK".into())
 
     //let mut records = Vec::new();
