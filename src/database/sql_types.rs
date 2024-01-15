@@ -15,6 +15,7 @@ use diesel::{
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use twilight_relayer_rust::relayer;
+use zkoswalletlib::relayer_types;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum TXType {
@@ -304,44 +305,44 @@ impl FromSql<PositionTypeSql, Pg> for PositionType {
     }
 }
 
-impl From<relayer::OrderStatus> for OrderStatus {
-    fn from(status: relayer::OrderStatus) -> OrderStatus {
+impl From<relayer_types::OrderStatus> for OrderStatus {
+    fn from(status: relayer_types::OrderStatus) -> OrderStatus {
         match status {
-            relayer::OrderStatus::SETTLED => OrderStatus::SETTLED,
-            relayer::OrderStatus::LENDED => OrderStatus::LENDED,
-            relayer::OrderStatus::LIQUIDATE => OrderStatus::LIQUIDATE,
-            relayer::OrderStatus::CANCELLED => OrderStatus::CANCELLED,
-            relayer::OrderStatus::PENDING => OrderStatus::PENDING,
-            relayer::OrderStatus::FILLED => OrderStatus::FILLED,
+            relayer_types::OrderStatus::SETTLED => OrderStatus::SETTLED,
+            relayer_types::OrderStatus::LENDED => OrderStatus::LENDED,
+            relayer_types::OrderStatus::LIQUIDATE => OrderStatus::LIQUIDATE,
+            relayer_types::OrderStatus::CANCELLED => OrderStatus::CANCELLED,
+            relayer_types::OrderStatus::PENDING => OrderStatus::PENDING,
+            relayer_types::OrderStatus::FILLED => OrderStatus::FILLED,
         }
     }
 }
 
-impl From<relayer::OrderType> for OrderType {
-    fn from(typ: relayer::OrderType) -> OrderType {
+impl From<relayer_types::OrderType> for OrderType {
+    fn from(typ: relayer_types::OrderType) -> OrderType {
         match typ {
-            relayer::OrderType::LIMIT => OrderType::LIMIT,
-            relayer::OrderType::MARKET => OrderType::MARKET,
-            relayer::OrderType::DARK => OrderType::DARK,
-            relayer::OrderType::LEND => OrderType::LEND,
+            relayer_types::OrderType::LIMIT => OrderType::LIMIT,
+            relayer_types::OrderType::MARKET => OrderType::MARKET,
+            relayer_types::OrderType::DARK => OrderType::DARK,
+            relayer_types::OrderType::LEND => OrderType::LEND,
         }
     }
 }
 
-impl From<relayer::PositionType> for PositionType {
-    fn from(typ: relayer::PositionType) -> PositionType {
+impl From<relayer_types::PositionType> for PositionType {
+    fn from(typ: relayer_types::PositionType) -> PositionType {
         match typ {
-            relayer::PositionType::LONG => PositionType::LONG,
-            relayer::PositionType::SHORT => PositionType::SHORT,
+            relayer_types::PositionType::LONG => PositionType::LONG,
+            relayer_types::PositionType::SHORT => PositionType::SHORT,
         }
     }
 }
 
-impl From<relayer::TXType> for TXType {
-    fn from(typ: relayer::TXType) -> TXType {
+impl From<relayer_types::TXType> for TXType {
+    fn from(typ: relayer_types::TXType) -> TXType {
         match typ {
-            relayer::TXType::ORDERTX => TXType::ORDERTX,
-            relayer::TXType::LENDTX => TXType::LENDTX,
+            relayer_types::TXType::ORDERTX => TXType::ORDERTX,
+            relayer_types::TXType::LENDTX => TXType::LENDTX,
         }
     }
 }

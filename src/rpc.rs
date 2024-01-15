@@ -114,8 +114,13 @@ pub fn init_private_methods(database_url: &str) -> RpcModule<RelayerContext> {
 
     register_method(
         &mut module,
-        "submit_order",
-        Box::new(private_methods::submit_order),
+        "submit_lend_order",
+        Box::new(private_methods::submit_lend_order),
+    );
+    register_method(
+        &mut module,
+        "submit_trade_order",
+        Box::new(private_methods::submit_trade_order),
     );
     register_method(
         &mut module,

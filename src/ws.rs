@@ -13,10 +13,8 @@ use tokio::{
     sync::broadcast::{channel, Sender},
     task::JoinHandle,
 };
-use twilight_relayer_rust::{
-    db::Event,
-    relayer::{self, OrderStatus},
-};
+use twilight_relayer_rust::{db::Event, relayer};
+use zkoswalletlib::relayer_types::{OrderType, OrderStatus};
 
 mod methods;
 
@@ -70,7 +68,7 @@ impl WsContext {
                                 | Event::TraderOrderUpdate(to, ..)
                                 | Event::TraderOrderFundingUpdate(to, ..)
                                 | Event::TraderOrderLiquidation(to, ..) => {
-                                    if to.order_type == relayer::OrderType::LIMIT {
+                                    if to.order_type == OrderType::LIMIT {
                                         let order =
                                             NewOrderBookOrder::new(TraderOrder::from(to.clone()));
                                         if let Err(e) = order_book2.send(order) {

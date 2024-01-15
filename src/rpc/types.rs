@@ -14,7 +14,7 @@
 use crate::auth::UserInfo;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
-use twilight_relayer_rust::relayer::{OrderStatus, OrderType, PositionType};
+use zkoswalletlib::relayer_types::{OrderStatus, OrderType, PositionType};
 
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,16 +38,7 @@ impl<T> RpcArgs<T> {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Order {
-    pub position_type: PositionType,
-    pub order_type: OrderType,
-    pub leverage: f64,
-    pub initial_margin: f64,
-    pub available_margin: f64,
-    pub order_status: OrderStatus,
-    pub entryprice: f64,
-    pub execution_price: f64,
-    pub request_time: DateTime<Utc>,
-    pub order_kill_time: DateTime<Utc>,
+    pub data: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
