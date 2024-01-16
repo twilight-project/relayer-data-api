@@ -13,8 +13,8 @@
 // •	Server Time
 use crate::auth::UserInfo;
 use chrono::prelude::*;
+use relayerwalletlib::zkoswalletlib::relayer_types::{OrderStatus, OrderType, PositionType};
 use serde::{Deserialize, Serialize};
-use zkoswalletlib::relayer_types::{OrderStatus, OrderType, PositionType};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RpcArgs<T> {
