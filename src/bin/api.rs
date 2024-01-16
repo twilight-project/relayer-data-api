@@ -50,8 +50,8 @@ async fn main() {
     let cors = CorsLayer::new()
         .allow_headers(Any)
         .allow_methods(Any)
-        .allow_origin(Any)
-        .allow_headers([hyper::header::CONTENT_TYPE]);
+        .allow_origin(Any);
+    // .allow_headers([hyper::header::CONTENT_TYPE]);
 
     // TODO: env var
     let middleware = ServiceBuilder::new().layer(cors);
