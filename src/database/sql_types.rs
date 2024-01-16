@@ -12,10 +12,10 @@ use diesel::{
     pg::Pg,
     serialize::{self, IsNull, Output, ToSql},
 };
+use relayerwalletlib::zkoswalletlib::relayer_types;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use twilight_relayer_rust::relayer;
-use zkoswalletlib::relayer_types;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum TXType {

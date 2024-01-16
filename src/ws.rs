@@ -7,6 +7,7 @@ use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::RpcModule;
 use log::{error, info, trace};
+use relayerwalletlib::zkoswalletlib::relayer_types::{OrderStatus, OrderType};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use tokio::{
@@ -14,7 +15,6 @@ use tokio::{
     task::JoinHandle,
 };
 use twilight_relayer_rust::{db::Event, relayer};
-use zkoswalletlib::relayer_types::{OrderStatus, OrderType};
 
 mod methods;
 
