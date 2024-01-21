@@ -12,11 +12,20 @@ name = "archiver"
 name = "api"
 
 [dependencies]
-bigdecimal = { version = "0.3.1", features = ["serde"] }
+bigdecimal = { version = "0.4.1", features = ["serde"] }
 bincode = "1.3"
 chrono = { version = "0.4.23", features = ["clock", "serde"] }
 crossbeam-channel = "0.5.6"
-diesel = { version = "2.0.2", features = ["uuid", "bigdecimal", "chrono", "numeric", "postgres_backend", "postgres", "r2d2", "serde_json"] }
+diesel = { version = "2.0.2", features = [
+    "uuid",
+    "bigdecimal",
+    "chrono",
+    "numeric",
+    "postgres_backend",
+    "postgres",
+    "r2d2",
+    "serde_json",
+] }
 diesel_migrations = { version = "2.0.0", features = ["postgres"] }
 digest = "0.10.7"
 dotenv = "0.15.0"
@@ -28,7 +37,12 @@ http = "0.2"
 http-body = "0.4"
 hyper = "0.14.26"
 itertools = "0.12.0"
-jsonrpsee = { version = "0.16.2", features = ["server", "client", "jsonrpsee-core", "macros"] }
+jsonrpsee = { version = "0.16.2", features = [
+    "server",
+    "client",
+    "jsonrpsee-core",
+    "macros",
+] }
 jwt = "0.16.0"
 kafka = "0.9.0"
 log = "0.4.17"
@@ -41,9 +55,14 @@ thiserror = "1.0.38"
 tokio = { version = "1.24.1", features = ["rt-multi-thread", "macros"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tower = { version = "0.4", features = ["make", "util"] }
-tower-http = { version = "0.4", features = ["auth", "cors", "sensitive-headers", "validate-request"] }
+tower-http = { version = "0.4", features = [
+    "auth",
+    "cors",
+    "sensitive-headers",
+    "validate-request",
+] }
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
-twilight-relayer-rust = { git = "ssh://git@github.com/twilight-project/twilight-relayer.git", branch = "zkos-0.02-wallet" }
+twilight-relayer-rust = { git = "ssh://git@github.com/twilight-project/twilight-relayer.git", branch = "zkos-0.03-rpccommnd-updates" }
 zkos-client-wallet = { git = "ssh://git@github.com/twilight-project/zkos-client-wallet.git", branch = "develop" }
 zkos-relayer-wallet = { git = "ssh://git@github.com/twilight-project/zkos-relayer-wallet.git", branch = "develop" }
 uuid = { version = "1.3.3", features = ["serde", "v4", "v7"] }
