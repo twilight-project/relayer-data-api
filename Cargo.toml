@@ -27,6 +27,7 @@ hmac = "0.12.1"
 http = "0.2"
 http-body = "0.4"
 hyper = "0.14.26"
+itertools = "0.12.0"
 jsonrpsee = { version = "0.16.2", features = ["server", "client", "jsonrpsee-core", "macros"] }
 jwt = "0.16.0"
 kafka = "0.9.0"

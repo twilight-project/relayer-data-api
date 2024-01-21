@@ -65,7 +65,7 @@ async fn verify_signature(request: Request<Body>) -> VerifyResult {
     VerifyResult::Valid(account_address)
 }
 
-async fn login_handler(account_address: String) -> Result<Response<Body>, http::Error> {
+async fn register_handler(account_address: String) -> Result<Response<Body>, http::Error> {
     let database_url = std::env::var("DATABASE_URL").expect("No database url set!");
     let mut conn = match PgConnection::establish(&database_url) {
         Ok(c) => c,
@@ -76,8 +76,13 @@ async fn login_handler(account_address: String) -> Result<Response<Body>, http::
         }
     };
 
-    let customer_id = match AddressCustomerId::get_or_create(&mut conn, &account_address) {
-        Ok(customer) => customer.customer_id,
+    let customer_id = match AddressCustomerId::create(&mut conn, &account_address) {
+        Ok(Some(customer)) => customer.customer_id,
+        Ok(None) => {
+            return Response::builder().status(StatusCode::CONFLICT).body(
+                "User already registered, call /regenerate if you need a new API key".into(),
+            );
+        }
         Err(e) => {
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -85,7 +90,52 @@ async fn login_handler(account_address: String) -> Result<Response<Body>, http::
         }
     };
 
-    let (api_key, api_secret) = match CustomerApiKeyLinking::get_or_create(&mut conn, customer_id) {
+    let (api_key, api_secret) = match CustomerApiKeyLinking::create(&mut conn, customer_id) {
+        Ok(link) => (link.api_key, link.api_salt_key),
+        Err(e) => {
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body("Internal db error".into());
+        }
+    };
+
+    let token = AuthInfo {
+        api_key,
+        api_secret,
+    };
+    let response = serde_json::to_string(&token).expect("Could not serialize");
+
+    return Response::builder()
+        .status(StatusCode::OK)
+        .body(response.into());
+}
+
+async fn regenerate_handler(address: String) -> Result<Response<Body>, http::Error> {
+    let database_url = std::env::var("DATABASE_URL").expect("No database url set!");
+    let mut conn = match PgConnection::establish(&database_url) {
+        Ok(c) => c,
+        Err(e) => {
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body("Internal db error".into());
+        }
+    };
+
+    let customer_id = match AddressCustomerId::get(&mut conn, &address) {
+        Ok(Some(customer)) => customer.customer_id,
+        Ok(None) => {
+            return Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body("User not found, please call /register".into());
+        }
+        Err(e) => {
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body("Internal db error".into());
+        }
+    };
+
+    let (api_key, api_secret) = match CustomerApiKeyLinking::regenerate(&mut conn, customer_id) {
         Ok(link) => (link.api_key, link.api_salt_key),
         Err(e) => {
             return Response::builder()
@@ -177,10 +227,6 @@ async fn check_signature(request: Request<Body>) -> Result<Response<Body>, http:
     return Response::builder().status(StatusCode::OK).body(body.into());
 }
 
-async fn register_handler(address: String) -> Result<Response<Body>, http::Error> {
-    return Response::builder().status(StatusCode::OK).body("OK".into());
-}
-
 async fn handler(request: Request<Body>) -> Result<Response<Body>, http::Error> {
     debug!("Auth request");
     let uri = request.uri().to_string();
@@ -189,7 +235,7 @@ async fn handler(request: Request<Body>) -> Result<Response<Body>, http::Error> 
         return check_signature(request).await;
     }
 
-    if &uri != "/login" && &uri != "/register" {
+    if &uri != "/register" && &uri != "/regenerate" {
         return Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body("Not found".into());
@@ -209,10 +255,10 @@ async fn handler(request: Request<Body>) -> Result<Response<Body>, http::Error> 
         }
     };
 
-    if &uri == "/login" {
-        login_handler(address).await
-    } else {
+    if &uri == "/register" {
         register_handler(address).await
+    } else {
+        regenerate_handler(address).await
     }
 }
 
