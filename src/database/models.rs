@@ -13,6 +13,7 @@ use crate::rpc::{
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
 use chrono::prelude::*;
 use diesel::prelude::*;
+use diesel::pg::Pg;
 use itertools::join;
 use serde::{Deserialize, Serialize};
 use twilight_relayer_rust::{db as relayer_db, relayer};
@@ -1195,8 +1196,8 @@ impl TraderOrder {
             OrderHistoryArgs::OrderId(order_id) => trader_order
                 .filter(account_id.eq_any(accounts).and(uuid.eq(order_id)))
                 .load(conn),
-            OrderHistoryArgs::ClientId { offset, limit } => trader_order
-                .filter(account_id.eq_any(accounts))
+            OrderHistoryArgs::ClientId { from, to, offset, limit } => trader_order
+                .filter(account_id.eq_any(accounts).and(timestamp.between(from, to)))
                 .limit(limit)
                 .offset(offset)
                 .order_by(timestamp.desc())
@@ -1208,27 +1209,22 @@ impl TraderOrder {
         conn: &mut PgConnection,
         customer_id: i64,
         args: TradeVolumeArgs,
-    ) -> QueryResult<usize> {
+    ) -> QueryResult<i64> {
         use crate::database::schema::address_customer_id::dsl as acct_dsl;
         use crate::database::schema::trader_order::dsl::*;
 
-        let account: Vec<AddressCustomerId> = acct_dsl::address_customer_id
+        let accounts: Vec<AddressCustomerId> = acct_dsl::address_customer_id
             .filter(acct_dsl::customer_id.eq(customer_id))
             .load(conn)?;
+        let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
 
-        let iter = account.into_iter().map(|a| format!("'{}'", a.address));
-        let accounts = join(iter, ", ");
 
-        let query = format!(
-            r#"
-            SELECT count(distinct uuid) from trader_order
-            where account_id IN ({})
-            and timestamp between '{}' and '{}'
-        "#,
-            accounts, args.start, args.end
-        );
+        let result = trader_order
+            .select(diesel::dsl::count_distinct(uuid))
+            .filter(timestamp.between(args.start, args.end).and(account_id.eq_any(accounts)))
+            .load(conn)?;
 
-        diesel::sql_query(query).execute(conn)
+        Ok(*result.get(0).unwrap_or(&0))
     }
 
     pub fn order_book(conn: &mut PgConnection) -> QueryResult<OrderBook> {
