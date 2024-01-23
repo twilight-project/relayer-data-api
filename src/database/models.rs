@@ -1179,6 +1179,24 @@ impl TraderOrder {
         })
     }
 
+    pub fn last_order(
+        conn: &mut PgConnection,
+        customer_id: i64,
+    ) -> QueryResult<TraderOrder> {
+        use crate::database::schema::address_customer_id::dsl as acct_dsl;
+        use crate::database::schema::trader_order::dsl::*;
+
+        let accounts: Vec<AddressCustomerId> = acct_dsl::address_customer_id
+            .filter(acct_dsl::customer_id.eq(customer_id))
+            .load(conn)?;
+        let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
+
+        trader_order
+                .filter(account_id.eq_any(accounts))
+                .order_by(timestamp.desc())
+                .first(conn)
+    }
+
     pub fn order_history(
         conn: &mut PgConnection,
         customer_id: i64,
