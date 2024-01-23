@@ -1240,7 +1240,7 @@ impl TraderOrder {
                 SELECT * FROM trader_order
                 WHERE id IN (
                     SELECT MAX(id) FROM trader_order
-                    WHERE order_type = 'LIMIT' AND position_type = 'SHORT'
+                    WHERE order_type = 'LIMIT'
                     GROUP BY uuid
                 )
                 AND order_status <> 'FILLED'
