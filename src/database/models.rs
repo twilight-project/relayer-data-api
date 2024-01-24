@@ -13,6 +13,8 @@ use crate::rpc::{
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
 use chrono::prelude::*;
 use diesel::prelude::*;
+use diesel::pg::Pg;
+use itertools::join;
 use serde::{Deserialize, Serialize};
 use twilight_relayer_rust::{db as relayer_db, relayer};
 use uuid::Uuid;
@@ -75,11 +77,43 @@ pub struct NewAddressCustomerId {
 }
 
 impl AddressCustomerId {
-    pub fn get_or_create(conn: &mut PgConnection, addr: &String) -> QueryResult<AddressCustomerId> {
+    pub fn get(conn: &mut PgConnection, addr: &String) -> QueryResult<Option<AddressCustomerId>> {
         use crate::database::schema::address_customer_id::dsl::*;
 
         match address_customer_id.filter(address.eq(addr)).first(conn) {
-            Ok(o) => return Ok(o),
+            Ok(o) => return Ok(Some(o)),
+            Err(diesel::result::Error::NotFound) => return Ok(None),
+            Err(e) => return Err(e),
+        }
+    }
+
+    pub fn insert(conn: &mut PgConnection, customer: i64, addr: &String) -> QueryResult<()> {
+        use crate::database::schema::address_customer_id::dsl::*;
+
+        let address_id = NewAddressCustomerId {
+            customer_id: customer,
+            address: addr.to_string(),
+        };
+
+        diesel::insert_into(address_customer_id)
+            .values(address_id)
+            .on_conflict_do_nothing()
+            .execute(conn)?;
+
+        Ok(())
+    }
+
+    pub fn create(
+        conn: &mut PgConnection,
+        addr: &String,
+    ) -> QueryResult<Option<AddressCustomerId>> {
+        use crate::database::schema::address_customer_id::dsl::*;
+
+        match address_customer_id
+            .filter(address.eq(addr))
+            .first::<AddressCustomerId>(conn)
+        {
+            Ok(o) => return Ok(None),
             Err(diesel::result::Error::NotFound) => {
                 let mut account = NewCustomerAccount::default();
                 account.customer_registration_id = Uuid::new_v4().to_string();
@@ -94,7 +128,7 @@ impl AddressCustomerId {
                     .values(address_id)
                     .get_results(conn)?;
 
-                return Ok(account[0].clone());
+                return Ok(Some(account[0].clone()));
             }
             Err(e) => return Err(e),
         }
@@ -134,42 +168,45 @@ impl CustomerApiKeyLinking {
     pub fn get_key(conn: &mut PgConnection, key: String) -> QueryResult<CustomerApiKeyLinking> {
         use crate::database::schema::customer_apikey_linking::dsl::*;
 
-        customer_apikey_linking.filter(api_key.eq(key)).first(conn)
+        customer_apikey_linking
+            .filter(api_key.eq(key).and(is_active.eq(true)))
+            .first(conn)
     }
 
-    pub fn get_or_create(
+    pub fn regenerate(
         conn: &mut PgConnection,
         customer_id: i64,
     ) -> QueryResult<CustomerApiKeyLinking> {
         use crate::database::schema::customer_apikey_linking::dsl::*;
 
-        let query = customer_apikey_linking
-            .filter(customer_account_id.eq(customer_id).and(is_active.eq(true)));
+        diesel::update(customer_apikey_linking)
+            .filter(customer_account_id.eq(customer_id))
+            .set(is_active.eq(false))
+            .execute(conn)?;
 
-        match query.first(conn) {
-            Ok(o) => return Ok(o),
-            Err(diesel::result::Error::NotFound) => {
-                let linking = NewCustomerApiKeyLinking {
-                    api_key: Uuid::new_v4().to_string(),
-                    api_salt_key: Uuid::new_v4().to_string(),
-                    customer_account_id: customer_id,
-                    created_on: Utc::now(),
-                    expires_on: Utc::now() + chrono::Duration::days(7),
-                    is_active: true,
-                    remark: None,
-                    authorities: None,
-                    limit_remaining: None,
-                };
+        Self::create(conn, customer_id)
+    }
 
-                let result: Vec<CustomerApiKeyLinking> =
-                    diesel::insert_into(customer_apikey_linking)
-                        .values(linking)
-                        .get_results(conn)?;
+    pub fn create(conn: &mut PgConnection, customer_id: i64) -> QueryResult<CustomerApiKeyLinking> {
+        use crate::database::schema::customer_apikey_linking::dsl::*;
 
-                return Ok(result[0].clone());
-            }
-            Err(e) => return Err(e),
-        }
+        let linking = NewCustomerApiKeyLinking {
+            api_key: Uuid::new_v4().to_string(),
+            api_salt_key: Uuid::new_v4().to_string(),
+            customer_account_id: customer_id,
+            created_on: Utc::now(),
+            expires_on: Utc::now() + chrono::Duration::days(7),
+            is_active: true,
+            remark: None,
+            authorities: None,
+            limit_remaining: None,
+        };
+
+        let result: Vec<CustomerApiKeyLinking> = diesel::insert_into(customer_apikey_linking)
+            .values(linking)
+            .get_results(conn)?;
+
+        return Ok(result[0].clone());
     }
 }
 
@@ -1019,6 +1056,26 @@ impl NewOrderBookOrder {
     }
 }
 
+pub fn unrealizedpnl(
+    position_type: &PositionType,
+    positionsize: &BigDecimal,
+    entryprice: &BigDecimal,
+    settleprice: &BigDecimal,
+) -> BigDecimal {
+    if entryprice > &BigDecimal::zero() && settleprice > &BigDecimal::zero() {
+        match position_type {
+            &PositionType::LONG => {
+                (positionsize * (settleprice - entryprice)) / (entryprice * settleprice)
+            }
+            &PositionType::SHORT => {
+                (positionsize * (entryprice - settleprice)) / (entryprice * settleprice)
+            }
+        }
+    } else {
+        BigDecimal::zero()
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UnrealizedPnl {
     order_ids: Vec<String>,
@@ -1026,10 +1083,22 @@ pub struct UnrealizedPnl {
 }
 
 impl TraderOrder {
-    pub fn get(conn: &mut PgConnection, order_id: String) -> QueryResult<TraderOrder> {
+    pub fn get(
+        conn: &mut PgConnection,
+        customer_id: i64,
+        order_id: String,
+    ) -> QueryResult<TraderOrder> {
+        use crate::database::schema::address_customer_id::dsl as addr_dsl;
         use crate::database::schema::trader_order::dsl::*;
 
-        trader_order.filter(uuid.eq(order_id)).first(conn)
+        let accounts: Vec<AddressCustomerId> = addr_dsl::address_customer_id
+            .filter(addr_dsl::customer_id.eq(customer_id))
+            .load(conn)?;
+        let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
+
+        trader_order
+            .filter(uuid.eq(order_id).and(account_id.eq_any(accounts)))
+            .first(conn)
     }
 
     pub fn insert(conn: &mut PgConnection, orders: Vec<InsertTraderOrder>) -> QueryResult<usize> {
@@ -1046,11 +1115,12 @@ impl TraderOrder {
         pnl_args: PnlArgs,
     ) -> QueryResult<UnrealizedPnl> {
         use crate::database::schema::address_customer_id::dsl as addr_dsl;
-        use crate::database::schema::customer_account::dsl as acct_dsl;
         use crate::database::schema::trader_order::dsl::*;
 
-        let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
-        let acct_id = account.customer_registration_id;
+        let accounts: Vec<AddressCustomerId> = addr_dsl::address_customer_id
+            .filter(addr_dsl::customer_id.eq(customer_id))
+            .load(conn)?;
+        let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
 
         let price = BtcUsdPrice::get(conn)?;
         let closed = vec![
@@ -1066,31 +1136,25 @@ impl TraderOrder {
                     .filter(
                         uuid.eq(oid)
                             .and(order_status.ne_all(closed))
-                            .and(account_id.eq(acct_id)),
+                            .and(account_id.eq_any(accounts)),
                     )
                     .order_by(timestamp.desc())
                     .first(conn)?;
                 vec![order]
             }
             PnlArgs::PublicKey(key) => {
-                let address: AddressCustomerId = addr_dsl::address_customer_id
-                    .filter(
-                        addr_dsl::customer_id
-                            .eq(customer_id)
-                            .and(addr_dsl::address.eq(&key)),
-                    )
-                    .first(conn)?;
+                let index = accounts.iter().position(|a| a == &key);
 
-                if address.customer_id != customer_id {
-                    vec![]
-                } else {
+                if index.is_some() {
                     trader_order
-                        .filter(account_id.eq(acct_id).and(order_status.ne_all(closed)))
+                        .filter(account_id.eq(key).and(order_status.ne_all(closed)))
                         .load(conn)?
+                } else {
+                    vec![]
                 }
             }
             PnlArgs::All => trader_order
-                .filter(order_status.ne_all(closed).and(account_id.eq(acct_id)))
+                .filter(order_status.ne_all(closed).and(account_id.eq_any(accounts)))
                 .load(conn)?,
         };
 
@@ -1098,7 +1162,13 @@ impl TraderOrder {
         let order_ids = orders
             .into_iter()
             .map(|o| {
-                pnl += o.unrealized_pnl;
+                let t = unrealizedpnl(
+                    &o.position_type,
+                    &o.positionsize,
+                    &o.entryprice,
+                    &o.settlement_price,
+                );
+                pnl += t;
                 o.uuid.to_string()
             })
             .collect();
@@ -1109,31 +1179,47 @@ impl TraderOrder {
         })
     }
 
+    pub fn last_order(
+        conn: &mut PgConnection,
+        customer_id: i64,
+    ) -> QueryResult<TraderOrder> {
+        use crate::database::schema::address_customer_id::dsl as acct_dsl;
+        use crate::database::schema::trader_order::dsl::*;
+
+        let accounts: Vec<AddressCustomerId> = acct_dsl::address_customer_id
+            .filter(acct_dsl::customer_id.eq(customer_id))
+            .load(conn)?;
+        let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
+
+        trader_order
+                .filter(account_id.eq_any(accounts))
+                .order_by(timestamp.desc())
+                .first(conn)
+    }
+
     pub fn order_history(
         conn: &mut PgConnection,
         customer_id: i64,
         args: OrderHistoryArgs,
     ) -> QueryResult<Vec<TraderOrder>> {
-        use crate::database::schema::customer_account::dsl as acct_dsl;
+        use crate::database::schema::address_customer_id::dsl as acct_dsl;
         use crate::database::schema::trader_order::dsl::*;
 
-        let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
-        let acct_id = account.customer_registration_id;
+        let accounts: Vec<AddressCustomerId> = acct_dsl::address_customer_id
+            .filter(acct_dsl::customer_id.eq(customer_id))
+            .load(conn)?;
+        let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
 
         match args {
             OrderHistoryArgs::OrderId(order_id) => trader_order
-                .filter(account_id.eq(acct_id).and(uuid.eq(order_id)))
+                .filter(account_id.eq_any(accounts).and(uuid.eq(order_id)))
                 .load(conn),
-            OrderHistoryArgs::ClientId { offset, limit } => {
-                trader_order
-                    .filter(account_id.eq(acct_id))
-                    //TODO: uuid...
-                    //.group_by(uuid)
-                    .limit(limit)
-                    .offset(offset)
-                    .order_by(timestamp.desc())
-                    .load(conn)
-            }
+            OrderHistoryArgs::ClientId { from, to, offset, limit } => trader_order
+                .filter(account_id.eq_any(accounts).and(timestamp.between(from, to)))
+                .limit(limit)
+                .offset(offset)
+                .order_by(timestamp.desc())
+                .load(conn),
         }
     }
 
@@ -1141,23 +1227,22 @@ impl TraderOrder {
         conn: &mut PgConnection,
         customer_id: i64,
         args: TradeVolumeArgs,
-    ) -> QueryResult<usize> {
-        use crate::database::schema::customer_account::dsl as acct_dsl;
+    ) -> QueryResult<i64> {
+        use crate::database::schema::address_customer_id::dsl as acct_dsl;
         use crate::database::schema::trader_order::dsl::*;
 
-        let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
-        let acct_id = account.customer_registration_id;
+        let accounts: Vec<AddressCustomerId> = acct_dsl::address_customer_id
+            .filter(acct_dsl::customer_id.eq(customer_id))
+            .load(conn)?;
+        let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
 
-        let query = format!(
-            r#"
-            SELECT count(distinct uuid) from trader_order
-            where account_id = '{}'
-            and timestamp between '{}' and '{}'
-        "#,
-            acct_id, args.start, args.end
-        );
 
-        diesel::sql_query(query).execute(conn)
+        let result = trader_order
+            .select(diesel::dsl::count_distinct(uuid))
+            .filter(timestamp.between(args.start, args.end).and(account_id.eq_any(accounts)))
+            .load(conn)?;
+
+        Ok(*result.get(0).unwrap_or(&0))
     }
 
     pub fn order_book(conn: &mut PgConnection) -> QueryResult<OrderBook> {
@@ -1169,7 +1254,7 @@ impl TraderOrder {
                 SELECT * FROM trader_order
                 WHERE id IN (
                     SELECT MAX(id) FROM trader_order
-                    WHERE order_type = 'LIMIT' AND position_type = 'SHORT'
+                    WHERE order_type = 'LIMIT'
                     GROUP BY uuid
                 )
                 AND order_status <> 'FILLED'
@@ -1232,11 +1317,15 @@ impl TraderOrder {
     }
 
     pub fn open_orders(conn: &mut PgConnection, customer_id: i64) -> QueryResult<Vec<TraderOrder>> {
-        use crate::database::schema::customer_account::dsl as acct_dsl;
+        use crate::database::schema::address_customer_id::dsl as acct_dsl;
         use crate::database::schema::trader_order::dsl::*;
 
-        let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
-        let acct_id = account.customer_registration_id;
+        let account: Vec<AddressCustomerId> = acct_dsl::address_customer_id
+            .filter(acct_dsl::customer_id.eq(customer_id))
+            .load(conn)?;
+
+        let iter = account.into_iter().map(|a| format!("'{}'", a.address));
+        let accounts = join(iter, ", ");
 
         let query = format!(
             r#"select * from trader_order
@@ -1247,11 +1336,11 @@ impl TraderOrder {
             ) mo
             on id = latest_id
             where 
-            account_id = '{}'
+            account_id IN ({})
             and
-            order_status not in ('FILLED', 'CANCELLED', 'LIQUIDATE', 'SETTLED');
+            order_status = 'PENDING'
         "#,
-            acct_id
+            accounts
         );
 
         diesel::sql_query(query).get_results(conn)
@@ -1352,15 +1441,16 @@ impl LendOrder {
         customer_id: i64,
         params: OrderId,
     ) -> QueryResult<LendOrder> {
-        use crate::database::schema::customer_account::dsl as acct_dsl;
+        use crate::database::schema::address_customer_id::dsl as acct_dsl;
         use crate::database::schema::lend_order::dsl::*;
 
-        let account: CustomerAccount = acct_dsl::customer_account.find(customer_id).first(conn)?;
-
-        let acct_id = account.customer_registration_id;
+        let accounts: Vec<AddressCustomerId> = acct_dsl::address_customer_id
+            .filter(acct_dsl::customer_id.eq(customer_id))
+            .load(conn)?;
+        let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
 
         lend_order
-            .filter(uuid.eq(params.id).and(account_id.eq(acct_id)))
+            .filter(uuid.eq(params.id).and(account_id.eq_any(accounts)))
             .first(conn)
     }
 

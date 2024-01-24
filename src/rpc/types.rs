@@ -179,7 +179,7 @@ pub enum LendOrderArgs {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum OrderHistoryArgs {
     OrderId(String),
-    ClientId { offset: i64, limit: i64 },
+    ClientId { from: DateTime<Utc>, to: DateTime<Utc>, offset: i64, limit: i64 },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

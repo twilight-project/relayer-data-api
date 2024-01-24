@@ -13,8 +13,7 @@ pub(super) fn submit_lend_order(
 ) -> Result<serde_json::Value, Error> {
     let topic = std::env::var("RPC_CLIENT_REQUEST").expect("No client topic!");
     let args: RpcArgs<Order> = params.parse()?;
-    let (account_id, order) = args.unpack();
-    let account_id = format!("{:016x}", account_id);
+    let (customer_id, order) = args.unpack();
 
     let Order { data } = order;
 
@@ -33,13 +32,22 @@ pub(super) fn submit_lend_order(
     let mut order = tx.create_lend_order.clone();
     let meta = relayer::Meta::default();
 
-    order.account_id = account_id;
+    order.account_id = tx.input.input.as_owner_address().cloned().unwrap();
     let deposit = order.deposit / 10000.0;
     let balance = order.balance / 10000.0;
     order.deposit = deposit;
     order.balance = balance;
 
-    let order = relayer::RpcCommand::CreateLendOrder(order.clone(), meta, tx.input.encode_as_hex_string());
+    let Ok(mut conn) = ctx.pool.get() else {
+        return Ok(format!("Database connection error").into());
+    };
+
+    if let Err(_) = AddressCustomerId::insert(&mut conn, customer_id, &order.account_id) {
+        return Ok(format!("Failed to update customer id!").into());
+    }
+
+    let order =
+        relayer::RpcCommand::CreateLendOrder(order.clone(), meta, tx.input.encode_as_hex_string());
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -58,8 +66,7 @@ pub(super) fn submit_trade_order(
 ) -> Result<serde_json::Value, Error> {
     let topic = std::env::var("RPC_CLIENT_REQUEST").expect("No client topic!");
     let args: RpcArgs<Order> = params.parse()?;
-    let (account_id, order) = args.unpack();
-    let account_id = format!("{:016x}", account_id);
+    let (customer_id, order) = args.unpack();
 
     let Order { data } = order;
 
@@ -78,12 +85,24 @@ pub(super) fn submit_trade_order(
     let mut order = tx.create_trader_order.clone();
     let meta = relayer::Meta::default();
 
-    order.account_id = account_id;
+    order.account_id = tx.input.input.as_owner_address().cloned().unwrap();
     let margin = order.initial_margin / 10000.0;
     order.initial_margin = margin;
     order.available_margin = margin;
 
-    let order = relayer::RpcCommand::CreateTraderOrder(order.clone(), meta, tx.input.encode_as_hex_string());
+    let Ok(mut conn) = ctx.pool.get() else {
+        return Ok(format!("Database connection error").into());
+    };
+
+    if let Err(_) = AddressCustomerId::insert(&mut conn, customer_id, &order.account_id) {
+        return Ok(format!("Failed to update customer id!").into());
+    }
+
+    let order = relayer::RpcCommand::CreateTraderOrder(
+        order.clone(),
+        meta,
+        tx.input.encode_as_hex_string(),
+    );
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -159,9 +178,10 @@ pub(super) fn trader_order_info(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<OrderId> = params.parse()?;
+    let (id, params) = args.unpack();
 
     match ctx.pool.get() {
-        Ok(mut conn) => match TraderOrder::get(&mut conn, args.params.id) {
+        Ok(mut conn) => match TraderOrder::get(&mut conn, id, params.id) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
         },
@@ -289,5 +309,17 @@ pub(super) fn last_order_detail(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    unimplemented!("TODO")
+    let args: RpcArgs<()> = params.parse()?;
+    let (id, _) = args.unpack();
+
+    match ctx.pool.get() {
+        Ok(mut conn) => match TraderOrder::last_order(&mut conn, id) {
+            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+            Err(e) => Err(Error::Custom(format!(
+                "Error fetching last order: {:?}",
+                e
+            ))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
 }
