@@ -988,6 +988,19 @@ pub struct TraderOrder {
     pub entry_sequence: i64,
 }
 
+#[derive(
+    Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable, Selectable, AsChangeset,
+)]
+#[diesel(table_name = trader_order)]
+pub struct RecentOrder {
+    #[column_name = "position_type"]
+    pub side: PositionType,
+    #[column_name = "execution_price"]
+    pub price: BigDecimal,
+    pub positionsize: BigDecimal,
+    pub timestamp: DateTime<Utc>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
 #[diesel(table_name = trader_order)]
 pub struct InsertTraderOrder {
@@ -1124,7 +1137,7 @@ impl TraderOrder {
 
         let price = BtcUsdPrice::get(conn)?;
         let closed = vec![
-            OrderStatus::FILLED,
+            OrderStatus::PENDING,
             OrderStatus::CANCELLED,
             OrderStatus::LIQUIDATE,
             OrderStatus::SETTLED,
@@ -1338,7 +1351,7 @@ impl TraderOrder {
             where 
             account_id IN ({})
             and
-            order_status = 'PENDING'
+            order_status IN ('PENDING', 'FILLED')
         "#,
             accounts
         );
@@ -1346,16 +1359,20 @@ impl TraderOrder {
         diesel::sql_query(query).get_results(conn)
     }
 
-    pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
+    pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<RecentOrder>> {
         use crate::database::schema::trader_order::dsl::*;
 
-        let start = Utc::now() - chrono::Duration::days(1);
-        trader_order
-            .filter(
-                timestamp
-                    .ge(start)
-                    .and(order_status.ne(OrderStatus::FILLED)),
-            )
+        let query = r#"SELECT * FROM trader_order
+            INNER JOIN (
+                SELECT uuid,min(timestamp) AS timestamp
+                FROM trader_order GROUP BY uuid
+            ) as t
+            ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
+            WHERE t.timestamp > now() - INTERVAL '1 day'
+            AND trader_order.order_status IN ('FILLED', 'SETTLED', 'LIQUIDATE')
+        "#;
+
+        diesel::sql_query(query)
             .load(conn)
     }
 }
