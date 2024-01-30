@@ -302,7 +302,19 @@ pub(super) fn get_funding_payment(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    unimplemented!("TODO")
+    let args: RpcArgs<OrderId> = params.parse()?;
+    let (id, params) = args.unpack();
+
+    match ctx.pool.get() {
+        Ok(mut conn) => match FundingRate::funding_payment(&mut conn, id, params.id) {
+            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+            Err(e) => Err(Error::Custom(format!(
+                "Error fetching funding payment: {:?}",
+                e
+            ))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
 }
 
 pub(super) fn last_order_detail(
@@ -315,10 +327,7 @@ pub(super) fn last_order_detail(
     match ctx.pool.get() {
         Ok(mut conn) => match TraderOrder::last_order(&mut conn, id) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
-            Err(e) => Err(Error::Custom(format!(
-                "Error fetching last order: {:?}",
-                e
-            ))),
+            Err(e) => Err(Error::Custom(format!("Error fetching last order: {:?}", e))),
         },
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
