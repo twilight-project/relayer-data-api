@@ -341,8 +341,8 @@ impl LendPool {
             .map(|update| LendPoolUpdate {
                 sequence: update.sequence as i64,
                 nonce: update.nonce as i64,
-                total_pool_share: BigDecimal::default(),
-                total_locked_value: BigDecimal::default(),
+                total_pool_share: BigDecimal::from_f64(update.total_pool_share).expect("Invalid floating point"),
+                total_locked_value: BigDecimal::from_f64(update.total_locked_value).expect("Invalid floating point"),
                 pending_orders: 0,
                 aggregate_log_sequence: update.aggrigate_log_sequence as i64,
                 last_snapshot_id: update.last_snapshot_id as i64,
