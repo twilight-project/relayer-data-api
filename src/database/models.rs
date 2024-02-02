@@ -12,8 +12,8 @@ use crate::rpc::{
 };
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
 use chrono::prelude::*;
-use diesel::prelude::*;
 use diesel::pg::Pg;
+use diesel::prelude::*;
 use itertools::join;
 use serde::{Deserialize, Serialize};
 use twilight_relayer_rust::{db as relayer_db, relayer};
@@ -341,8 +341,10 @@ impl LendPool {
             .map(|update| LendPoolUpdate {
                 sequence: update.sequence as i64,
                 nonce: update.nonce as i64,
-                total_pool_share: BigDecimal::default(),
-                total_locked_value: BigDecimal::default(),
+                total_pool_share: BigDecimal::from_f64(update.total_pool_share)
+                    .expect("Invalid floating point"),
+                total_locked_value: BigDecimal::from_f64(update.total_locked_value)
+                    .expect("Invalid floating point"),
                 pending_orders: 0,
                 aggregate_log_sequence: update.aggrigate_log_sequence as i64,
                 last_snapshot_id: update.last_snapshot_id as i64,
@@ -900,6 +902,20 @@ pub struct FundingRate {
     pub timestamp: DateTime<Utc>,
 }
 
+#[derive(Serialize, Deserialize, Default, Debug, Clone, QueryableByName, Queryable)]
+pub struct Payment {
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub funding_payment: BigDecimal,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FundingPayment {
+    pub order_id: String,
+    pub funding_rate: BigDecimal,
+    pub price: BigDecimal,
+    pub funding_payment: BigDecimal,
+}
+
 impl FundingRate {
     pub fn get(conn: &mut PgConnection) -> QueryResult<FundingRate> {
         use crate::database::schema::funding_rate::dsl::*;
@@ -927,6 +943,45 @@ impl FundingRate {
             .limit(limit)
             .offset(offset)
             .load(conn)
+    }
+
+    pub fn funding_payment(
+        conn: &mut PgConnection,
+        customer_id: i64,
+        order_id: String,
+    ) -> QueryResult<FundingPayment> {
+        use crate::database::schema::address_customer_id::dsl as acct_dsl;
+        use crate::database::schema::funding_rate::dsl::*;
+
+        let accounts: Vec<AddressCustomerId> = acct_dsl::address_customer_id
+            .filter(acct_dsl::customer_id.eq(customer_id))
+            .load(conn)?;
+        let iter = accounts.into_iter().map(|a| format!("'{}'", a.address));
+        let accounts = join(iter, ", ");
+
+        let fr: FundingRate = funding_rate.order_by(timestamp.desc()).first(conn)?;
+
+        let query = format!(
+            r#"
+        SELECT coalesce(payment, 0) as funding_payment
+        FROM (SELECT LEAD(available_margin)
+            OVER (ORDER BY timestamp DESC) - available_margin AS payment 
+            FROM trader_order
+            WHERE uuid = '{}'
+            AND account_id IN ({})
+        ) t"#,
+            order_id, accounts
+        );
+
+        let resp: Vec<Payment> = diesel::sql_query(query).load(conn)?;
+        let pmnt = resp.get(0).cloned().unwrap_or_default();
+
+        Ok(FundingPayment {
+            order_id,
+            funding_rate: fr.rate,
+            price: fr.price,
+            funding_payment: pmnt.funding_payment,
+        })
     }
 }
 
@@ -999,6 +1054,12 @@ pub struct RecentOrder {
     pub price: BigDecimal,
     pub positionsize: BigDecimal,
     pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, QueryableByName, Queryable)]
+pub struct TradeVolume {
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub volume: BigDecimal,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
@@ -1111,6 +1172,7 @@ impl TraderOrder {
 
         trader_order
             .filter(uuid.eq(order_id).and(account_id.eq_any(accounts)))
+            .order(timestamp.desc())
             .first(conn)
     }
 
@@ -1158,18 +1220,40 @@ impl TraderOrder {
             PnlArgs::PublicKey(key) => {
                 let index = accounts.iter().position(|a| a == &key);
 
+                let iter = accounts.into_iter().map(|a| format!("'{}'", a));
+                let accounts = join(iter, ", ");
+
                 if index.is_some() {
-                    trader_order
-                        .filter(account_id.eq(key).and(order_status.ne_all(closed)))
-                        .load(conn)?
+                    let query = format!(
+                        r#"SELECT DISTINCT ON (uuid)
+                        * FROM trader_order
+                        WHERE account_id IN ({})
+                        AND order_status NOT IN ('PENDING', 'CANCELLED', 'LIQUIDATE', 'SETTLED')
+                        ORDER BY uuid, timestamp DESC"#,
+                        accounts,
+                    );
+                    diesel::sql_query(query).load(conn)?
                 } else {
                     vec![]
                 }
             }
-            PnlArgs::All => trader_order
-                .filter(order_status.ne_all(closed).and(account_id.eq_any(accounts)))
-                .load(conn)?,
+            PnlArgs::All => {
+                let iter = accounts.into_iter().map(|a| format!("'{}'", a));
+                let accounts = join(iter, ", ");
+
+                let query = format!(
+                    r#"SELECT DISTINCT ON (uuid)
+                    * FROM trader_order
+                    WHERE account_id IN ({})
+                    AND order_status NOT IN ('PENDING', 'CANCELLED', 'LIQUIDATE', 'SETTLED')
+                    ORDER BY uuid, timestamp DESC"#,
+                    accounts,
+                );
+                diesel::sql_query(query).load(conn)?
+            }
         };
+
+        let current = BtcUsdPrice::get(conn)?;
 
         let mut pnl = BigDecimal::zero();
         let order_ids = orders
@@ -1179,7 +1263,7 @@ impl TraderOrder {
                     &o.position_type,
                     &o.positionsize,
                     &o.entryprice,
-                    &o.settlement_price,
+                    &current.price,
                 );
                 pnl += t;
                 o.uuid.to_string()
@@ -1192,10 +1276,7 @@ impl TraderOrder {
         })
     }
 
-    pub fn last_order(
-        conn: &mut PgConnection,
-        customer_id: i64,
-    ) -> QueryResult<TraderOrder> {
+    pub fn last_order(conn: &mut PgConnection, customer_id: i64) -> QueryResult<TraderOrder> {
         use crate::database::schema::address_customer_id::dsl as acct_dsl;
         use crate::database::schema::trader_order::dsl::*;
 
@@ -1205,9 +1286,9 @@ impl TraderOrder {
         let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
 
         trader_order
-                .filter(account_id.eq_any(accounts))
-                .order_by(timestamp.desc())
-                .first(conn)
+            .filter(account_id.eq_any(accounts))
+            .order_by(timestamp.desc())
+            .first(conn)
     }
 
     pub fn order_history(
@@ -1227,7 +1308,12 @@ impl TraderOrder {
             OrderHistoryArgs::OrderId(order_id) => trader_order
                 .filter(account_id.eq_any(accounts).and(uuid.eq(order_id)))
                 .load(conn),
-            OrderHistoryArgs::ClientId { from, to, offset, limit } => trader_order
+            OrderHistoryArgs::ClientId {
+                from,
+                to,
+                offset,
+                limit,
+            } => trader_order
                 .filter(account_id.eq_any(accounts).and(timestamp.between(from, to)))
                 .limit(limit)
                 .offset(offset)
@@ -1240,22 +1326,31 @@ impl TraderOrder {
         conn: &mut PgConnection,
         customer_id: i64,
         args: TradeVolumeArgs,
-    ) -> QueryResult<i64> {
+    ) -> QueryResult<f64> {
         use crate::database::schema::address_customer_id::dsl as acct_dsl;
         use crate::database::schema::trader_order::dsl::*;
 
         let accounts: Vec<AddressCustomerId> = acct_dsl::address_customer_id
             .filter(acct_dsl::customer_id.eq(customer_id))
             .load(conn)?;
-        let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
+        let iter = accounts.into_iter().map(|a| format!("'{}'", a.address));
+        let accounts = join(iter, ", ");
 
+        let query = format!(
+            r#"SELECT coalesce(sum(positionsize), 0) as volume FROM (
+            SELECT uuid, timestamp, account_id, positionsize, row_number()
+            OVER (PARTITION BY uuid ORDER BY timestamp DESC) AS row_number
+            FROM trader_order
+        ) t where row_number = 1
+        AND account_id IN ({})
+        AND timestamp BETWEEN '{}' and '{}'"#,
+            accounts, args.start, args.end
+        );
 
-        let result = trader_order
-            .select(diesel::dsl::count_distinct(uuid))
-            .filter(timestamp.between(args.start, args.end).and(account_id.eq_any(accounts)))
-            .load(conn)?;
+        let size: Vec<TradeVolume> = diesel::sql_query(query).load(conn)?;
 
-        Ok(*result.get(0).unwrap_or(&0))
+        let tv: TradeVolume = size.get(0).cloned().unwrap_or_default();
+        Ok(tv.volume.to_f64().unwrap())
     }
 
     pub fn order_book(conn: &mut PgConnection) -> QueryResult<OrderBook> {
@@ -1372,8 +1467,7 @@ impl TraderOrder {
             AND trader_order.order_status IN ('FILLED', 'SETTLED', 'LIQUIDATE')
         "#;
 
-        diesel::sql_query(query)
-            .load(conn)
+        diesel::sql_query(query).load(conn)
     }
 }
 
@@ -1468,6 +1562,7 @@ impl LendOrder {
 
         lend_order
             .filter(uuid.eq(params.id).and(account_id.eq_any(accounts)))
+            .order(timestamp.desc())
             .first(conn)
     }
 

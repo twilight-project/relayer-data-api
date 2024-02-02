@@ -92,6 +92,34 @@ pub enum OrderStatus {
     FILLED,
 }
 
+impl OrderStatus {
+    pub fn is_cancelable(&self) -> bool {
+        use OrderStatus::*;
+
+        match self {
+            SETTLED => false,
+            LENDED => false,
+            LIQUIDATE => false,
+            CANCELLED => false,
+            PENDING => true,
+            FILLED => false,
+        }
+    }
+
+    pub fn is_closed(&self) -> bool {
+        use OrderStatus::*;
+
+        match self {
+            SETTLED => true,
+            LENDED => true,
+            LIQUIDATE => true,
+            CANCELLED => true,
+            PENDING => false,
+            FILLED => true,
+        }
+    }
+}
+
 impl diesel::query_builder::QueryId for OrderStatusSql {
     type QueryId = ();
     const HAS_STATIC_QUERY_ID: bool = false;
