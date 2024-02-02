@@ -4,7 +4,9 @@ use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
 use kafka::producer::Record;
 use log::info;
-use relayerwalletlib::verify_client_message::verify_trade_lend_order;
+use relayerwalletlib::verify_client_message::{
+    verify_query_order, verify_settle_requests, verify_trade_lend_order,
+};
 use twilight_relayer_rust::relayer;
 
 pub(super) fn submit_lend_order(
@@ -60,6 +62,71 @@ pub(super) fn submit_lend_order(
     }
 }
 
+pub(super) fn settle_lend_order(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let topic = std::env::var("RPC_CLIENT_REQUEST").expect("No client topic!");
+    let args: RpcArgs<Order> = params.parse()?;
+    let (customer_id, order) = args.unpack();
+
+    let Order { data } = order;
+
+    let Ok(bytes) = hex::decode(&data) else {
+        return Ok(format!("Invalid hex data").into());
+    };
+
+    let Ok(tx) = bincode::deserialize::<relayer::ExecuteLendOrderZkos>(&bytes) else {
+        return Ok(format!("Invalid bincode").into());
+    };
+
+    if let Err(_) = verify_settle_requests(&tx.msg) {
+        return Ok(format!("Invalid order params").into());
+    }
+
+    let mut order = tx.execute_lend_order.clone();
+
+    let Ok(mut conn) = ctx.pool.get() else {
+        return Ok(format!("Database connection error").into());
+    };
+
+    let Ok(ord) = LendOrder::get(
+        &mut conn,
+        customer_id,
+        OrderId {
+            id: order.uuid.to_string(),
+        },
+    ) else {
+        return Ok(format!("Order not found").into());
+    };
+
+    if ord.order_status.is_closed() {
+        return Ok(format!("Order closed").into());
+    }
+
+    let meta = relayer::Meta::default();
+
+    let Some(account_id) = tx.msg.output.as_output_data().get_owner_address() else {
+        return Ok(format!("Missing owner address").into());
+    };
+
+    order.account_id = account_id.to_string();
+
+    // TODO: what goes in HexString??
+    let order =
+        relayer::RpcCommand::ExecuteLendOrder(order.clone(), meta, "What goes here??".into());
+    let Ok(serialized) = serde_json::to_vec(&order) else {
+        return Ok(format!("Could not serialize order").into());
+    };
+
+    let record = Record::from_key_value(&topic, "ExecuteLendOrder", serialized);
+    if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
+        Ok(format!("Could not send order {:?}", e).into())
+    } else {
+        Ok("OK".into())
+    }
+}
+
 pub(super) fn submit_trade_order(
     params: Params<'_>,
     ctx: &RelayerContext,
@@ -108,6 +175,124 @@ pub(super) fn submit_trade_order(
     };
 
     let record = Record::from_key_value(&topic, "CreateTraderOrder", serialized);
+    if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
+        Ok(format!("Could not send order {:?}", e).into())
+    } else {
+        Ok("OK".into())
+    }
+}
+
+pub(super) fn settle_trade_order(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let topic = std::env::var("RPC_CLIENT_REQUEST").expect("No client topic!");
+    let args: RpcArgs<Order> = params.parse()?;
+    let (customer_id, order) = args.unpack();
+
+    let Order { data } = order;
+
+    let Ok(bytes) = hex::decode(&data) else {
+        return Ok(format!("Invalid hex data").into());
+    };
+
+    let Ok(tx) = bincode::deserialize::<relayer::ExecuteTraderOrderZkos>(&bytes) else {
+        return Ok(format!("Invalid bincode").into());
+    };
+
+    if let Err(_) = verify_settle_requests(&tx.msg) {
+        return Ok(format!("Invalid order params").into());
+    }
+
+    let mut order = tx.execute_trader_order.clone();
+
+    let Ok(mut conn) = ctx.pool.get() else {
+        return Ok(format!("Database connection error").into());
+    };
+
+    let Ok(ord) = TraderOrder::get(&mut conn, customer_id, order.uuid.to_string()) else {
+        return Ok(format!("Order not found").into());
+    };
+
+    if ord.order_status.is_closed() {
+        return Ok(format!("Order closed").into());
+    }
+
+    let meta = relayer::Meta::default();
+
+    let Some(account_id) = tx.msg.output.as_output_data().get_owner_address() else {
+        return Ok(format!("Missing owner address").into());
+    };
+
+    order.account_id = account_id.to_string();
+
+    // TODO: HexString??
+    let order =
+        relayer::RpcCommand::ExecuteTraderOrder(order.clone(), meta, "What here??".to_string());
+    let Ok(serialized) = serde_json::to_vec(&order) else {
+        return Ok(format!("Could not serialize order").into());
+    };
+
+    let record = Record::from_key_value(&topic, "ExecuteTraderOrder", serialized);
+    if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
+        Ok(format!("Could not send order {:?}", e).into())
+    } else {
+        Ok("OK".into())
+    }
+}
+
+pub(super) fn cancel_order(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let topic = std::env::var("RPC_CLIENT_REQUEST").expect("No client topic!");
+    let args: RpcArgs<Order> = params.parse()?;
+    let (customer_id, order) = args.unpack();
+
+    let Order { data } = order;
+
+    let Ok(bytes) = hex::decode(&data) else {
+        return Ok(format!("Invalid hex data").into());
+    };
+
+    let Ok(tx) = bincode::deserialize::<relayer::CancelTraderOrderZkos>(&bytes) else {
+        return Ok(format!("Invalid bincode").into());
+    };
+
+    if let Err(_) = verify_query_order(
+        tx.msg.convert_cancel_to_query(),
+        &bincode::serialize(&tx.cancel_trader_order).unwrap(),
+    ) {
+        return Ok(format!("Invalid order params").into());
+    }
+
+    let mut order = tx.cancel_trader_order.clone();
+
+    let Ok(mut conn) = ctx.pool.get() else {
+        return Ok(format!("Database connection error").into());
+    };
+
+    let Ok(ord) = TraderOrder::get(&mut conn, customer_id, order.uuid.to_string()) else {
+        return Ok(format!("Order not found").into());
+    };
+
+    if !ord.order_status.is_cancelable() {
+        return Ok(format!("Order not cancelable").into());
+    }
+
+    let meta = relayer::Meta::default();
+
+    let account_id = tx.msg.public_key.clone();
+    order.account_id = account_id;
+
+    // TODO: HexString??
+    let order =
+        relayer::RpcCommand::CancelTraderOrder(order.clone(), meta, "What here??".to_string());
+    let Ok(serialized) = serde_json::to_vec(&order) else {
+        return Ok(format!("Could not serialize order").into());
+    };
+
+    let record = Record::from_key_value(&topic, "CancelTraderOrder", serialized);
     if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
         Ok(format!("Could not send order {:?}", e).into())
     } else {

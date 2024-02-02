@@ -1172,6 +1172,7 @@ impl TraderOrder {
 
         trader_order
             .filter(uuid.eq(order_id).and(account_id.eq_any(accounts)))
+            .order(timestamp.desc())
             .first(conn)
     }
 
@@ -1561,6 +1562,7 @@ impl LendOrder {
 
         lend_order
             .filter(uuid.eq(params.id).and(account_id.eq_any(accounts)))
+            .order(timestamp.desc())
             .first(conn)
     }
 
