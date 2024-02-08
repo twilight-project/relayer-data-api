@@ -465,9 +465,10 @@ fn lend_pool_to_batch(
                 }
             }
         }
-        relayer_db::LendPoolCommand::InitiateNewPool(order, _) => {
+        relayer_db::LendPoolCommand::InitiateNewPool(order, _, payment) => {
             let uuid = order.uuid.to_string();
-            vec![(LendPoolCommandType::INITIATE_NEW_POOL, uuid, None).into()]
+            let pay = Some(BigDecimal::from_f64(payment).expect("Invalid floating point number"));
+            vec![(LendPoolCommandType::INITIATE_NEW_POOL, uuid, pay).into()]
         }
     }
 }
