@@ -328,7 +328,7 @@ impl DatabaseArchiver {
             Event::Stop(_stop) => {
                 info!("FINISH STOP");
             }
-            Event::TxHash(_, _, _, _, _, _) => {
+            Event::TxHash(_, _, _, _, _, _, _) => {
                 info!("FINISH STOP TxHash");
             }
         }

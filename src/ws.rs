@@ -104,7 +104,7 @@ impl WsContext {
                                     _position_size_log,
                                 ) => {}
                                 Event::Stop(_stop) => {}
-                                Event::TxHash(_, _, _, _, _, _) => {
+                                Event::TxHash(_, _, _, _, _, _, _) => {
                                     info!("FINISH STOP TxHash");
                                 }
                             }
