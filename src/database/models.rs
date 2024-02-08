@@ -327,7 +327,7 @@ impl LendPool {
     pub fn get(conn: &mut PgConnection) -> QueryResult<LendPool> {
         use crate::database::schema::lend_pool::dsl::*;
 
-        lend_pool.order_by(sequence.desc()).first(conn)
+        lend_pool.order_by(nonce.desc()).first(conn)
     }
 
     pub fn insert(
