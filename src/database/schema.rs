@@ -179,7 +179,7 @@ diesel::table! {
     sorted_set_command (id) {
         id -> Int8,
         command -> SortedSetCommandType,
-        uuid -> Nullable<Uuid>,
+        uuid -> Nullable<Varchar>,
         amount -> Nullable<Numeric>,
         position_type -> PositionType,
     }
@@ -218,6 +218,23 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    use diesel::sql_types::*;
+    use super::sql_types::OrderType;
+    use super::sql_types::OrderStatus;
+
+    transaction_hash (id) {
+        id -> Int8,
+        order_id -> Varchar,
+        account_id -> Varchar,
+        tx_hash -> Varchar,
+        order_type -> OrderType,
+        order_status -> OrderStatus,
+        datetime -> Varchar,
+        output -> Nullable<Varchar>,
+    }
+}
+
 diesel::joinable!(address_customer_id -> customer_account (customer_id));
 diesel::joinable!(customer_apikey_linking -> customer_account (customer_account_id));
 diesel::joinable!(customer_order_linking -> customer_account (customer_account_id));
@@ -236,4 +253,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     position_size_log,
     sorted_set_command,
     trader_order,
+    transaction_hash,
 );

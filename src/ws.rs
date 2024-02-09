@@ -104,6 +104,7 @@ impl WsContext {
                                     _position_size_log,
                                 ) => {}
                                 Event::Stop(_stop) => {}
+                                Event::TxHash(..) => {}
                             }
                         }
                         if let Err(e) = notify.send(completion) {

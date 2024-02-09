@@ -112,7 +112,6 @@ pub(super) fn settle_lend_order(
 
     order.account_id = account_id.to_string();
 
-    // TODO: what goes in HexString??
     let order =
         relayer::RpcCommand::ExecuteLendOrder(order.clone(), meta, "What goes here??".into());
     let Ok(serialized) = serde_json::to_vec(&order) else {

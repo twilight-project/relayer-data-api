@@ -2,7 +2,7 @@ use crate::database::{
     schema::{
         address_customer_id, btc_usd_price, current_nonce, customer_account,
         customer_apikey_linking, customer_order_linking, funding_rate, lend_order, lend_pool,
-        lend_pool_command, position_size_log, sorted_set_command, trader_order,
+        lend_pool_command, position_size_log, sorted_set_command, trader_order, transaction_hash,
     },
     sql_types::*,
 };
@@ -20,6 +20,51 @@ use twilight_relayer_rust::{db as relayer_db, relayer};
 use uuid::Uuid;
 
 pub type PositionSizeUpdate = (relayer::PositionSizeLogCommand, relayer_db::PositionSizeLog);
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName)]
+#[diesel(table_name = transaction_hash)]
+pub struct TxHash {
+    pub id: i64,
+    pub order_id: String,
+    pub account_id: String,
+    pub tx_hash: String,
+    pub order_type: OrderType,
+    pub order_status: OrderStatus,
+    pub datetime: String,
+    pub output: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
+#[diesel(table_name = transaction_hash)]
+pub struct NewTxHash {
+    pub order_id: String,
+    pub account_id: String,
+    pub tx_hash: String,
+    pub order_type: OrderType,
+    pub order_status: OrderStatus,
+    pub datetime: String,
+    pub output: Option<String>,
+}
+
+impl TxHash {
+    pub fn create(conn: &mut PgConnection, new: NewTxHash) -> QueryResult<()> {
+        use crate::database::schema::transaction_hash::dsl::*;
+
+        diesel::insert_into(transaction_hash)
+            .values(new)
+            .execute(conn)?;
+
+        Ok(())
+    }
+
+    pub fn append(conn: &mut PgConnection, new_hashes: Vec<NewTxHash>) -> QueryResult<usize> {
+        use crate::database::schema::transaction_hash::dsl::*;
+
+        diesel::insert_into(transaction_hash)
+            .values(new_hashes)
+            .execute(conn)
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
 #[diesel(table_name = customer_account)]
@@ -465,9 +510,10 @@ fn lend_pool_to_batch(
                 }
             }
         }
-        relayer_db::LendPoolCommand::InitiateNewPool(order, _) => {
+        relayer_db::LendPoolCommand::InitiateNewPool(order, _, payment) => {
             let uuid = order.uuid.to_string();
-            vec![(LendPoolCommandType::INITIATE_NEW_POOL, uuid, None).into()]
+            let pay = Some(BigDecimal::from_f64(payment).expect("Invalid flaoting point"));
+            vec![(LendPoolCommandType::INITIATE_NEW_POOL, uuid, pay).into()]
         }
     }
 }
@@ -477,7 +523,7 @@ fn lend_pool_to_batch(
 pub struct SortedSetCommand {
     id: i64,
     command: SortedSetCommandType,
-    uuid: Option<Uuid>,
+    uuid: Option<String>,
     amount: Option<BigDecimal>,
     position_type: PositionType,
 }
@@ -486,7 +532,7 @@ pub struct SortedSetCommand {
 #[diesel(table_name = sorted_set_command)]
 pub struct SortedSetCommandUpdate {
     command: SortedSetCommandType,
-    uuid: Option<Uuid>,
+    uuid: Option<String>,
     amount: Option<BigDecimal>,
     position_type: PositionType,
 }
@@ -620,7 +666,7 @@ impl SortedSetCommand {
 
                 SortedSetCommandUpdate {
                     command: cmd,
-                    uuid: cmd_uuid,
+                    uuid: cmd_uuid.map(|m| m.to_string()),
                     amount: amt,
                     position_type: typ.into(),
                 }
