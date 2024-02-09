@@ -24,6 +24,7 @@ pub struct DatabaseArchiver {
     trader_orders: Vec<InsertTraderOrder>,
     lend_orders: Vec<InsertLendOrder>,
     position_size: Vec<PositionSizeUpdate>,
+    tx_hashes: Vec<NewTxHash>,
     sorted_set: Vec<relayer::SortedSetCommand>,
     lend_pool: Vec<relayer_db::LendPool>,
     lend_pool_commands: Vec<relayer_db::LendPoolCommand>,
@@ -44,6 +45,7 @@ impl DatabaseArchiver {
         let trader_orders = Vec::with_capacity(BATCH_SIZE);
         let lend_orders = Vec::with_capacity(BATCH_SIZE);
         let position_size = Vec::with_capacity(BATCH_SIZE);
+        let tx_hashes = Vec::with_capacity(BATCH_SIZE);
         let sorted_set = Vec::with_capacity(BATCH_SIZE);
         let lend_pool = Vec::with_capacity(BATCH_SIZE);
         let lend_pool_commands = Vec::with_capacity(BATCH_SIZE);
@@ -54,6 +56,7 @@ impl DatabaseArchiver {
             trader_orders,
             lend_orders,
             position_size,
+            tx_hashes,
             sorted_set,
             lend_pool,
             lend_pool_commands,
@@ -147,6 +150,31 @@ impl DatabaseArchiver {
         Ok(())
     }
 
+    fn tx_hash(&mut self, hash: NewTxHash) -> Result<(), ApiError> {
+        debug!("Appending position size update");
+        self.tx_hashes.push(hash);
+
+        if self.tx_hashes.len() == self.tx_hashes.capacity() {
+            self.commit_tx_hash()?;
+        }
+
+        Ok(())
+    }
+
+    /// Commit a batch of tx hashes to the database. If we're failing to update the database, we
+    /// should exit.
+    fn commit_tx_hash(&mut self) -> Result<(), ApiError> {
+        debug!("Committing tx hashes");
+
+        let mut conn = self.get_conn()?;
+
+        let mut hashes = Vec::with_capacity(self.tx_hashes.capacity());
+        std::mem::swap(&mut hashes, &mut self.tx_hashes);
+
+        TxHash::append(&mut conn, hashes)?;
+
+        Ok(())
+    }
     /// Add a trader order to the next update batch, if the queue is full, commit and clear the
     /// queue.
     fn trader_order(&mut self, order: InsertTraderOrder) -> Result<(), ApiError> {
@@ -328,8 +356,25 @@ impl DatabaseArchiver {
             Event::Stop(_stop) => {
                 info!("FINISH STOP");
             }
-            Event::TxHash(_, _, _, _, _, _, _) => {
-                info!("FINISH STOP TxHash");
+            Event::TxHash(
+                uuid,
+                account_id,
+                tx_hash,
+                order_type,
+                order_status,
+                datetime,
+                output,
+            ) => {
+                let hash = NewTxHash {
+                    order_id: uuid.to_string(),
+                    account_id,
+                    tx_hash,
+                    order_type: order_type.into(),
+                    order_status: order_status.into(),
+                    datetime,
+                    output,
+                };
+                self.tx_hash(hash)?;
             }
         }
 
