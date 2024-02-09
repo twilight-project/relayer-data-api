@@ -8,7 +8,7 @@ use crate::database::{
 };
 use crate::rpc::{
     HistoricalFundingArgs, HistoricalPriceArgs, Interval, OrderHistoryArgs, OrderId, PnlArgs,
-    TradeVolumeArgs,
+    TradeVolumeArgs, TransactionHashArgs,
 };
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
 use chrono::prelude::*;
@@ -47,6 +47,34 @@ pub struct NewTxHash {
 }
 
 impl TxHash {
+    pub fn get(conn: &mut PgConnection, args: TransactionHashArgs) -> QueryResult<Vec<TxHash>> {
+        use crate::database::schema::transaction_hash::dsl::*;
+
+        match args {
+            TransactionHashArgs::TxId { id: tx_id, status } => {
+                if let Some(status) = status {
+                    transaction_hash
+                        .filter(order_id.eq(tx_id).and(order_status.eq(status)))
+                        .load(conn)
+                } else {
+                    transaction_hash.filter(order_id.eq(tx_id)).load(conn)
+                }
+            }
+            TransactionHashArgs::AccountId {
+                id: acct_id,
+                status,
+            } => {
+                if let Some(status) = status {
+                    transaction_hash
+                        .filter(account_id.eq(acct_id).and(order_status.eq(status)))
+                        .load(conn)
+                } else {
+                    transaction_hash.filter(account_id.eq(acct_id)).load(conn)
+                }
+            }
+        }
+    }
+
     pub fn create(conn: &mut PgConnection, new: NewTxHash) -> QueryResult<()> {
         use crate::database::schema::transaction_hash::dsl::*;
 

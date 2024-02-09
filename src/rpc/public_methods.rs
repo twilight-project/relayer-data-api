@@ -129,6 +129,24 @@ pub(super) fn position_size(
     }
 }
 
+pub(super) fn transaction_hashes(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let args: TransactionHashArgs = params.parse()?;
+
+    match ctx.pool.get() {
+        Ok(mut conn) => match TxHash::get(&mut conn, args) {
+            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+            Err(e) => Err(Error::Custom(format!(
+                "Error fetching transaction hashes: {:?}",
+                e
+            ))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
 pub(super) fn server_time(_: Params<'_>, _: &RelayerContext) -> Result<serde_json::Value, Error> {
     Ok(serde_json::to_value(Utc::now()).expect("Failed to get timestamp"))
 }

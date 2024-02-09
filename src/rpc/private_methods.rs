@@ -113,7 +113,7 @@ pub(super) fn settle_lend_order(
     order.account_id = account_id.to_string();
 
     let order =
-        relayer::RpcCommand::ExecuteLendOrder(order.clone(), meta, "What goes here??".into());
+        relayer::RpcCommand::ExecuteLendOrder(order.clone(), meta, tx.msg.encode_as_hex_string());
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -225,9 +225,8 @@ pub(super) fn settle_trade_order(
 
     order.account_id = account_id.to_string();
 
-    // TODO: HexString??
     let order =
-        relayer::RpcCommand::ExecuteTraderOrder(order.clone(), meta, "What here??".to_string());
+        relayer::RpcCommand::ExecuteTraderOrder(order.clone(), meta, tx.msg.encode_as_hex_string());
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -284,9 +283,8 @@ pub(super) fn cancel_order(
     let account_id = tx.msg.public_key.clone();
     order.account_id = account_id;
 
-    // TODO: HexString??
     let order =
-        relayer::RpcCommand::CancelTraderOrder(order.clone(), meta, "What here??".to_string());
+        relayer::RpcCommand::CancelTraderOrder(order.clone(), meta, tx.msg.encode_as_hex_string());
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };

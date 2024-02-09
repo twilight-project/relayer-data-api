@@ -12,8 +12,9 @@
 // •	Position Size (For Long, Short and Total)
 // •	Server Time
 use crate::auth::UserInfo;
+use crate::database::OrderStatus;
 use chrono::prelude::*;
-use relayerwalletlib::zkoswalletlib::relayer_types::{OrderStatus, OrderType, PositionType};
+use relayerwalletlib::zkoswalletlib::relayer_types::{OrderType, PositionType};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -48,6 +49,18 @@ pub enum CandlestickResolution {
     Daily(usize),
     Weekly(usize),
     Monthly(usize),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum TransactionHashArgs {
+    TxId {
+        id: String,
+        status: Option<OrderStatus>,
+    },
+    AccountId {
+        id: String,
+        status: Option<OrderStatus>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

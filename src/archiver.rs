@@ -19,7 +19,6 @@ const RETRY_SLEEP: u64 = 2000;
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
-
 pub struct DatabaseArchiver {
     pool: ManagedPool,
     trader_orders: Vec<InsertTraderOrder>,
@@ -357,7 +356,15 @@ impl DatabaseArchiver {
             Event::Stop(_stop) => {
                 info!("FINISH STOP");
             }
-            Event::TxHash(uuid, account_id, tx_hash, order_type, order_status, datetime, output) => {
+            Event::TxHash(
+                uuid,
+                account_id,
+                tx_hash,
+                order_type,
+                order_status,
+                datetime,
+                output,
+            ) => {
                 let hash = NewTxHash {
                     order_id: uuid.to_string(),
                     account_id,
