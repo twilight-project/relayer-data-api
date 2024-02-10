@@ -119,6 +119,172 @@
 			"response": []
 		},
 		{
+			"name": "TxHashes",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"transaction_hashes\", \"id\":123, \"params\": {\"TxId\": {\"id\": \"46e6c379-261b-403f-9e2e-579767083b5b\"} }  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "TxHashesByAcctId",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "headers",
+						"type": "text",
+						"value": "\"5\"",
+						"disabled": true
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Metadata",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					},
+					{
+						"key": "",
+						"type": "text",
+						"value": "1",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"transaction_hashes\", \"id\":123, \"params\": {\"AccountId\": {\"id\": \"0cde071c7df23e3cb7501d6b6f4fec918a803f66f0a124841ee60bd9d5192aed49a031d18c4aa66269614c3476a36ec403df977584d129a363\"} }  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetFundingRate Copy",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "relayer-api-key",
+						"type": "text",
+						"value": "{{relayer-api-key}}"
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "datetime",
+						"type": "text",
+						"value": "1"
+					},
+					{
+						"key": "signature",
+						"type": "text",
+						"value": "{{signature}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\": \"2.0\", \"method\": \"get_funding_payment\", \"id\":123, \"params\": { \"id\": \"7f903593-bda2-49a9-a694-143a8ce2edcb\"}  }"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "GetHistoricalFundingRate",
 			"event": [
 				{
@@ -835,7 +1001,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"trade_volume\",\"id\":123,\"params\":{\"start\":\"2024-01-10T00:00:00Z\",\"end\":\"2024-01-24T00:00:00Z\"}}"
+					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"trade_volume\",\"id\":123,\"params\":{\"start\":\"2024-01-28T00:00:00Z\",\"end\":\"2024-01-30T00:00:00Z\"}}"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",
@@ -998,6 +1164,60 @@
 				"body": {
 					"mode": "raw",
 					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"unrealized_pnl\",\"id\":123,\"params\":{\"PublicKey\":\"0cde071c7df23e3cb7501d6b6f4fec918a803f66f0a124841ee60bd9d5192aed49a031d18c4aa66269614c3476a36ec403df977584d129a363c326dac279fa3978825082eb\"}}"
+				},
+				"url": {
+					"raw": "{{endpoint}}/api/private",
+					"host": [
+						"{{endpoint}}"
+					],
+					"path": [
+						"api",
+						"private"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "UnrealizedPnlPubkey Copy",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "relayer-api-key",
+						"type": "text",
+						"value": "{{relayer-api-key}}"
+					},
+					{
+						"key": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "signature",
+						"type": "text",
+						"value": "{{signature}}"
+					},
+					{
+						"key": "datetime",
+						"type": "text",
+						"value": "1"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"jsonrpc\":\"2.0\",\"method\":\"unrealized_pnl\",\"id\":123,\"params\":{\"PublicKey\":\"twilight1l03j8j5nwegy9fkz9p0whkxch2e2zqcq6lvfda\"}}"
 				},
 				"url": {
 					"raw": "{{endpoint}}/api/private",

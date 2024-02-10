@@ -11,7 +11,7 @@ mod public_methods;
 mod types;
 pub use types::{
     CandleSubscription, Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval, Order,
-    OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs,
+    OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs, TransactionHashArgs,
 };
 
 type ManagedConnection = ConnectionManager<PgConnection>;
@@ -93,6 +93,11 @@ pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
         &mut module,
         "position_size",
         Box::new(public_methods::position_size),
+    );
+    register_method(
+        &mut module,
+        "transaction_hashes",
+        Box::new(public_methods::transaction_hashes),
     );
     module
 }
