@@ -301,6 +301,10 @@ impl DatabaseArchiver {
             self.commit_position_sizes()?;
         }
 
+        if self.tx_hashes.len() > 0 {
+            self.commit_tx_hash()?;
+        }
+
         if self.sorted_set.len() > 0 {
             self.commit_sorted_set_updates()?;
         }
