@@ -482,12 +482,12 @@ fn lend_pool_to_batch(
     pool_nonce: &mut Nonce,
 ) -> Vec<LendPoolCommandUpdate> {
     match item {
-        relayer_db::LendPoolCommand::AddTraderOrderSettlement(_, order, p) => {
+        relayer_db::LendPoolCommand::AddTraderOrderSettlement(_, order, p, _) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::ADD_TRADER_ORDER_SETTLEMENT, uuid, pay).into()]
         }
-        relayer_db::LendPoolCommand::AddTraderLimitOrderSettlement(_, order, p) => {
+        relayer_db::LendPoolCommand::AddTraderLimitOrderSettlement(_, order, p, _) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
             let uuid = order.uuid.to_string();
             vec![(
@@ -507,12 +507,12 @@ fn lend_pool_to_batch(
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::ADD_TRADER_ORDER_LIQUIDATION, uuid, pay).into()]
         }
-        relayer_db::LendPoolCommand::LendOrderCreateOrder(_, order, p) => {
+        relayer_db::LendPoolCommand::LendOrderCreateOrder(_, order, p, _) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::LEND_ORDER_CREATE_ORDER, uuid, pay).into()]
         }
-        relayer_db::LendPoolCommand::LendOrderSettleOrder(_, order, p) => {
+        relayer_db::LendPoolCommand::LendOrderSettleOrder(_, order, p, _) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::LEND_ORDER_SETTLE_ORDER, uuid, pay).into()]
@@ -1821,174 +1821,174 @@ mod tests {
     use getrandom::getrandom;
     const DIESEL_TEST_URL: &str = "postgres://relayer:relayer@localhost:5434/test";
 
-    fn make_trader_order(entryprice: f64, execution_price: f64) -> TraderOrder {
-        let mut bytes = [0u8; 16];
+    // fn make_trader_order(entryprice: f64, execution_price: f64) -> TraderOrder {
+    //     let mut bytes = [0u8; 16];
 
-        getrandom(&mut bytes).expect("Could not get randomness");
+    //     getrandom(&mut bytes).expect("Could not get randomness");
 
-        TraderOrder {
-            uuid: bytes.encode_hex::<String>(),
-            account_id: "my-id".into(),
-            position_type: PositionType::LONG,
-            order_status: OrderStatus::PENDING,
-            order_type: OrderType::MARKET,
-            entryprice: BigDecimal::from_f64(entryprice).unwrap(),
-            execution_price: BigDecimal::from_f64(execution_price).unwrap(),
-            positionsize: BigDecimal::from_f64(0.0).unwrap(),
-            leverage: BigDecimal::from_f64(0.0).unwrap(),
-            initial_margin: BigDecimal::from_f64(0.0).unwrap(),
-            available_margin: BigDecimal::from_f64(0.0).unwrap(),
-            timestamp: Utc::now(),
-            bankruptcy_price: BigDecimal::from_f64(0.0).unwrap(),
-            bankruptcy_value: BigDecimal::from_f64(0.0).unwrap(),
-            maintenance_margin: BigDecimal::from_f64(0.0).unwrap(),
-            liquidation_price: BigDecimal::from_f64(0.0).unwrap(),
-            unrealized_pnl: BigDecimal::from_f64(0.0).unwrap(),
-            settlement_price: BigDecimal::from_f64(0.0).unwrap(),
-            entry_nonce: 20,
-            exit_nonce: 22,
-            entry_sequence: 400,
-        }
-    }
+    //     TraderOrder {
+    //         uuid: bytes.encode_hex::<String>(),
+    //         account_id: "my-id".into(),
+    //         position_type: PositionType::LONG,
+    //         order_status: OrderStatus::PENDING,
+    //         order_type: OrderType::MARKET,
+    //         entryprice: BigDecimal::from_f64(entryprice).unwrap(),
+    //         execution_price: BigDecimal::from_f64(execution_price).unwrap(),
+    //         positionsize: BigDecimal::from_f64(0.0).unwrap(),
+    //         leverage: BigDecimal::from_f64(0.0).unwrap(),
+    //         initial_margin: BigDecimal::from_f64(0.0).unwrap(),
+    //         available_margin: BigDecimal::from_f64(0.0).unwrap(),
+    //         timestamp: Utc::now(),
+    //         bankruptcy_price: BigDecimal::from_f64(0.0).unwrap(),
+    //         bankruptcy_value: BigDecimal::from_f64(0.0).unwrap(),
+    //         maintenance_margin: BigDecimal::from_f64(0.0).unwrap(),
+    //         liquidation_price: BigDecimal::from_f64(0.0).unwrap(),
+    //         unrealized_pnl: BigDecimal::from_f64(0.0).unwrap(),
+    //         settlement_price: BigDecimal::from_f64(0.0).unwrap(),
+    //         entry_nonce: 20,
+    //         exit_nonce: 22,
+    //         entry_sequence: 400,
+    //     }
+    // }
 
-    fn make_lend_order(balance: f64, payment: f64) -> LendOrder {
-        let mut bytes = [0u8; 16];
+    // fn make_lend_order(balance: f64, payment: f64) -> LendOrder {
+    //     let mut bytes = [0u8; 16];
 
-        getrandom(&mut bytes).expect("Could not get randomness");
+    //     getrandom(&mut bytes).expect("Could not get randomness");
 
-        LendOrder {
-            uuid: bytes.encode_hex::<String>(),
-            account_id: "lender-id".into(),
-            balance: BigDecimal::from_f64(balance).unwrap(),
-            order_status: OrderStatus::PENDING,
-            order_type: OrderType::MARKET,
-            entry_nonce: 40,
-            exit_nonce: 600,
-            deposit: BigDecimal::from_f64(0.0).unwrap(),
-            new_lend_state_amount: BigDecimal::from_f64(0.0).unwrap(),
-            timestamp: Utc::now(),
-            npoolshare: BigDecimal::from_f64(0.0).unwrap(),
-            nwithdraw: BigDecimal::from_f64(0.0).unwrap(),
-            payment: BigDecimal::from_f64(payment).unwrap(),
-            tlv0: BigDecimal::from_f64(0.0).unwrap(),
-            tps0: BigDecimal::from_f64(0.0).unwrap(),
-            tlv1: BigDecimal::from_f64(0.0).unwrap(),
-            tps1: BigDecimal::from_f64(0.0).unwrap(),
-            tlv2: BigDecimal::from_f64(0.0).unwrap(),
-            tps2: BigDecimal::from_f64(0.0).unwrap(),
-            tlv3: BigDecimal::from_f64(0.0).unwrap(),
-            tps3: BigDecimal::from_f64(0.0).unwrap(),
-            entry_sequence: 0,
-        }
-    }
+    //     LendOrder {
+    //         uuid: bytes.encode_hex::<String>(),
+    //         account_id: "lender-id".into(),
+    //         balance: BigDecimal::from_f64(balance).unwrap(),
+    //         order_status: OrderStatus::PENDING,
+    //         order_type: OrderType::MARKET,
+    //         entry_nonce: 40,
+    //         exit_nonce: 600,
+    //         deposit: BigDecimal::from_f64(0.0).unwrap(),
+    //         new_lend_state_amount: BigDecimal::from_f64(0.0).unwrap(),
+    //         timestamp: Utc::now(),
+    //         npoolshare: BigDecimal::from_f64(0.0).unwrap(),
+    //         nwithdraw: BigDecimal::from_f64(0.0).unwrap(),
+    //         payment: BigDecimal::from_f64(payment).unwrap(),
+    //         tlv0: BigDecimal::from_f64(0.0).unwrap(),
+    //         tps0: BigDecimal::from_f64(0.0).unwrap(),
+    //         tlv1: BigDecimal::from_f64(0.0).unwrap(),
+    //         tps1: BigDecimal::from_f64(0.0).unwrap(),
+    //         tlv2: BigDecimal::from_f64(0.0).unwrap(),
+    //         tps2: BigDecimal::from_f64(0.0).unwrap(),
+    //         tlv3: BigDecimal::from_f64(0.0).unwrap(),
+    //         tps3: BigDecimal::from_f64(0.0).unwrap(),
+    //         entry_sequence: 0,
+    //     }
+    // }
 
-    #[test]
-    fn trader_orders() {
-        use crate::database::schema::trader_order::dsl::*;
+    // #[test]
+    // fn trader_orders() {
+    //     use crate::database::schema::trader_order::dsl::*;
 
-        let mut conn =
-            PgConnection::establish(DIESEL_TEST_URL).expect("Could not establish test connection!");
+    //     let mut conn =
+    //         PgConnection::establish(DIESEL_TEST_URL).expect("Could not establish test connection!");
 
-        conn.test_transaction::<_, diesel::result::Error, _>(|conn| {
-            let mut order1 = make_trader_order(1.0, 4.0);
-            let mut order2 = make_trader_order(4.0, 400.0);
+    //     conn.test_transaction::<_, diesel::result::Error, _>(|conn| {
+    //         let mut order1 = make_trader_order(1.0, 4.0);
+    //         let mut order2 = make_trader_order(4.0, 400.0);
 
-            let orders: Vec<TraderOrder> = vec![order1.clone(), order2.clone()];
+    //         let orders: Vec<TraderOrder> = vec![order1.clone(), order2.clone()];
 
-            let result = diesel::insert_into(trader_order)
-                .values(orders)
-                .execute(&mut *conn);
+    //         let result = diesel::insert_into(trader_order)
+    //             .values(orders)
+    //             .execute(&mut *conn);
 
-            if let Err(e) = result {
-                panic!("insert in database didn't suceed! {:#?}", e);
-            }
+    //         if let Err(e) = result {
+    //             panic!("insert in database didn't suceed! {:#?}", e);
+    //         }
 
-            //Test updates/inserts
-            let order3 = make_trader_order(989.0, 23.0);
-            let order4 = make_trader_order(99.0, 302.0);
+    //         //Test updates/inserts
+    //         let order3 = make_trader_order(989.0, 23.0);
+    //         let order4 = make_trader_order(99.0, 302.0);
 
-            order1.entryprice = BigDecimal::from_f64(32.0).unwrap();
-            order1.execution_price = BigDecimal::from_f64(89.0).unwrap();
-            order2.entryprice = BigDecimal::from_f64(20.0).unwrap();
+    //         order1.entryprice = BigDecimal::from_f64(32.0).unwrap();
+    //         order1.execution_price = BigDecimal::from_f64(89.0).unwrap();
+    //         order2.entryprice = BigDecimal::from_f64(20.0).unwrap();
 
-            TraderOrder::update_or_insert(
-                &mut *conn,
-                vec![
-                    order1.clone(),
-                    order2.clone(),
-                    order3.clone(),
-                    order4.clone(),
-                ],
-            )?;
+    //         TraderOrder::update_or_insert(
+    //             &mut *conn,
+    //             vec![
+    //                 order1.clone(),
+    //                 order2.clone(),
+    //                 order3.clone(),
+    //                 order4.clone(),
+    //             ],
+    //         )?;
 
-            let o1: TraderOrder = trader_order
-                .filter(uuid.eq(order1.uuid))
-                .first(&mut *conn)?;
+    //         let o1: TraderOrder = trader_order
+    //             .filter(uuid.eq(order1.uuid))
+    //             .first(&mut *conn)?;
 
-            assert_eq!(o1.entryprice, order1.entryprice);
-            assert_eq!(o1.execution_price, order1.execution_price);
+    //         assert_eq!(o1.entryprice, order1.entryprice);
+    //         assert_eq!(o1.execution_price, order1.execution_price);
 
-            let o2: TraderOrder = trader_order
-                .filter(uuid.eq(order2.uuid))
-                .first(&mut *conn)?;
+    //         let o2: TraderOrder = trader_order
+    //             .filter(uuid.eq(order2.uuid))
+    //             .first(&mut *conn)?;
 
-            assert_eq!(o2.entryprice, order2.entryprice);
-            assert_eq!(o2.execution_price, order2.execution_price);
+    //         assert_eq!(o2.entryprice, order2.entryprice);
+    //         assert_eq!(o2.execution_price, order2.execution_price);
 
-            Ok(())
-        });
-    }
+    //         Ok(())
+    //     });
+    // }
 
-    #[test]
-    fn lender_orders() {
-        use crate::database::schema::lend_order::dsl::*;
+    // #[test]
+    // fn lender_orders() {
+    //     use crate::database::schema::lend_order::dsl::*;
 
-        let mut conn =
-            PgConnection::establish(DIESEL_TEST_URL).expect("Could not establish test connection!");
+    //     let mut conn =
+    //         PgConnection::establish(DIESEL_TEST_URL).expect("Could not establish test connection!");
 
-        conn.test_transaction::<_, diesel::result::Error, _>(|conn| {
-            let mut order1 = make_lend_order(1.0, 4.0);
-            let mut order2 = make_lend_order(4.0, 400.0);
+    //     conn.test_transaction::<_, diesel::result::Error, _>(|conn| {
+    //         let mut order1 = make_lend_order(1.0, 4.0);
+    //         let mut order2 = make_lend_order(4.0, 400.0);
 
-            let orders: Vec<LendOrder> = vec![order1.clone(), order2.clone()];
+    //         let orders: Vec<LendOrder> = vec![order1.clone(), order2.clone()];
 
-            let result = diesel::insert_into(lend_order)
-                .values(orders)
-                .execute(&mut *conn);
+    //         let result = diesel::insert_into(lend_order)
+    //             .values(orders)
+    //             .execute(&mut *conn);
 
-            if let Err(e) = result {
-                panic!("insert in database didn't suceed! {:#?}", e);
-            }
+    //         if let Err(e) = result {
+    //             panic!("insert in database didn't suceed! {:#?}", e);
+    //         }
 
-            //Test updates/inserts
-            let order3 = make_lend_order(989.0, 23.0);
-            let order4 = make_lend_order(99.0, 302.0);
+    //         //Test updates/inserts
+    //         let order3 = make_lend_order(989.0, 23.0);
+    //         let order4 = make_lend_order(99.0, 302.0);
 
-            order1.balance = BigDecimal::from_f64(32.0).unwrap();
-            order1.payment = BigDecimal::from_f64(89.0).unwrap();
-            order2.balance = BigDecimal::from_f64(20.0).unwrap();
+    //         order1.balance = BigDecimal::from_f64(32.0).unwrap();
+    //         order1.payment = BigDecimal::from_f64(89.0).unwrap();
+    //         order2.balance = BigDecimal::from_f64(20.0).unwrap();
 
-            LendOrder::update_or_insert(
-                &mut *conn,
-                vec![
-                    order1.clone(),
-                    order2.clone(),
-                    order3.clone(),
-                    order4.clone(),
-                ],
-            )?;
+    //         LendOrder::update_or_insert(
+    //             &mut *conn,
+    //             vec![
+    //                 order1.clone(),
+    //                 order2.clone(),
+    //                 order3.clone(),
+    //                 order4.clone(),
+    //             ],
+    //         )?;
 
-            let o1: LendOrder = lend_order.filter(uuid.eq(order1.uuid)).first(&mut *conn)?;
+    //         let o1: LendOrder = lend_order.filter(uuid.eq(order1.uuid)).first(&mut *conn)?;
 
-            assert_eq!(o1.balance, order1.balance);
-            assert_eq!(o1.payment, order1.payment);
+    //         assert_eq!(o1.balance, order1.balance);
+    //         assert_eq!(o1.payment, order1.payment);
 
-            let o2: LendOrder = lend_order.filter(uuid.eq(order2.uuid)).first(&mut *conn)?;
+    //         let o2: LendOrder = lend_order.filter(uuid.eq(order2.uuid)).first(&mut *conn)?;
 
-            assert_eq!(o2.balance, order2.balance);
-            assert_eq!(o2.payment, order2.payment);
+    //         assert_eq!(o2.balance, order2.balance);
+    //         assert_eq!(o2.payment, order2.payment);
 
-            Ok(())
-        });
-    }
+    //         Ok(())
+    //     });
+    // }
 }

@@ -11,9 +11,9 @@ name = "archiver"
 [[bin]]
 name = "api"
 
-[lib]
-name = "relayerarchiverlib"
-path = "src/lib.rs"
+# [lib]
+# name = "relayerarchiverlib"
+# path = "src/lib.rs"
 
 
 [dependencies]
