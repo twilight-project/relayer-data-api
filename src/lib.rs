@@ -48,7 +48,7 @@ impl RelayerDB {
         }
     }
     /// Fetch a connection, will retry MAX_RETRIES before giving up.
-    fn get_conn(&self) -> Result<PooledConnection<ManagedConnection>, ApiError> {
+    pub fn get_conn(&self) -> Result<PooledConnection<ManagedConnection>, ApiError> {
         let mut retries = MAX_RETRIES;
 
         Ok(loop {

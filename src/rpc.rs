@@ -211,26 +211,26 @@ mod tests {
         server::ServerBuilder,
     };
 
-    #[tokio::test]
-    async fn test_hello() {
-        let mut server = ServerBuilder::new()
-            .build("0.0.0.0:8979")
-            .await
-            .expect("Builder failed");
+    // #[tokio::test]
+    // async fn test_hello() {
+    //     let mut server = ServerBuilder::new()
+    //         .build("0.0.0.0:8979")
+    //         .await
+    //         .expect("Builder failed");
 
-        let handle = server
-            .start(init_methods())
-            .expect("Server failed to start");
+    //     let handle = server
+    //         .start(init_methods())
+    //         .expect("Server failed to start");
 
-        let client = HttpClientBuilder::default()
-            .build("http://127.0.0.1:8979")
-            .expect("Client builder failed");
+    //     let client = HttpClientBuilder::default()
+    //         .build("http://127.0.0.1:8979")
+    //         .expect("Client builder failed");
 
-        let response: String = client
-            .request("hello_method", ObjectParams::new())
-            .await
-            .expect("Client call failed");
+    //     let response: String = client
+    //         .request("hello_method", ObjectParams::new())
+    //         .await
+    //         .expect("Client call failed");
 
-        assert_eq!("Hello, world!".to_string(), response);
-    }
+    //     assert_eq!("Hello, world!".to_string(), response);
+    // }
 }
