@@ -11,6 +11,11 @@ name = "archiver"
 [[bin]]
 name = "api"
 
+[lib]
+name = "relayerarchiverlib"
+path = "src/lib.rs"
+
+
 [dependencies]
 bigdecimal = { version = "0.4.1", features = ["serde"] }
 bincode = "1.3"
