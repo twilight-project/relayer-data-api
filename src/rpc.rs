@@ -199,6 +199,8 @@ pub fn init_private_methods(database_url: &str) -> RpcModule<RelayerContext> {
 
 #[cfg(test)]
 mod tests {
+    use crate::ws::init_methods;
+
     use super::*;
     use jsonrpsee::{
         core::{
