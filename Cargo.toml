@@ -67,7 +67,7 @@ tower-http = { version = "0.4", features = [
     "validate-request",
 ] }
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
-twilight-relayer-rust = { git = "ssh://git@github.com/twilight-project/twilight-relayer.git", branch = "zkos-0.03.02-relayer-order-tx-rollback-revert" }
+twilight-relayer-rust = { git = "ssh://git@github.com/twilight-project/twilight-relayer.git", branch = "main" }
 
 uuid = { version = "1.3.3", features = ["serde", "v4", "v7"] }
 verify-keplr-sign = "0.1.0"
