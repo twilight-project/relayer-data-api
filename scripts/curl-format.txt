@@ -1,0 +1,3 @@
+        time_connect:  %{time_connect}s\n
+                     ----------\n
+          time_total:  %{time_total}s\n
