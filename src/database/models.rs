@@ -1716,7 +1716,7 @@ impl From<relayer::TraderOrder> for TraderOrder {
             bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap().round(4),
             maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap().round(4),
             liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap().round(2),
-            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap(),
+            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap().round(2),
             settlement_price: BigDecimal::from_f64(settlement_price).unwrap().round(2),
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
@@ -1770,7 +1770,7 @@ impl From<relayer::TraderOrder> for InsertTraderOrder {
             bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap().round(4),
             maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap().round(4),
             liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap().round(2),
-            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap(),
+            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap().round(2),
             settlement_price: BigDecimal::from_f64(settlement_price).unwrap().round(2),
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
@@ -1815,13 +1815,15 @@ impl From<relayer::LendOrder> for InsertLendOrder {
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
             deposit: BigDecimal::from_f64(deposit).unwrap(),
-            new_lend_state_amount: BigDecimal::from_f64(new_lend_state_amount).unwrap(),
+            new_lend_state_amount: BigDecimal::from_f64(new_lend_state_amount)
+                .unwrap()
+                .round(4),
             timestamp: DateTime::parse_from_rfc3339(&timestamp)
                 .expect("Bad datetime format")
                 .into(),
-            npoolshare: BigDecimal::from_f64(npoolshare).unwrap(),
-            nwithdraw: BigDecimal::from_f64(nwithdraw).unwrap(),
-            payment: BigDecimal::from_f64(payment).unwrap(),
+            npoolshare: BigDecimal::from_f64(npoolshare).unwrap().round(4),
+            nwithdraw: BigDecimal::from_f64(nwithdraw).unwrap().round(4),
+            payment: BigDecimal::from_f64(payment).unwrap().round(4),
             tlv0: BigDecimal::from_f64(tlv0).unwrap(),
             tps0: BigDecimal::from_f64(tps0).unwrap(),
             tlv1: BigDecimal::from_f64(tlv1).unwrap(),
