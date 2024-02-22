@@ -957,7 +957,7 @@ impl CurrentPriceUpdate {
         use crate::database::schema::btc_usd_price::dsl::*;
 
         let update = CurrentPriceUpdate {
-            price: BigDecimal::from_f64(current_price).unwrap(),
+            price: BigDecimal::from_f64(current_price).unwrap().round(2),
             timestamp: ts,
         };
 
@@ -1077,8 +1077,8 @@ impl FundingRateUpdate {
         use crate::database::schema::funding_rate::dsl::*;
 
         let update = FundingRateUpdate {
-            rate: BigDecimal::from_f64(r).unwrap(),
-            price: BigDecimal::from_f64(p).unwrap(),
+            rate: BigDecimal::from_f64(r).unwrap().round(6),
+            price: BigDecimal::from_f64(p).unwrap().round(2),
             timestamp: ts,
         };
 
@@ -1703,21 +1703,21 @@ impl From<relayer::TraderOrder> for TraderOrder {
             order_status: order_status.into(),
             order_type: order_type.into(),
             // TODO: maybe a TryFrom impl instead...
-            entryprice: BigDecimal::from_f64(entryprice).unwrap(),
-            execution_price: BigDecimal::from_f64(execution_price).unwrap(),
+            entryprice: BigDecimal::from_f64(entryprice).unwrap().round(2),
+            execution_price: BigDecimal::from_f64(execution_price).unwrap().round(2),
             positionsize: BigDecimal::from_f64(positionsize).unwrap(),
             leverage: BigDecimal::from_f64(leverage).unwrap(),
             initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
-            available_margin: BigDecimal::from_f64(available_margin).unwrap(),
+            available_margin: BigDecimal::from_f64(available_margin).unwrap().round(4),
             timestamp: DateTime::parse_from_rfc3339(&timestamp)
                 .expect("Bad datetime format")
                 .into(),
-            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap(),
-            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap(),
-            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap(),
-            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap(),
+            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap().round(2),
+            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap().round(4),
+            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap().round(4),
+            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap().round(2),
             unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap(),
-            settlement_price: BigDecimal::from_f64(settlement_price).unwrap(),
+            settlement_price: BigDecimal::from_f64(settlement_price).unwrap().round(2),
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
             entry_sequence: entry_sequence as i64,
@@ -1757,21 +1757,21 @@ impl From<relayer::TraderOrder> for InsertTraderOrder {
             order_status: order_status.into(),
             order_type: order_type.into(),
             // TODO: maybe a TryFrom impl instead...
-            entryprice: BigDecimal::from_f64(entryprice).unwrap(),
-            execution_price: BigDecimal::from_f64(execution_price).unwrap(),
+            entryprice: BigDecimal::from_f64(entryprice).unwrap().round(2),
+            execution_price: BigDecimal::from_f64(execution_price).unwrap().round(2),
             positionsize: BigDecimal::from_f64(positionsize).unwrap(),
             leverage: BigDecimal::from_f64(leverage).unwrap(),
             initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
-            available_margin: BigDecimal::from_f64(available_margin).unwrap(),
+            available_margin: BigDecimal::from_f64(available_margin).unwrap().round(4),
             timestamp: DateTime::parse_from_rfc3339(&timestamp)
                 .expect("Bad datetime format")
                 .into(),
-            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap(),
-            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap(),
-            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap(),
-            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap(),
+            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap().round(2),
+            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap().round(4),
+            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap().round(4),
+            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap().round(2),
             unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap(),
-            settlement_price: BigDecimal::from_f64(settlement_price).unwrap(),
+            settlement_price: BigDecimal::from_f64(settlement_price).unwrap().round(2),
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
             entry_sequence: entry_sequence as i64,
