@@ -869,6 +869,7 @@ impl BtcUsdPrice {
                 FROM generate_series('{}', now(), {}) t(timestamp)
                 LEFT JOIN trader_order c
                 ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {}
+                WHERE c.order_status IN ('FILLED', 'SETTLED', 'LIQUIDATE')
             ) as sq
             GROUP BY window_start
         "#,
