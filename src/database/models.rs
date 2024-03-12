@@ -11,7 +11,7 @@ use crate::rpc::{
     TradeVolumeArgs, TransactionHashArgs,
 };
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
-use chrono::prelude::*;
+use chrono::{DurationRound, prelude::*};
 use diesel::pg::Pg;
 use diesel::prelude::*;
 use itertools::join;
@@ -795,6 +795,8 @@ pub struct BtcUsdPrice {
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName)]
 pub struct CandleData {
     #[diesel(sql_type = diesel::sql_types::Timestamptz)]
+    pub updated_at: DateTime<Utc>,
+    #[diesel(sql_type = diesel::sql_types::Timestamptz)]
     pub start: DateTime<Utc>,
     #[diesel(sql_type = diesel::sql_types::Timestamptz)]
     pub end: DateTime<Utc>,
@@ -852,6 +854,8 @@ impl BtcUsdPrice {
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> QueryResult<Vec<CandleData>> {
+        let start = since.duration_trunc(interval.duration()).unwrap();
+
         let interval = interval.interval_sql();
 
         let trader_subquery = format!(
@@ -872,15 +876,15 @@ impl BtcUsdPrice {
             ) as sq
             GROUP BY window_start
         "#,
-            since, interval, interval
+            start, interval, interval
         );
 
         let ohlc_subquery = format!(
             r#"
             SELECT
                 window_ts,
-                min(timestamp) as start,
-                max(timestamp) as end,
+                window_ts as start,
+                window_ts + {} as end,
                 min(open) as open,
                 min(close) as close,
                 max(price) as high,
@@ -898,7 +902,7 @@ impl BtcUsdPrice {
             WHERE open IS NOT NULL
             GROUP BY window_ts
         "#,
-            since, interval, interval
+            interval, start, interval, interval
         );
 
         let query = format!(
@@ -909,6 +913,7 @@ impl BtcUsdPrice {
                     {}
                 )
         SELECT
+            now() as updated_at,
             ohlc.start,
             ohlc.end,
             ohlc.open,
