@@ -872,7 +872,7 @@ impl BtcUsdPrice {
                     coalesce(c.positionsize, 0) as positionsize
                 FROM generate_series('{}', now(), {}) t(timestamp)
                 LEFT JOIN trader_order c
-                ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {}
+                ON c.timestamp >= t.timestamp AND c.timestamp < t.timestamp + {}
             ) as sq
             GROUP BY window_start
         "#,
@@ -897,7 +897,7 @@ impl BtcUsdPrice {
                      first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp desc) AS close
                 FROM generate_series('{}', now(), {}) t(timestamp)
                 LEFT JOIN btc_usd_price c
-                ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {} 
+                ON c.timestamp >= t.timestamp AND c.timestamp < t.timestamp + {} 
             ) as w
             WHERE open IS NOT NULL
             GROUP BY window_ts
