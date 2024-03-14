@@ -1,7 +1,7 @@
 use crate::{
     database::{BtcUsdPrice, TraderOrder},
     error::ApiError,
-    rpc::CandleSubscription,
+    rpc::{CandleSubscription, Interval},
 };
 use chrono::prelude::*;
 use jsonrpsee::{
@@ -63,11 +63,24 @@ pub(super) fn candle_update(
     sink.accept()?;
 
     let CandleSubscription { interval } = params.parse()?;
-
+    let time = match interval {
+        Interval::ONE_MINUTE => chrono::Duration::minutes(1),
+        Interval::FIVE_MINUTE => chrono::Duration::minutes(5),
+        Interval::FIFTEEN_MINUTE => chrono::Duration::minutes(15),
+        Interval::THIRTY_MINUTE => chrono::Duration::minutes(30),
+        Interval::ONE_HOUR => chrono::Duration::minutes(60),
+        Interval::FOUR_HOUR => chrono::Duration::hours(4),
+        Interval::EIGHT_HOUR => chrono::Duration::hours(8),
+        Interval::TWELVE_HOUR => chrono::Duration::hours(12),
+        Interval::ONE_DAY => chrono::Duration::hours(24),
+        _ => chrono::Duration::minutes(1),
+    };
     let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
         loop {
             let mut conn = ctx.pool.get()?;
-            let since = Utc::now() - chrono::Duration::milliseconds(250);
+            let time_now = Utc::now();
+            let time_interval = time_now.second() as i64;
+            let since = Utc::now() - chrono::Duration::seconds(time_interval);
             let candles = BtcUsdPrice::candles(&mut conn, interval.clone(), since, None, None)?;
 
             let result = serde_json::to_value(&candles)?;
