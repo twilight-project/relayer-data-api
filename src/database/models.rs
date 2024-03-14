@@ -792,7 +792,7 @@ pub struct BtcUsdPrice {
     pub timestamp: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Queryable, QueryableByName)]
 pub struct CandleData {
     #[diesel(sql_type = diesel::sql_types::Timestamptz)]
     pub start: DateTime<Utc>,

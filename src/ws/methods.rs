@@ -1,5 +1,5 @@
 use crate::{
-    database::{BtcUsdPrice, TraderOrder},
+    database::{BtcUsdPrice, CandleData, TraderOrder},
     error::ApiError,
     rpc::{CandleSubscription, Interval},
 };
@@ -63,35 +63,41 @@ pub(super) fn candle_update(
     sink.accept()?;
 
     let CandleSubscription { interval } = params.parse()?;
-    let time = match interval {
-        Interval::ONE_MINUTE => chrono::Duration::minutes(1),
-        Interval::FIVE_MINUTE => chrono::Duration::minutes(5),
-        Interval::FIFTEEN_MINUTE => chrono::Duration::minutes(15),
-        Interval::THIRTY_MINUTE => chrono::Duration::minutes(30),
-        Interval::ONE_HOUR => chrono::Duration::minutes(60),
-        Interval::FOUR_HOUR => chrono::Duration::hours(4),
-        Interval::EIGHT_HOUR => chrono::Duration::hours(8),
-        Interval::TWELVE_HOUR => chrono::Duration::hours(12),
-        Interval::ONE_DAY => chrono::Duration::hours(24),
-        _ => chrono::Duration::minutes(1),
-    };
+    // let time = match interval {
+    //     Interval::ONE_MINUTE => chrono::Duration::minutes(1),
+    //     Interval::FIVE_MINUTE => chrono::Duration::minutes(5),
+    //     Interval::FIFTEEN_MINUTE => chrono::Duration::minutes(15),
+    //     Interval::THIRTY_MINUTE => chrono::Duration::minutes(30),
+    //     Interval::ONE_HOUR => chrono::Duration::minutes(60),
+    //     Interval::FOUR_HOUR => chrono::Duration::hours(4),
+    //     Interval::EIGHT_HOUR => chrono::Duration::hours(8),
+    //     Interval::TWELVE_HOUR => chrono::Duration::hours(12),
+    //     Interval::ONE_DAY => chrono::Duration::hours(24),
+    //     _ => chrono::Duration::minutes(1),
+    // };
+    // let mut last_candle_vec: Vec<CandleData> = Vec::new();
     let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
         loop {
             let mut conn = ctx.pool.get()?;
-            let time_now = Utc::now();
-            let time_interval = time_now.second() as i64;
-            let since = Utc::now() - chrono::Duration::seconds(time_interval);
+            // let time_now = Utc::now();
+            // let time_interval = chrono::Duration::seconds(time_now.second() as i64)
+            //     + chrono::Duration::milliseconds(time_now.timestamp_millis() as i64)
+            //     + chrono::Duration::microseconds(time_now.timestamp_micros() as i64)
+            //     + chrono::Duration::nanoseconds(time_now.timestamp_nanos() as i64);
+            let since = Utc::now() - chrono::Duration::minutes(1);
             let candles = BtcUsdPrice::candles(&mut conn, interval.clone(), since, None, None)?;
 
             let result = serde_json::to_value(&candles)?;
 
             if candles.len() > 0 {
+                // if candles.len() > 0 && candles != last_candle_vec {
+                // last_candle_vec = candles;
                 if let Err(e) = sink.send(&result) {
                     error!("Error sending candle updates: {:?}", e);
                 }
-                sleep(Duration::from_millis(250)).await;
+                sleep(Duration::from_millis(500)).await;
             } else {
-                sleep(Duration::from_millis(100)).await;
+                sleep(Duration::from_millis(300)).await;
                 continue;
             }
         }
