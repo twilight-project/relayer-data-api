@@ -79,26 +79,18 @@ pub(super) fn candle_update(
     let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
         loop {
             let mut conn = ctx.pool.get()?;
-            // let time_now = Utc::now();
-            // let time_interval = chrono::Duration::seconds(time_now.second() as i64)
-            //     + chrono::Duration::milliseconds(time_now.timestamp_millis() as i64)
-            //     + chrono::Duration::microseconds(time_now.timestamp_micros() as i64)
-            //     + chrono::Duration::nanoseconds(time_now.timestamp_nanos() as i64);
-            let since = Utc::now() - chrono::Duration::minutes(1);
+            let since = Utc::now() - chrono::Duration::milliseconds(250);
             let candles = BtcUsdPrice::candles(&mut conn, interval.clone(), since, None, None)?;
 
             let result = serde_json::to_value(&candles)?;
 
             if candles.len() > 0 {
-                // if candles.len() > 0 && candles != last_candle_vec {
-                // last_candle_vec = candles;
                 if let Err(e) = sink.send(&result) {
                     error!("Error sending candle updates: {:?}", e);
                 }
-                sleep(Duration::from_millis(500)).await;
+                sleep(Duration::from_millis(250)).await;
             } else {
-                sleep(Duration::from_millis(300)).await;
-                continue;
+                sleep(Duration::from_millis(100)).await;
             }
         }
         Ok(())

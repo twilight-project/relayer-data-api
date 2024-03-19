@@ -13,7 +13,7 @@
 // •	Server Time
 use crate::auth::UserInfo;
 use crate::database::OrderStatus;
-use chrono::prelude::*;
+use chrono::{Duration, prelude::*};
 use relayerwalletlib::zkoswalletlib::relayer_types::{OrderType, PositionType};
 use serde::{Deserialize, Serialize};
 
@@ -234,6 +234,20 @@ pub enum Interval {
 }
 
 impl Interval {
+    pub fn duration(&self) -> Duration {
+        match self {
+            Interval::ONE_MINUTE => Duration::minutes(1),
+            Interval::FIVE_MINUTE => Duration::minutes(5),
+            Interval::FIFTEEN_MINUTE => Duration::minutes(15),
+            Interval::THIRTY_MINUTE => Duration::minutes(30),
+            Interval::ONE_HOUR => Duration::hours(1),
+            Interval::FOUR_HOUR => Duration::hours(4),
+            Interval::EIGHT_HOUR => Duration::hours(8),
+            Interval::TWELVE_HOUR => Duration::hours(12),
+            Interval::ONE_DAY => Duration::days(1),
+        }
+    }
+
     pub fn interval_sql(&self) -> String {
         match self {
             Interval::ONE_MINUTE => "'1 minute'",
