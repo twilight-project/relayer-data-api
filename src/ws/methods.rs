@@ -63,19 +63,6 @@ pub(super) fn candle_update(
     sink.accept()?;
 
     let CandleSubscription { interval } = params.parse()?;
-    // let time = match interval {
-    //     Interval::ONE_MINUTE => chrono::Duration::minutes(1),
-    //     Interval::FIVE_MINUTE => chrono::Duration::minutes(5),
-    //     Interval::FIFTEEN_MINUTE => chrono::Duration::minutes(15),
-    //     Interval::THIRTY_MINUTE => chrono::Duration::minutes(30),
-    //     Interval::ONE_HOUR => chrono::Duration::minutes(60),
-    //     Interval::FOUR_HOUR => chrono::Duration::hours(4),
-    //     Interval::EIGHT_HOUR => chrono::Duration::hours(8),
-    //     Interval::TWELVE_HOUR => chrono::Duration::hours(12),
-    //     Interval::ONE_DAY => chrono::Duration::hours(24),
-    //     _ => chrono::Duration::minutes(1),
-    // };
-    // let mut last_candle_vec: Vec<CandleData> = Vec::new();
     let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
         loop {
             let mut conn = ctx.pool.get()?;
@@ -90,7 +77,7 @@ pub(super) fn candle_update(
                 }
                 sleep(Duration::from_millis(250)).await;
             } else {
-                sleep(Duration::from_millis(100)).await;
+                sleep(Duration::from_millis(200)).await;
             }
         }
         Ok(())
