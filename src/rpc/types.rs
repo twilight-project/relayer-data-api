@@ -231,6 +231,7 @@ pub enum Interval {
     EIGHT_HOUR,
     TWELVE_HOUR,
     ONE_DAY,
+    ONE_DAY_CHNAGE,
 }
 
 impl Interval {
@@ -245,6 +246,7 @@ impl Interval {
             Interval::EIGHT_HOUR => Duration::hours(8),
             Interval::TWELVE_HOUR => Duration::hours(12),
             Interval::ONE_DAY => Duration::days(1),
+            Interval::ONE_DAY_CHNAGE => Duration::days(1),
         }
     }
 
@@ -259,6 +261,7 @@ impl Interval {
             Interval::EIGHT_HOUR => "'8 hours'",
             Interval::TWELVE_HOUR => "'12 hours'",
             Interval::ONE_DAY => "'1 day'",
+            Interval::ONE_DAY_CHNAGE => "'1 day'",
         }
         .into()
     }

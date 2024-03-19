@@ -11,7 +11,7 @@ use crate::rpc::{
     TradeVolumeArgs, TransactionHashArgs,
 };
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
-use chrono::{DurationRound, prelude::*};
+use chrono::{prelude::*, DurationRound};
 use diesel::pg::Pg;
 use diesel::prelude::*;
 use itertools::join;
@@ -854,8 +854,17 @@ impl BtcUsdPrice {
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> QueryResult<Vec<CandleData>> {
-        let start = since.duration_trunc(interval.duration()).unwrap();
-
+        let start: DateTime<Utc>;
+        // temp for 24 hour candle change
+        // need to create new api for 24hour candle change data
+        match interval {
+            Interval::ONE_DAY_CHNAGE => {
+                start = since + chrono::Duration::seconds(5);
+            }
+            _ => {
+                start = since.duration_trunc(interval.duration()).unwrap();
+            }
+        }
         let interval = interval.interval_sql();
 
         let trader_subquery = format!(
