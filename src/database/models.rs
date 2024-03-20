@@ -858,7 +858,7 @@ impl BtcUsdPrice {
         // temp for 24 hour candle change
         // need to create new api for 24hour candle change data
         match interval {
-            Interval::ONE_DAY_CHNAGE => {
+            Interval::ONE_DAY_CHANGE => {
                 start = since + chrono::Duration::seconds(5);
             }
             _ => {
