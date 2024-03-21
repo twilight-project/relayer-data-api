@@ -66,7 +66,10 @@ pub(super) fn candle_update(
     let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
         loop {
             let mut conn = ctx.pool.get()?;
-            let since = Utc::now() - chrono::Duration::milliseconds(250);
+            let since: DateTime<Utc> = match interval {
+                Interval::ONE_DAY_CHANGE => Utc::now() - chrono::Duration::hours(24),
+                _ => Utc::now() - chrono::Duration::milliseconds(250),
+            };
             let candles = BtcUsdPrice::candles(&mut conn, interval.clone(), since, None, None)?;
 
             let result = serde_json::to_value(&candles)?;
