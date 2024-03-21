@@ -55,10 +55,12 @@ async fn main() {
 
     // TODO: env var
     let middleware = ServiceBuilder::new().layer(cors);
+    let ping_interval = Duration::from_secs(300);
 
     info!("Starting public RPC server on {:?}", opts.public_rpc);
     let addrs: &[SocketAddr] = &[opts.public_rpc];
     let public_server = ServerBuilder::new()
+        .ping_interval(ping_interval)
         .set_middleware(middleware.clone())
         .build(addrs)
         .await
@@ -72,6 +74,7 @@ async fn main() {
     info!("Starting private RPC server on {:?}", opts.private_rpc);
     let addrs: &[SocketAddr] = &[opts.private_rpc];
     let private_server = ServerBuilder::new()
+        .ping_interval(ping_interval)
         .set_middleware(middleware.clone())
         .build(addrs)
         .await
