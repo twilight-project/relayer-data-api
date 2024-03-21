@@ -78,9 +78,16 @@ pub(super) fn candle_update(
                 if let Err(e) = sink.send(&result) {
                     error!("Error sending candle updates: {:?}", e);
                 }
-                sleep(Duration::from_millis(250)).await;
+                match interval {
+                    Interval::ONE_DAY_CHANGE => {
+                        sleep(Duration::from_millis(1000)).await;
+                    }
+                    _ => {
+                        sleep(Duration::from_millis(250)).await;
+                    }
+                };
             } else {
-                sleep(Duration::from_millis(200)).await;
+                sleep(Duration::from_millis(250)).await;
             }
         }
         Ok(())
