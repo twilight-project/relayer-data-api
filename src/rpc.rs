@@ -104,6 +104,11 @@ pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
         "trader_order_info",
         Box::new(public_methods::trader_order_info),
     );
+    register_method(
+        &mut module,
+        "lend_order_info",
+        Box::new(public_methods::lend_order_info),
+    );
     module
 }
 

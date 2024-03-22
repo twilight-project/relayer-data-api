@@ -1692,6 +1692,14 @@ impl LendOrder {
             .order(timestamp.desc())
             .first(conn)
     }
+    pub fn get_by_signature(conn: &mut PgConnection, accountid: String) -> QueryResult<LendOrder> {
+        use crate::database::schema::lend_order::dsl::*;
+
+        lend_order
+            .filter(account_id.eq(accountid))
+            .order(timestamp.desc())
+            .first(conn)
+    }
 
     pub fn insert(conn: &mut PgConnection, orders: Vec<InsertLendOrder>) -> QueryResult<usize> {
         use crate::database::schema::lend_order::dsl::*;
