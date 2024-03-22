@@ -1,11 +1,11 @@
 use jsonrpsee::server::ServerBuilder;
 use log::info;
+use relayerarchiverlib::{rpc, ws};
 use std::{net::SocketAddr, time::Duration};
 use structopt::StructOpt;
 use tokio::time::sleep;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
-use twilight_relayerAPI::{rpc, ws};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Relayer API", about = "Twilight Relayer API server")]

@@ -1,6 +1,6 @@
 use crate::database::{NewOrderBookOrder, TraderOrder};
 use crate::kafka::start_consumer;
-use bigdecimal::ToPrimitive;
+// use bigdecimal::ToPrimitive;
 use chrono::prelude::*;
 use crossbeam_channel::{unbounded, Sender as CrossbeamSender};
 use diesel::prelude::PgConnection;
@@ -8,7 +8,7 @@ use diesel::r2d2::ConnectionManager;
 use jsonrpsee::RpcModule;
 use log::{error, info, trace};
 use relayerwalletlib::zkoswalletlib::relayer_types::{OrderStatus, OrderType};
-use serde::{Deserialize, Serialize};
+// use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use tokio::{
     sync::broadcast::{channel, Sender},
@@ -78,7 +78,7 @@ impl WsContext {
 
                                     match to.order_status {
                                         OrderStatus::PENDING | OrderStatus::FILLED => {
-                                            recent_trades2.send(to);
+                                            let _ = recent_trades2.send(to);
                                         }
                                         _ => {}
                                     }
@@ -194,15 +194,15 @@ pub fn init_methods(database_url: &str) -> RpcModule<WsContext> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use jsonrpsee::{
-        core::{
-            client::ClientT,
-            params::{ArrayParams, ObjectParams},
-        },
-        http_client::HttpClientBuilder,
-        server::ServerBuilder,
-    };
+    // use super::*;
+    // use jsonrpsee::{
+    //     core::{
+    //         client::ClientT,
+    //         params::{ArrayParams, ObjectParams},
+    //     },
+    //     http_client::HttpClientBuilder,
+    //     server::ServerBuilder,
+    // };
 
     // #[tokio::test]
     // async fn test_hello() {

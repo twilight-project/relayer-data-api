@@ -158,7 +158,7 @@ pub(super) fn trader_order_info(
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<Order> = params.parse()?;
     // let (order) = args.unpack();
-    let (customer_id, order) = args.unpack();
+    let (_customer_id, order) = args.unpack();
     let Order { data } = order;
 
     let Ok(bytes) = hex::decode(&data) else {

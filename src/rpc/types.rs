@@ -14,7 +14,6 @@
 use crate::auth::UserInfo;
 use crate::database::OrderStatus;
 use chrono::{prelude::*, Duration};
-use relayerwalletlib::zkoswalletlib::relayer_types::{OrderType, PositionType};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
