@@ -1,5 +1,6 @@
+#[allow(unreachable_code)]
 use crate::{
-    database::{BtcUsdPrice, CandleData, TraderOrder},
+    database::{BtcUsdPrice, TraderOrder},
     error::ApiError,
     rpc::{CandleSubscription, Interval},
 };
@@ -10,10 +11,7 @@ use jsonrpsee::{
 };
 use log::{error, info, warn};
 use serde::Serialize;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 use tokio::{
     sync::broadcast::{error::TryRecvError, Receiver},
     task::JoinHandle,
@@ -107,7 +105,7 @@ pub(super) fn spawn_order_book(
     let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
         loop {
             match rx.try_recv() {
-                Ok(mesg) => {
+                Ok(_mesg) => {
                     let mut conn = ctx.pool.get()?;
                     let orders = TraderOrder::order_book(&mut conn)?;
                     let result = serde_json::to_value(&orders)?;
@@ -138,7 +136,7 @@ pub(super) fn spawn_order_book(
 pub(super) fn heartbeat(
     _params: Params<'_>,
     mut sink: SubscriptionSink,
-    ctx: Arc<WsContext>,
+    _ctx: Arc<WsContext>,
 ) -> SubscriptionResult {
     sink.accept()?;
 

@@ -1,7 +1,7 @@
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
-use kafka::producer::{Producer, Record, RequiredAcks};
+use kafka::producer::{Producer, RequiredAcks};
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
@@ -99,6 +99,16 @@ pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
         "transaction_hashes",
         Box::new(public_methods::transaction_hashes),
     );
+    register_method(
+        &mut module,
+        "trader_order_info",
+        Box::new(public_methods::trader_order_info),
+    );
+    register_method(
+        &mut module,
+        "lend_order_info",
+        Box::new(public_methods::lend_order_info),
+    );
     module
 }
 
@@ -108,7 +118,7 @@ pub fn init_private_methods(database_url: &str) -> RpcModule<RelayerContext> {
 
     let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
     let broker = vec![broker_host.to_owned()];
-    let mut kafka = Producer::from_hosts(broker)
+    let kafka = Producer::from_hosts(broker)
         .with_ack_timeout(Duration::from_secs(1))
         .with_required_acks(RequiredAcks::One)
         .create()

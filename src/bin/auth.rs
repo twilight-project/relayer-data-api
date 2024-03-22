@@ -4,14 +4,14 @@ use hmac::{Hmac, Mac};
 use http::{Request, StatusCode};
 use hyper::{body::to_bytes, server::Server, Body, Response};
 use log::debug;
-use serde::{Deserialize, Serialize};
-use sha2::Sha256;
-use std::net::SocketAddr;
-use tower::{make::Shared, ServiceBuilder};
-use twilight_relayerAPI::{
+use relayerarchiverlib::{
     auth::{AuthInfo, UserInfo},
     database::{AddressCustomerId, CustomerApiKeyLinking},
 };
+use serde::Deserialize;
+use sha2::Sha256;
+use std::net::SocketAddr;
+use tower::{make::Shared, ServiceBuilder};
 use verify_keplr_sign::{verify_arbitrary, Signature};
 
 type HS = Hmac<Sha256>;
@@ -48,7 +48,7 @@ async fn verify_signature(request: Request<Body>) -> VerifyResult {
         data,
     } = match serde_json::from_slice(&request) {
         Ok(auth) => auth,
-        Err(e) => return VerifyResult::InvalidJson,
+        Err(_e) => return VerifyResult::InvalidJson,
     };
 
     let is_ok = verify_arbitrary(
@@ -69,7 +69,7 @@ async fn register_handler(account_address: String) -> Result<Response<Body>, htt
     let database_url = std::env::var("DATABASE_URL").expect("No database url set!");
     let mut conn = match PgConnection::establish(&database_url) {
         Ok(c) => c,
-        Err(e) => {
+        Err(_e) => {
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body("Internal db error".into());
@@ -83,7 +83,7 @@ async fn register_handler(account_address: String) -> Result<Response<Body>, htt
                 "User already registered, call /regenerate if you need a new API key".into(),
             );
         }
-        Err(e) => {
+        Err(_e) => {
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body("Internal db error".into());
@@ -92,7 +92,7 @@ async fn register_handler(account_address: String) -> Result<Response<Body>, htt
 
     let (api_key, api_secret) = match CustomerApiKeyLinking::create(&mut conn, customer_id) {
         Ok(link) => (link.api_key, link.api_salt_key),
-        Err(e) => {
+        Err(_e) => {
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body("Internal db error".into());
@@ -114,7 +114,7 @@ async fn regenerate_handler(address: String) -> Result<Response<Body>, http::Err
     let database_url = std::env::var("DATABASE_URL").expect("No database url set!");
     let mut conn = match PgConnection::establish(&database_url) {
         Ok(c) => c,
-        Err(e) => {
+        Err(_e) => {
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body("Internal db error".into());
@@ -128,7 +128,7 @@ async fn regenerate_handler(address: String) -> Result<Response<Body>, http::Err
                 .status(StatusCode::NOT_FOUND)
                 .body("User not found, please call /register".into());
         }
-        Err(e) => {
+        Err(_e) => {
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body("Internal db error".into());
@@ -137,7 +137,7 @@ async fn regenerate_handler(address: String) -> Result<Response<Body>, http::Err
 
     let (api_key, api_secret) = match CustomerApiKeyLinking::regenerate(&mut conn, customer_id) {
         Ok(link) => (link.api_key, link.api_salt_key),
-        Err(e) => {
+        Err(_e) => {
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body("Internal db error".into());
@@ -159,7 +159,7 @@ async fn check_signature(request: Request<Body>) -> Result<Response<Body>, http:
     let database_url = std::env::var("DATABASE_URL").expect("No database url set!");
     let mut conn = match PgConnection::establish(&database_url) {
         Ok(c) => c,
-        Err(e) => {
+        Err(_e) => {
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body("Internal db error".into());
@@ -174,12 +174,12 @@ async fn check_signature(request: Request<Body>) -> Result<Response<Body>, http:
         api_key,
         sig,
         body,
-        datetime,
+        datetime: _,
     } = serde_json::from_slice(&request).expect("f");
 
     let key = match CustomerApiKeyLinking::get_key(&mut conn, api_key) {
         Ok(k) => k,
-        Err(e) => {
+        Err(_e) => {
             return Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
                 .body("No customer with that key".into());

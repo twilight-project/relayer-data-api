@@ -7,7 +7,6 @@ use crate::database::schema::sql_types::{
 };
 use diesel::*;
 use diesel::{
-    backend::Backend,
     deserialize::FromSql,
     pg::Pg,
     serialize::{self, IsNull, Output, ToSql},
@@ -15,7 +14,6 @@ use diesel::{
 use relayerwalletlib::zkoswalletlib::relayer_types;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use twilight_relayer_rust::relayer;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum TXType {

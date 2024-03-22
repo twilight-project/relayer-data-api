@@ -1,9 +1,7 @@
 use super::*;
-use crate::{auth::AuthInfo, database::*};
-use chrono::prelude::*;
+use crate::database::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
 use kafka::producer::Record;
-use log::info;
 use relayerwalletlib::verify_client_message::{
     verify_query_order, verify_settle_requests, verify_trade_lend_order,
 };
@@ -403,12 +401,12 @@ pub(super) fn lend_order_info(
     }
 }
 
-pub(super) fn last_day_apy(
-    _: Params<'_>,
-    ctx: &RelayerContext,
-) -> Result<serde_json::Value, Error> {
-    todo!("APY")
-}
+// pub(super) fn last_day_apy(
+//     _: Params<'_>,
+//     ctx: &RelayerContext,
+// ) -> Result<serde_json::Value, Error> {
+//     todo!("APY")
+// }
 
 pub(super) fn unrealized_pnl(
     params: Params<'_>,
@@ -431,7 +429,7 @@ pub(super) fn open_orders(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: RpcArgs<()> = params.parse()?;
-    let (id, params) = args.unpack();
+    let (id, _params) = args.unpack();
 
     match ctx.pool.get() {
         Ok(mut conn) => match TraderOrder::open_orders(&mut conn, id) {

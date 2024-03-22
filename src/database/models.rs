@@ -12,7 +12,7 @@ use crate::rpc::{
 };
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
 use chrono::{prelude::*, DurationRound};
-use diesel::pg::Pg;
+// use diesel::pg::Pg;
 use diesel::prelude::*;
 use itertools::join;
 use serde::{Deserialize, Serialize};
@@ -1262,6 +1262,25 @@ impl TraderOrder {
             .order(timestamp.desc())
             .first(conn)
     }
+    pub fn get_by_signature(
+        conn: &mut PgConnection,
+        accountid: String,
+    ) -> QueryResult<TraderOrder> {
+        use crate::database::schema::trader_order::dsl::*;
+        trader_order
+            .filter(account_id.eq(accountid))
+            .order(timestamp.desc())
+            .first(conn)
+    }
+    pub fn get_by_uuid(conn: &mut PgConnection, order_id: String) -> QueryResult<TraderOrder> {
+        // use crate::database::schema::address_customer_id::dsl as addr_dsl;
+        use crate::database::schema::trader_order::dsl::*;
+
+        trader_order
+            .filter(uuid.eq(order_id))
+            .order(timestamp.desc())
+            .first(conn)
+    }
 
     pub fn insert(conn: &mut PgConnection, orders: Vec<InsertTraderOrder>) -> QueryResult<usize> {
         use crate::database::schema::trader_order::dsl::*;
@@ -1415,7 +1434,7 @@ impl TraderOrder {
         args: TradeVolumeArgs,
     ) -> QueryResult<f64> {
         use crate::database::schema::address_customer_id::dsl as acct_dsl;
-        use crate::database::schema::trader_order::dsl::*;
+        // use crate::database::schema::trader_order::dsl::*;
 
         let accounts: Vec<AddressCustomerId> = acct_dsl::address_customer_id
             .filter(acct_dsl::customer_id.eq(customer_id))
@@ -1441,8 +1460,8 @@ impl TraderOrder {
     }
 
     pub fn order_book(conn: &mut PgConnection) -> QueryResult<OrderBook> {
-        use crate::database::schema::trader_order::dsl::*;
-        use diesel::dsl::{max, sum};
+        // use crate::database::schema::trader_order::dsl::*;
+        // use diesel::dsl::{max, sum};
 
         let query = r#"
             WITH orders AS (
@@ -1513,7 +1532,7 @@ impl TraderOrder {
 
     pub fn open_orders(conn: &mut PgConnection, customer_id: i64) -> QueryResult<Vec<TraderOrder>> {
         use crate::database::schema::address_customer_id::dsl as acct_dsl;
-        use crate::database::schema::trader_order::dsl::*;
+        // use crate::database::schema::trader_order::dsl::*;
 
         let account: Vec<AddressCustomerId> = acct_dsl::address_customer_id
             .filter(acct_dsl::customer_id.eq(customer_id))
@@ -1542,7 +1561,7 @@ impl TraderOrder {
     }
 
     pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<RecentOrder>> {
-        use crate::database::schema::trader_order::dsl::*;
+        // use crate::database::schema::trader_order::dsl::*;
 
         let query = r#"SELECT
             trader_order.position_type as side,
@@ -1670,6 +1689,14 @@ impl LendOrder {
 
         lend_order
             .filter(uuid.eq(params.id).and(account_id.eq_any(accounts)))
+            .order(timestamp.desc())
+            .first(conn)
+    }
+    pub fn get_by_signature(conn: &mut PgConnection, accountid: String) -> QueryResult<LendOrder> {
+        use crate::database::schema::lend_order::dsl::*;
+
+        lend_order
+            .filter(account_id.eq(accountid))
             .order(timestamp.desc())
             .first(conn)
     }
