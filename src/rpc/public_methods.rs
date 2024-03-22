@@ -2,7 +2,8 @@ use super::*;
 use crate::database::*;
 use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
-
+use relayerwalletlib::verify_client_message::verify_query_order;
+use twilight_relayer_rust::relayer;
 pub(super) fn btc_usd_price(
     _: Params<'_>,
     ctx: &RelayerContext,
@@ -149,4 +150,39 @@ pub(super) fn transaction_hashes(
 
 pub(super) fn server_time(_: Params<'_>, _: &RelayerContext) -> Result<serde_json::Value, Error> {
     Ok(serde_json::to_value(Utc::now()).expect("Failed to get timestamp"))
+}
+
+pub(super) fn trader_order_info(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let args: RpcArgs<Order> = params.parse()?;
+    // let (order) = args.unpack();
+    let (customer_id, order) = args.unpack();
+    let Order { data } = order;
+
+    let Ok(bytes) = hex::decode(&data) else {
+        return Ok(format!("Invalid hex data").into());
+    };
+
+    let Ok(tx) = bincode::deserialize::<relayer::QueryTraderOrderZkos>(&bytes) else {
+        return Ok(format!("Invalid bincode").into());
+    };
+
+    if let Err(_) = verify_query_order(
+        tx.msg.clone(),
+        &bincode::serialize(&tx.query_trader_order).unwrap(),
+    ) {
+        return Ok(format!("Invalid order params").into());
+    }
+
+    match ctx.pool.get() {
+        Ok(mut conn) => {
+            match TraderOrder::get_by_signature(&mut conn, tx.query_trader_order.account_id) {
+                Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+                Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
+            }
+        }
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
 }

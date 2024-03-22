@@ -99,6 +99,11 @@ pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
         "transaction_hashes",
         Box::new(public_methods::transaction_hashes),
     );
+    register_method(
+        &mut module,
+        "trader_order_info",
+        Box::new(public_methods::trader_order_info),
+    );
     module
 }
 

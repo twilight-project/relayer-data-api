@@ -1249,6 +1249,16 @@ impl TraderOrder {
             .order(timestamp.desc())
             .first(conn)
     }
+    pub fn get_by_signature(
+        conn: &mut PgConnection,
+        account_id: String,
+    ) -> QueryResult<TraderOrder> {
+        use crate::database::schema::trader_order::dsl::*;
+        trader_order
+            .filter(account_id.eq(account_id))
+            .order(timestamp.desc())
+            .first(conn)
+    }
     pub fn get_by_uuid(conn: &mut PgConnection, order_id: String) -> QueryResult<TraderOrder> {
         use crate::database::schema::address_customer_id::dsl as addr_dsl;
         use crate::database::schema::trader_order::dsl::*;
