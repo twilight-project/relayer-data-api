@@ -156,26 +156,20 @@ pub(super) fn trader_order_info(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args: RpcArgs<Order> = params.parse()?;
-    // let (order) = args.unpack();
-    let (_customer_id, order) = args.unpack();
-    let Order { data } = order;
-
+    let Order { data } = params.parse()?;
     let Ok(bytes) = hex::decode(&data) else {
         return Ok(format!("Invalid hex data").into());
     };
-
+    // println!("bytes:{:?}", bytes);
     let Ok(tx) = bincode::deserialize::<relayer::QueryTraderOrderZkos>(&bytes) else {
         return Ok(format!("Invalid bincode").into());
     };
-
-    if let Err(_) = verify_query_order(
+    if let Err(arg) = verify_query_order(
         tx.msg.clone(),
         &bincode::serialize(&tx.query_trader_order).unwrap(),
     ) {
-        return Ok(format!("Invalid order params").into());
+        return Ok(format!("Invalid order params:{:?}", arg).into());
     }
-
     match ctx.pool.get() {
         Ok(mut conn) => {
             match TraderOrder::get_by_signature(&mut conn, tx.query_trader_order.account_id) {
