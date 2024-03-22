@@ -11,7 +11,7 @@ use crate::rpc::{
     TradeVolumeArgs, TransactionHashArgs,
 };
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
-use chrono::prelude::*;
+use chrono::{prelude::*, DurationRound};
 use diesel::pg::Pg;
 use diesel::prelude::*;
 use itertools::join;
@@ -482,12 +482,12 @@ fn lend_pool_to_batch(
     pool_nonce: &mut Nonce,
 ) -> Vec<LendPoolCommandUpdate> {
     match item {
-        relayer_db::LendPoolCommand::AddTraderOrderSettlement(_, order, p) => {
+        relayer_db::LendPoolCommand::AddTraderOrderSettlement(_, order, p, _) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::ADD_TRADER_ORDER_SETTLEMENT, uuid, pay).into()]
         }
-        relayer_db::LendPoolCommand::AddTraderLimitOrderSettlement(_, order, p) => {
+        relayer_db::LendPoolCommand::AddTraderLimitOrderSettlement(_, order, p, _) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
             let uuid = order.uuid.to_string();
             vec![(
@@ -507,12 +507,12 @@ fn lend_pool_to_batch(
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::ADD_TRADER_ORDER_LIQUIDATION, uuid, pay).into()]
         }
-        relayer_db::LendPoolCommand::LendOrderCreateOrder(_, order, p) => {
+        relayer_db::LendPoolCommand::LendOrderCreateOrder(_, order, p, _) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::LEND_ORDER_CREATE_ORDER, uuid, pay).into()]
         }
-        relayer_db::LendPoolCommand::LendOrderSettleOrder(_, order, p) => {
+        relayer_db::LendPoolCommand::LendOrderSettleOrder(_, order, p, _) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::LEND_ORDER_SETTLE_ORDER, uuid, pay).into()]
@@ -792,8 +792,10 @@ pub struct BtcUsdPrice {
     pub timestamp: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Queryable, QueryableByName)]
 pub struct CandleData {
+    #[diesel(sql_type = diesel::sql_types::Timestamptz)]
+    pub updated_at: DateTime<Utc>,
     #[diesel(sql_type = diesel::sql_types::Timestamptz)]
     pub start: DateTime<Utc>,
     #[diesel(sql_type = diesel::sql_types::Timestamptz)]
@@ -852,6 +854,17 @@ impl BtcUsdPrice {
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> QueryResult<Vec<CandleData>> {
+        let start: DateTime<Utc>;
+        // temp for 24 hour candle change
+        // need to create new api for 24hour candle change data
+        match interval {
+            Interval::ONE_DAY_CHANGE => {
+                start = since + chrono::Duration::seconds(5);
+            }
+            _ => {
+                start = since.duration_trunc(interval.duration()).unwrap();
+            }
+        }
         let interval = interval.interval_sql();
 
         let trader_subquery = format!(
@@ -868,19 +881,19 @@ impl BtcUsdPrice {
                     coalesce(c.positionsize, 0) as positionsize
                 FROM generate_series('{}', now(), {}) t(timestamp)
                 LEFT JOIN trader_order c
-                ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {}
+                ON c.timestamp >= t.timestamp AND c.timestamp < t.timestamp + {}
             ) as sq
             GROUP BY window_start
         "#,
-            since, interval, interval
+            start, interval, interval
         );
 
         let ohlc_subquery = format!(
             r#"
             SELECT
                 window_ts,
-                min(timestamp) as start,
-                max(timestamp) as end,
+                window_ts as start,
+                window_ts + {} as end,
                 min(open) as open,
                 min(close) as close,
                 max(price) as high,
@@ -893,12 +906,12 @@ impl BtcUsdPrice {
                      first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp desc) AS close
                 FROM generate_series('{}', now(), {}) t(timestamp)
                 LEFT JOIN btc_usd_price c
-                ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {} 
+                ON c.timestamp >= t.timestamp AND c.timestamp < t.timestamp + {} 
             ) as w
             WHERE open IS NOT NULL
             GROUP BY window_ts
         "#,
-            since, interval, interval
+            interval, start, interval, interval
         );
 
         let query = format!(
@@ -909,6 +922,7 @@ impl BtcUsdPrice {
                     {}
                 )
         SELECT
+            now() as updated_at,
             ohlc.start,
             ohlc.end,
             ohlc.open,
@@ -957,7 +971,7 @@ impl CurrentPriceUpdate {
         use crate::database::schema::btc_usd_price::dsl::*;
 
         let update = CurrentPriceUpdate {
-            price: BigDecimal::from_f64(current_price).unwrap(),
+            price: BigDecimal::from_f64(current_price).unwrap().round(2),
             timestamp: ts,
         };
 
@@ -1077,8 +1091,8 @@ impl FundingRateUpdate {
         use crate::database::schema::funding_rate::dsl::*;
 
         let update = FundingRateUpdate {
-            rate: BigDecimal::from_f64(r).unwrap(),
-            price: BigDecimal::from_f64(p).unwrap(),
+            rate: BigDecimal::from_f64(r).unwrap().round(6),
+            price: BigDecimal::from_f64(p).unwrap().round(2),
             timestamp: ts,
         };
 
@@ -1117,16 +1131,15 @@ pub struct TraderOrder {
     pub entry_sequence: i64,
 }
 
-#[derive(
-    Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable, Selectable, AsChangeset,
-)]
-#[diesel(table_name = trader_order)]
+#[derive(Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable)]
 pub struct RecentOrder {
-    #[column_name = "position_type"]
+    #[diesel(sql_type = crate::database::schema::sql_types::PositionType)]
     pub side: PositionType,
-    #[column_name = "execution_price"]
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
     pub price: BigDecimal,
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
     pub positionsize: BigDecimal,
+    #[diesel(sql_type = diesel::sql_types::Timestamptz)]
     pub timestamp: DateTime<Utc>,
 }
 
@@ -1550,14 +1563,35 @@ impl TraderOrder {
     pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<RecentOrder>> {
         use crate::database::schema::trader_order::dsl::*;
 
-        let query = r#"SELECT * FROM trader_order
+        let query = r#"SELECT
+            trader_order.position_type as side,
+            trader_order.entryprice as price,
+            trader_order.positionsize as positionsize,
+            trader_order.timestamp as timestamp
+            FROM trader_order
             INNER JOIN (
                 SELECT uuid,min(timestamp) AS timestamp
                 FROM trader_order GROUP BY uuid
             ) as t
             ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
             WHERE t.timestamp > now() - INTERVAL '1 day'
-            AND trader_order.order_status IN ('FILLED', 'SETTLED', 'LIQUIDATE')
+            AND trader_order.order_status = 'FILLED'
+
+            UNION ALL
+
+            SELECT
+                trader_order.position_type as side,
+                trader_order.settlement_price as price,
+                trader_order.positionsize as positionsize,
+                trader_order.timestamp as timestamp
+            FROM trader_order
+            INNER JOIN (
+                SELECT uuid,min(timestamp) AS timestamp
+                FROM trader_order GROUP BY uuid
+            ) as t
+            ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
+            WHERE t.timestamp > now() - INTERVAL '1 day'
+            AND trader_order.order_status IN ('SETTLED', 'LIQUIDATE')
         "#;
 
         diesel::sql_query(query).load(conn)
@@ -1702,21 +1736,21 @@ impl From<relayer::TraderOrder> for TraderOrder {
             order_status: order_status.into(),
             order_type: order_type.into(),
             // TODO: maybe a TryFrom impl instead...
-            entryprice: BigDecimal::from_f64(entryprice).unwrap(),
-            execution_price: BigDecimal::from_f64(execution_price).unwrap(),
+            entryprice: BigDecimal::from_f64(entryprice).unwrap().round(2),
+            execution_price: BigDecimal::from_f64(execution_price).unwrap().round(2),
             positionsize: BigDecimal::from_f64(positionsize).unwrap(),
             leverage: BigDecimal::from_f64(leverage).unwrap(),
             initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
-            available_margin: BigDecimal::from_f64(available_margin).unwrap(),
+            available_margin: BigDecimal::from_f64(available_margin).unwrap().round(4),
             timestamp: DateTime::parse_from_rfc3339(&timestamp)
                 .expect("Bad datetime format")
                 .into(),
-            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap(),
-            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap(),
-            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap(),
-            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap(),
-            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap(),
-            settlement_price: BigDecimal::from_f64(settlement_price).unwrap(),
+            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap().round(2),
+            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap().round(4),
+            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap().round(4),
+            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap().round(2),
+            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap().round(2),
+            settlement_price: BigDecimal::from_f64(settlement_price).unwrap().round(2),
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
             entry_sequence: entry_sequence as i64,
@@ -1756,21 +1790,21 @@ impl From<relayer::TraderOrder> for InsertTraderOrder {
             order_status: order_status.into(),
             order_type: order_type.into(),
             // TODO: maybe a TryFrom impl instead...
-            entryprice: BigDecimal::from_f64(entryprice).unwrap(),
-            execution_price: BigDecimal::from_f64(execution_price).unwrap(),
+            entryprice: BigDecimal::from_f64(entryprice).unwrap().round(2),
+            execution_price: BigDecimal::from_f64(execution_price).unwrap().round(2),
             positionsize: BigDecimal::from_f64(positionsize).unwrap(),
             leverage: BigDecimal::from_f64(leverage).unwrap(),
             initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
-            available_margin: BigDecimal::from_f64(available_margin).unwrap(),
+            available_margin: BigDecimal::from_f64(available_margin).unwrap().round(4),
             timestamp: DateTime::parse_from_rfc3339(&timestamp)
                 .expect("Bad datetime format")
                 .into(),
-            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap(),
-            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap(),
-            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap(),
-            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap(),
-            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap(),
-            settlement_price: BigDecimal::from_f64(settlement_price).unwrap(),
+            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap().round(2),
+            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap().round(4),
+            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap().round(4),
+            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap().round(2),
+            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap().round(2),
+            settlement_price: BigDecimal::from_f64(settlement_price).unwrap().round(2),
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
             entry_sequence: entry_sequence as i64,
@@ -1814,13 +1848,15 @@ impl From<relayer::LendOrder> for InsertLendOrder {
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
             deposit: BigDecimal::from_f64(deposit).unwrap(),
-            new_lend_state_amount: BigDecimal::from_f64(new_lend_state_amount).unwrap(),
+            new_lend_state_amount: BigDecimal::from_f64(new_lend_state_amount)
+                .unwrap()
+                .round(4),
             timestamp: DateTime::parse_from_rfc3339(&timestamp)
                 .expect("Bad datetime format")
                 .into(),
-            npoolshare: BigDecimal::from_f64(npoolshare).unwrap(),
-            nwithdraw: BigDecimal::from_f64(nwithdraw).unwrap(),
-            payment: BigDecimal::from_f64(payment).unwrap(),
+            npoolshare: BigDecimal::from_f64(npoolshare).unwrap().round(4),
+            nwithdraw: BigDecimal::from_f64(nwithdraw).unwrap().round(4),
+            payment: BigDecimal::from_f64(payment).unwrap().round(4),
             tlv0: BigDecimal::from_f64(tlv0).unwrap(),
             tps0: BigDecimal::from_f64(tps0).unwrap(),
             tlv1: BigDecimal::from_f64(tlv1).unwrap(),

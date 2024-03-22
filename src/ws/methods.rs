@@ -1,7 +1,7 @@
 use crate::{
-    database::{BtcUsdPrice, TraderOrder},
+    database::{BtcUsdPrice, CandleData, TraderOrder},
     error::ApiError,
-    rpc::CandleSubscription,
+    rpc::{CandleSubscription, Interval},
 };
 use chrono::prelude::*;
 use jsonrpsee::{
@@ -63,18 +63,32 @@ pub(super) fn candle_update(
     sink.accept()?;
 
     let CandleSubscription { interval } = params.parse()?;
-
     let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
         loop {
             let mut conn = ctx.pool.get()?;
-            let since = Utc::now() - chrono::Duration::minutes(5);
+            let since: DateTime<Utc> = match interval {
+                Interval::ONE_DAY_CHANGE => Utc::now() - chrono::Duration::hours(24),
+                _ => Utc::now() - chrono::Duration::milliseconds(250),
+            };
             let candles = BtcUsdPrice::candles(&mut conn, interval.clone(), since, None, None)?;
+
             let result = serde_json::to_value(&candles)?;
 
-            if let Err(e) = sink.send(&result) {
-                error!("Error sending candle updates: {:?}", e);
+            if candles.len() > 0 {
+                if let Err(e) = sink.send(&result) {
+                    error!("Error sending candle updates: {:?}", e);
+                }
+                match interval {
+                    Interval::ONE_DAY_CHANGE => {
+                        sleep(Duration::from_millis(1000)).await;
+                    }
+                    _ => {
+                        sleep(Duration::from_millis(250)).await;
+                    }
+                };
+            } else {
+                sleep(Duration::from_millis(250)).await;
             }
-            sleep(Duration::from_secs(5)).await;
         }
         Ok(())
     });
