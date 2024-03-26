@@ -88,6 +88,14 @@ pub enum OrderStatus {
     CANCELLED,
     PENDING,
     FILLED,
+    DuplicateOrder,
+    UtxoError,
+    Error,
+    NoResponseFromChain,
+    BincodeError,
+    HexCodeError,
+    SerializationError,
+    RequestSubmitted,
 }
 
 impl OrderStatus {
@@ -95,12 +103,8 @@ impl OrderStatus {
         use OrderStatus::*;
 
         match self {
-            SETTLED => false,
-            LENDED => false,
-            LIQUIDATE => false,
-            CANCELLED => false,
             PENDING => true,
-            FILLED => false,
+            _ => false,
         }
     }
 
@@ -108,12 +112,8 @@ impl OrderStatus {
         use OrderStatus::*;
 
         match self {
-            SETTLED => false,
-            LENDED => false,
-            LIQUIDATE => false,
-            CANCELLED => false,
-            PENDING => false,
             FILLED => true,
+            _ => false,
         }
     }
 }
@@ -248,6 +248,14 @@ impl ToSql<OrderStatusSql, Pg> for OrderStatus {
             OrderStatus::CANCELLED => out.write_all(b"CANCELLED")?,
             OrderStatus::PENDING => out.write_all(b"PENDING")?,
             OrderStatus::FILLED => out.write_all(b"FILLED")?,
+            OrderStatus::DuplicateOrder => out.write_all(b"DuplicateOrder")?,
+            OrderStatus::UtxoError => out.write_all(b"UtxoError")?,
+            OrderStatus::Error => out.write_all(b"Error")?,
+            OrderStatus::NoResponseFromChain => out.write_all(b"NoResponseFromChain")?,
+            OrderStatus::BincodeError => out.write_all(b"BincodeError")?,
+            OrderStatus::HexCodeError => out.write_all(b"HexCodeError")?,
+            OrderStatus::SerializationError => out.write_all(b"SerializationError")?,
+            OrderStatus::RequestSubmitted => out.write_all(b"RequestSubmitted")?,
         }
         Ok(IsNull::No)
     }
@@ -282,6 +290,14 @@ impl FromSql<OrderStatusSql, Pg> for OrderStatus {
             b"CANCELLED" => Ok(OrderStatus::CANCELLED),
             b"PENDING" => Ok(OrderStatus::PENDING),
             b"FILLED" => Ok(OrderStatus::FILLED),
+            b"DuplicateOrder" => Ok(OrderStatus::DuplicateOrder),
+            b"UtxoError" => Ok(OrderStatus::UtxoError),
+            b"Error" => Ok(OrderStatus::Error),
+            b"NoResponseFromChain" => Ok(OrderStatus::NoResponseFromChain),
+            b"BincodeError" => Ok(OrderStatus::BincodeError),
+            b"HexCodeError" => Ok(OrderStatus::HexCodeError),
+            b"SerializationError" => Ok(OrderStatus::SerializationError),
+            b"RequestSubmitted" => Ok(OrderStatus::RequestSubmitted),
             _ => panic!("Invalid enum type in database!"),
         }
     }
@@ -340,6 +356,14 @@ impl From<relayer_types::OrderStatus> for OrderStatus {
             relayer_types::OrderStatus::CANCELLED => OrderStatus::CANCELLED,
             relayer_types::OrderStatus::PENDING => OrderStatus::PENDING,
             relayer_types::OrderStatus::FILLED => OrderStatus::FILLED,
+            relayer_types::OrderStatus::DuplicateOrder => OrderStatus::DuplicateOrder,
+            relayer_types::OrderStatus::UtxoError => OrderStatus::UtxoError,
+            relayer_types::OrderStatus::Error => OrderStatus::Error,
+            relayer_types::OrderStatus::NoResponseFromChain => OrderStatus::NoResponseFromChain,
+            relayer_types::OrderStatus::BincodeError => OrderStatus::BincodeError,
+            relayer_types::OrderStatus::HexCodeError => OrderStatus::HexCodeError,
+            relayer_types::OrderStatus::SerializationError => OrderStatus::SerializationError,
+            relayer_types::OrderStatus::RequestSubmitted => OrderStatus::RequestSubmitted,
         }
     }
 }
