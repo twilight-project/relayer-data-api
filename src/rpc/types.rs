@@ -1,5 +1,5 @@
 #![allow(non_camel_case_types)]
-
+#![allow(warnings)]
 // •	Live Price Data
 // •	Historical Price Data
 // •	Funding Rate

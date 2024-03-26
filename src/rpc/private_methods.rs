@@ -3,9 +3,11 @@ use crate::database::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
 use kafka::producer::Record;
 use relayerwalletlib::verify_client_message::{
-    verify_query_order, verify_settle_requests, verify_trade_lend_order,
+    verify_client_create_trader_order, verify_query_order, verify_settle_requests,
+    verify_trade_lend_order,
 };
 use twilight_relayer_rust::relayer;
+use zkoswalletlib::relayer_rpcclient::method::RequestResponse;
 
 pub(super) fn submit_lend_order(
     params: Params<'_>,
@@ -98,7 +100,7 @@ pub(super) fn settle_lend_order(
         return Ok(format!("Order not found").into());
     };
 
-    if ord.order_status.is_closed() {
+    if !ord.order_status.is_closed() {
         return Ok(format!("Order closed").into());
     }
 
@@ -138,22 +140,29 @@ pub(super) fn submit_trade_order(
         return Ok(format!("Invalid hex data").into());
     };
 
-    let Ok(tx) = bincode::deserialize::<relayer::CreateTraderOrderZkos>(&bytes) else {
+    let Ok(tx) = bincode::deserialize::<relayer::CreateTraderOrderClientZkos>(&bytes) else {
         return Ok(format!("Invalid bincode").into());
     };
 
-    if let Err(_) = verify_trade_lend_order(&tx.input) {
+    if let Err(_) = verify_client_create_trader_order(&tx.tx) {
         return Ok(format!("Invalid order params").into());
     }
 
+    let Ok(transaction_ser) = bincode::serialize(&tx.tx) else {
+        return Ok(format!("Invalid bincode").into());
+    };
+
     let mut order = tx.create_trader_order.clone();
     let meta = relayer::Meta::default();
+    let response_id = order.account_id.clone();
+    order.available_margin = order.initial_margin;
 
-    order.account_id = tx.input.input.as_owner_address().cloned().unwrap();
-    let margin = order.initial_margin / 10000.0;
-    order.initial_margin = margin;
-    order.available_margin = margin;
-
+    let Ok(response) = serde_json::to_value(&RequestResponse::new(
+        "Order request submitted successfully".to_string(),
+        response_id,
+    )) else {
+        return Ok(format!("Invalid response").into());
+    };
     let Ok(mut conn) = ctx.pool.get() else {
         return Ok(format!("Database connection error").into());
     };
@@ -162,11 +171,8 @@ pub(super) fn submit_trade_order(
         return Ok(format!("Failed to update customer id!").into());
     }
 
-    let order = relayer::RpcCommand::CreateTraderOrder(
-        order.clone(),
-        meta,
-        tx.input.encode_as_hex_string(),
-    );
+    let order =
+        relayer::RpcCommand::CreateTraderOrder(order.clone(), meta, hex::encode(transaction_ser));
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -175,7 +181,7 @@ pub(super) fn submit_trade_order(
     if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
         Ok(format!("Could not send order {:?}", e).into())
     } else {
-        Ok("OK".into())
+        Ok(response)
     }
 }
 
@@ -211,7 +217,7 @@ pub(super) fn settle_trade_order(
         return Ok(format!("Order not found").into());
     };
 
-    if ord.order_status.is_closed() {
+    if !ord.order_status.is_closed() {
         return Ok(format!("Order closed").into());
     }
 
@@ -237,7 +243,7 @@ pub(super) fn settle_trade_order(
     }
 }
 
-pub(super) fn cancel_order(
+pub(super) fn cancel_trader_order(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
@@ -297,12 +303,12 @@ pub(super) fn cancel_order(
 
 pub(super) fn submit_bulk_order(
     params: Params<'_>,
-    ctx: &RelayerContext,
+    _ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let topic = std::env::var("RPC_CLIENT_REQUEST").expect("No client topic!");
+    let _topic = std::env::var("RPC_CLIENT_REQUEST").expect("No client topic!");
     let args: RpcArgs<Vec<Order>> = params.parse()?;
-    let (account_id, orders) = args.unpack();
-    let account_id = format!("{:016x}", account_id);
+    let (account_id, _orders) = args.unpack();
+    let _account_id = format!("{:016x}", account_id);
 
     // TODO: bulk orders with ZkOS??
     Ok("OK".into())

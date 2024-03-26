@@ -1,4 +1,4 @@
-#[allow(unreachable_code)]
+#![allow(warnings)]
 use crate::{
     database::{BtcUsdPrice, TraderOrder},
     error::ApiError,
@@ -88,7 +88,7 @@ pub(super) fn candle_update(
                 sleep(Duration::from_millis(250)).await;
             }
         }
-        Ok(())
+        // Ok(())
     });
 
     Ok(())
@@ -148,7 +148,7 @@ pub(super) fn heartbeat(
             }
             sleep(Duration::from_secs(5)).await;
         }
-        Ok(())
+        // Ok(())
     });
 
     Ok(())

@@ -1,3 +1,4 @@
+#![allow(warnings)]
 use crate::database::{
     schema::{
         address_customer_id, btc_usd_price, current_nonce, customer_account,
@@ -186,7 +187,7 @@ impl AddressCustomerId {
             .filter(address.eq(addr))
             .first::<AddressCustomerId>(conn)
         {
-            Ok(o) => return Ok(None),
+            Ok(_o) => return Ok(None),
             Err(diesel::result::Error::NotFound) => {
                 let mut account = NewCustomerAccount::default();
                 account.customer_registration_id = Uuid::new_v4().to_string();
@@ -1303,7 +1304,7 @@ impl TraderOrder {
             .load(conn)?;
         let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
 
-        let price = BtcUsdPrice::get(conn)?;
+        let _price = BtcUsdPrice::get(conn)?;
         let closed = vec![
             OrderStatus::PENDING,
             OrderStatus::CANCELLED,
@@ -1485,7 +1486,7 @@ impl TraderOrder {
 
         let shorts: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
 
-        let mut ask: Vec<_> = shorts
+        let ask: Vec<_> = shorts
             .into_iter()
             .map(|order| Ask {
                 id: order.uuid,
@@ -1516,7 +1517,7 @@ impl TraderOrder {
 
         let longs: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
 
-        let mut bid = longs
+        let bid = longs
             .into_iter()
             .map(|order| Bid {
                 id: order.uuid,
@@ -1697,6 +1698,14 @@ impl LendOrder {
 
         lend_order
             .filter(account_id.eq(accountid))
+            .order(timestamp.desc())
+            .first(conn)
+    }
+    pub fn get_by_uuid(conn: &mut PgConnection, order_id: String) -> QueryResult<LendOrder> {
+        use crate::database::schema::lend_order::dsl::*;
+
+        lend_order
+            .filter(uuid.eq(order_id))
             .order(timestamp.desc())
             .first(conn)
     }

@@ -41,7 +41,7 @@ pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
 
     let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
     let broker = vec![broker_host.to_owned()];
-    let mut kafka = Producer::from_hosts(broker)
+    let kafka = Producer::from_hosts(broker)
         .with_ack_timeout(Duration::from_secs(1))
         .with_required_acks(RequiredAcks::One)
         .create()
@@ -109,6 +109,31 @@ pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
         "lend_order_info",
         Box::new(public_methods::lend_order_info),
     );
+    register_method(
+        &mut module,
+        "submit_trade_order",
+        Box::new(public_methods::submit_trade_order),
+    );
+    register_method(
+        &mut module,
+        "submit_lend_order",
+        Box::new(public_methods::submit_lend_order),
+    );
+    register_method(
+        &mut module,
+        "settle_trade_order",
+        Box::new(public_methods::settle_trade_order),
+    );
+    register_method(
+        &mut module,
+        "settle_lend_order",
+        Box::new(public_methods::settle_lend_order),
+    );
+    register_method(
+        &mut module,
+        "cancel_trader_order",
+        Box::new(public_methods::cancel_trader_order),
+    );
     module
 }
 
@@ -146,6 +171,11 @@ pub fn init_private_methods(database_url: &str) -> RpcModule<RelayerContext> {
         &mut module,
         "settle_trade_order",
         Box::new(private_methods::settle_trade_order),
+    );
+    register_method(
+        &mut module,
+        "cancel_trader_order",
+        Box::new(private_methods::cancel_trader_order),
     );
     register_method(
         &mut module,
