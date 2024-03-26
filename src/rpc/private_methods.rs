@@ -33,12 +33,15 @@ pub(super) fn submit_lend_order(
 
     let mut order = tx.create_lend_order.clone();
     let meta = relayer::Meta::default();
-
-    order.account_id = tx.input.input.as_owner_address().cloned().unwrap();
-    let deposit = order.deposit / 10000.0;
-    let balance = order.balance / 10000.0;
-    order.deposit = deposit;
-    order.balance = balance;
+    let public_key = order.account_id.clone();
+    order.balance = order.deposit;
+    let response = RequestResponse::new(
+        "Order request submitted successfully".to_string(),
+        public_key,
+    );
+    let Ok(response_value) = serde_json::to_value(&response) else {
+        return Ok(format!("Invalid response").into());
+    };
 
     let Ok(mut conn) = ctx.pool.get() else {
         return Ok(format!("Database connection error").into());
@@ -48,8 +51,12 @@ pub(super) fn submit_lend_order(
         return Ok(format!("Failed to update customer id!").into());
     }
 
-    let order =
-        relayer::RpcCommand::CreateLendOrder(order.clone(), meta, tx.input.encode_as_hex_string());
+    let order = relayer::RpcCommand::CreateLendOrder(
+        order.clone(),
+        meta,
+        tx.input.encode_as_hex_string(),
+        response.get_id(),
+    );
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -58,7 +65,7 @@ pub(super) fn submit_lend_order(
     if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
         Ok(format!("Could not send order {:?}", e).into())
     } else {
-        Ok("OK".into())
+        Ok(response_value)
     }
 }
 
@@ -84,8 +91,15 @@ pub(super) fn settle_lend_order(
         return Ok(format!("Invalid order params").into());
     }
 
-    let mut order = tx.execute_lend_order.clone();
-
+    let order = tx.execute_lend_order.clone();
+    let public_key = order.account_id.clone();
+    let response = RequestResponse::new(
+        "Order request submitted successfully".to_string(),
+        public_key,
+    );
+    let Ok(response_value) = serde_json::to_value(&response) else {
+        return Ok(format!("Invalid response").into());
+    };
     let Ok(mut conn) = ctx.pool.get() else {
         return Ok(format!("Database connection error").into());
     };
@@ -106,14 +120,12 @@ pub(super) fn settle_lend_order(
 
     let meta = relayer::Meta::default();
 
-    let Some(account_id) = tx.msg.output.as_output_data().get_owner_address() else {
-        return Ok(format!("Missing owner address").into());
-    };
-
-    order.account_id = account_id.to_string();
-
-    let order =
-        relayer::RpcCommand::ExecuteLendOrder(order.clone(), meta, tx.msg.encode_as_hex_string());
+    let order = relayer::RpcCommand::ExecuteLendOrder(
+        order.clone(),
+        meta,
+        tx.msg.encode_as_hex_string(),
+        response.get_id(),
+    );
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -122,7 +134,7 @@ pub(super) fn settle_lend_order(
     if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
         Ok(format!("Could not send order {:?}", e).into())
     } else {
-        Ok("OK".into())
+        Ok(response_value)
     }
 }
 
@@ -154,13 +166,13 @@ pub(super) fn submit_trade_order(
 
     let mut order = tx.create_trader_order.clone();
     let meta = relayer::Meta::default();
-    let response_id = order.account_id.clone();
+    let public_key = order.account_id.clone();
     order.available_margin = order.initial_margin;
-
-    let Ok(response) = serde_json::to_value(&RequestResponse::new(
+    let response = RequestResponse::new(
         "Order request submitted successfully".to_string(),
-        response_id,
-    )) else {
+        public_key,
+    );
+    let Ok(response_value) = serde_json::to_value(&response) else {
         return Ok(format!("Invalid response").into());
     };
     let Ok(mut conn) = ctx.pool.get() else {
@@ -171,8 +183,12 @@ pub(super) fn submit_trade_order(
         return Ok(format!("Failed to update customer id!").into());
     }
 
-    let order =
-        relayer::RpcCommand::CreateTraderOrder(order.clone(), meta, hex::encode(transaction_ser));
+    let order = relayer::RpcCommand::CreateTraderOrder(
+        order.clone(),
+        meta,
+        hex::encode(transaction_ser),
+        response.get_id(),
+    );
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -181,7 +197,7 @@ pub(super) fn submit_trade_order(
     if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
         Ok(format!("Could not send order {:?}", e).into())
     } else {
-        Ok(response)
+        Ok(response_value)
     }
 }
 
@@ -207,8 +223,15 @@ pub(super) fn settle_trade_order(
         return Ok(format!("Invalid order params").into());
     }
 
-    let mut order = tx.execute_trader_order.clone();
-
+    let order = tx.execute_trader_order.clone();
+    let public_key = order.account_id.clone();
+    let response = RequestResponse::new(
+        "Order request submitted successfully".to_string(),
+        public_key,
+    );
+    let Ok(response_value) = serde_json::to_value(&response) else {
+        return Ok(format!("Invalid response").into());
+    };
     let Ok(mut conn) = ctx.pool.get() else {
         return Ok(format!("Database connection error").into());
     };
@@ -223,14 +246,12 @@ pub(super) fn settle_trade_order(
 
     let meta = relayer::Meta::default();
 
-    let Some(account_id) = tx.msg.output.as_output_data().get_owner_address() else {
-        return Ok(format!("Missing owner address").into());
-    };
-
-    order.account_id = account_id.to_string();
-
-    let order =
-        relayer::RpcCommand::ExecuteTraderOrder(order.clone(), meta, tx.msg.encode_as_hex_string());
+    let order = relayer::RpcCommand::ExecuteTraderOrder(
+        order.clone(),
+        meta,
+        tx.msg.encode_as_hex_string(),
+        response.get_id(),
+    );
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -239,7 +260,7 @@ pub(super) fn settle_trade_order(
     if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
         Ok(format!("Could not send order {:?}", e).into())
     } else {
-        Ok("OK".into())
+        Ok(response_value)
     }
 }
 
@@ -268,8 +289,15 @@ pub(super) fn cancel_trader_order(
         return Ok(format!("Invalid order params").into());
     }
 
-    let mut order = tx.cancel_trader_order.clone();
-
+    let order = tx.cancel_trader_order.clone();
+    let public_key = order.account_id.clone();
+    let response = RequestResponse::new(
+        "Order request submitted successfully".to_string(),
+        public_key,
+    );
+    let Ok(response_value) = serde_json::to_value(&response) else {
+        return Ok(format!("Invalid response").into());
+    };
     let Ok(mut conn) = ctx.pool.get() else {
         return Ok(format!("Database connection error").into());
     };
@@ -284,11 +312,12 @@ pub(super) fn cancel_trader_order(
 
     let meta = relayer::Meta::default();
 
-    let account_id = tx.msg.public_key.clone();
-    order.account_id = account_id;
-
-    let order =
-        relayer::RpcCommand::CancelTraderOrder(order.clone(), meta, tx.msg.encode_as_hex_string());
+    let order = relayer::RpcCommand::CancelTraderOrder(
+        order.clone(),
+        meta,
+        tx.msg.encode_as_hex_string(),
+        response.get_id(),
+    );
     let Ok(serialized) = serde_json::to_vec(&order) else {
         return Ok(format!("Could not serialize order").into());
     };
@@ -297,7 +326,7 @@ pub(super) fn cancel_trader_order(
     if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
         Ok(format!("Could not send order {:?}", e).into())
     } else {
-        Ok("OK".into())
+        Ok(response_value)
     }
 }
 
