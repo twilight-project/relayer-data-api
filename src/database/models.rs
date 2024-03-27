@@ -33,7 +33,7 @@ pub struct TxHash {
     pub order_status: OrderStatus,
     pub datetime: String,
     pub output: Option<String>,
-    pub request_id: String,
+    pub request_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
@@ -46,7 +46,7 @@ pub struct NewTxHash {
     pub order_status: OrderStatus,
     pub datetime: String,
     pub output: Option<String>,
-    pub request_id: String,
+    pub request_id: Option<String>,
 }
 
 impl TxHash {
