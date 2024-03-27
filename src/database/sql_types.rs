@@ -96,6 +96,8 @@ pub enum OrderStatus {
     HexCodeError,
     SerializationError,
     RequestSubmitted,
+    OrderNotFound,
+    RejectedFromChain,
 }
 
 impl OrderStatus {
@@ -256,6 +258,8 @@ impl ToSql<OrderStatusSql, Pg> for OrderStatus {
             OrderStatus::HexCodeError => out.write_all(b"HexCodeError")?,
             OrderStatus::SerializationError => out.write_all(b"SerializationError")?,
             OrderStatus::RequestSubmitted => out.write_all(b"RequestSubmitted")?,
+            OrderStatus::OrderNotFound => out.write_all(b"OrderNotFound")?,
+            OrderStatus::RejectedFromChain => out.write_all(b"RejectedFromChain")?,
         }
         Ok(IsNull::No)
     }
@@ -298,6 +302,8 @@ impl FromSql<OrderStatusSql, Pg> for OrderStatus {
             b"HexCodeError" => Ok(OrderStatus::HexCodeError),
             b"SerializationError" => Ok(OrderStatus::SerializationError),
             b"RequestSubmitted" => Ok(OrderStatus::RequestSubmitted),
+            b"OrderNotFound" => Ok(OrderStatus::OrderNotFound),
+            b"RejectedFromChain" => Ok(OrderStatus::RejectedFromChain),
             _ => panic!("Invalid enum type in database!"),
         }
     }
@@ -364,6 +370,8 @@ impl From<relayer_types::OrderStatus> for OrderStatus {
             relayer_types::OrderStatus::HexCodeError => OrderStatus::HexCodeError,
             relayer_types::OrderStatus::SerializationError => OrderStatus::SerializationError,
             relayer_types::OrderStatus::RequestSubmitted => OrderStatus::RequestSubmitted,
+            relayer_types::OrderStatus::OrderNotFound => OrderStatus::OrderNotFound,
+            relayer_types::OrderStatus::RejectedFromChain => OrderStatus::RejectedFromChain,
         }
     }
 }

@@ -232,6 +232,7 @@ diesel::table! {
         order_status -> OrderStatus,
         datetime -> Varchar,
         output -> Nullable<Varchar>,
+        request_id -> Varchar,
     }
 }
 

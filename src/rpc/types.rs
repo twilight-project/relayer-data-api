@@ -60,6 +60,10 @@ pub enum TransactionHashArgs {
         id: String,
         status: Option<OrderStatus>,
     },
+    RequestId {
+        id: String,
+        status: Option<OrderStatus>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

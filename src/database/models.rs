@@ -33,6 +33,7 @@ pub struct TxHash {
     pub order_status: OrderStatus,
     pub datetime: String,
     pub output: Option<String>,
+    pub request_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
@@ -45,6 +46,7 @@ pub struct NewTxHash {
     pub order_status: OrderStatus,
     pub datetime: String,
     pub output: Option<String>,
+    pub request_id: String,
 }
 
 impl TxHash {
@@ -71,6 +73,18 @@ impl TxHash {
                         .load(conn)
                 } else {
                     transaction_hash.filter(account_id.eq(acct_id)).load(conn)
+                }
+            }
+            TransactionHashArgs::RequestId {
+                id: reqt_id,
+                status,
+            } => {
+                if let Some(status) = status {
+                    transaction_hash
+                        .filter(request_id.eq(reqt_id).and(order_status.eq(status)))
+                        .load(conn)
+                } else {
+                    transaction_hash.filter(request_id.eq(reqt_id)).load(conn)
                 }
             }
         }

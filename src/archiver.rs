@@ -368,6 +368,7 @@ impl DatabaseArchiver {
                 order_status,
                 datetime,
                 output,
+                request_id,
             ) => {
                 let hash = NewTxHash {
                     order_id: uuid.to_string(),
@@ -377,8 +378,30 @@ impl DatabaseArchiver {
                     order_status: order_status.into(),
                     datetime,
                     output,
+                    request_id,
                 };
                 self.tx_hash(hash)?;
+            }
+            Event::TxHashUpdate(
+                _uuid,
+                _account_id,
+                _tx_hash,
+                _order_type,
+                _order_status,
+                _datetime,
+                _output,
+            ) => {
+                // let hash = UpdateTxHash {
+                //     order_id: uuid.to_string(),
+                //     account_id,
+                //     tx_hash,
+                //     order_type: order_type.into(),
+                //     order_status: order_status.into(),
+                //     datetime,
+                //     output,
+                // };
+                // self.tx_hash(hash)?;
+                info!("Update TxHash!!");
             }
         }
 
