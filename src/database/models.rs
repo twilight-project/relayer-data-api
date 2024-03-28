@@ -819,6 +819,14 @@ pub struct CandleData {
 }
 
 impl BtcUsdPrice {
+    pub fn update_candles(conn: &mut PgConnection) -> QueryResult<()> {
+        diesel::sql_query("SELECT * from  update_candles_1min(now() - interval '5 minute')").execute(conn)?;
+        diesel::sql_query("SELECT * from  update_candles_1hour(now() - interval '5 minute')").execute(conn)?;
+        diesel::sql_query("SELECT * from  update_candles_1day(now() - interval '5 minute')").execute(conn)?;
+
+        Ok(())
+    }
+
     pub fn get(conn: &mut PgConnection) -> QueryResult<BtcUsdPrice> {
         use crate::database::schema::btc_usd_price::dsl::*;
 
@@ -855,88 +863,80 @@ impl BtcUsdPrice {
         offset: Option<i64>,
     ) -> QueryResult<Vec<CandleData>> {
         let start: DateTime<Utc>;
+        let table: String;
         // temp for 24 hour candle change
         // need to create new api for 24hour candle change data
         match interval {
             Interval::ONE_DAY_CHANGE => {
                 start = since + chrono::Duration::seconds(5);
+                table = "candles_1hour".into()
             }
-            _ => {
+            Interval::ONE_MINUTE
+            | Interval::FIVE_MINUTE
+            | Interval::FIFTEEN_MINUTE
+            | Interval::THIRTY_MINUTE => {
                 start = since.duration_trunc(interval.duration()).unwrap();
+                table = "candles_1min".into()
+            }
+            Interval::ONE_HOUR
+            | Interval::FOUR_HOUR
+            | Interval::EIGHT_HOUR
+            | Interval::TWELVE_HOUR => {
+                start = since.duration_trunc(interval.duration()).unwrap();
+                table = "candles_1hour".into()
+            }
+            Interval::ONE_DAY => {
+                start = since.duration_trunc(interval.duration()).unwrap();
+                table = "candles_1day".into()
             }
         }
         let interval = interval.interval_sql();
 
-        let trader_subquery = format!(
-            r#"
-            SELECT
-                window_start,
-                sum(entryprice) as usd_volume,
-                sum(positionsize) as btc_volume,
-                count(*) as trades
-            FROM (
-                SELECT
-                    t.timestamp as window_start,
-                    coalesce(c.entryprice, 0) as entryprice,
-                    coalesce(c.positionsize, 0) as positionsize
-                FROM generate_series('{}', now(), {}) t(timestamp)
-                LEFT JOIN trader_order c
-                ON c.timestamp >= t.timestamp AND c.timestamp < t.timestamp + {}
-            ) as sq
-            GROUP BY window_start
-        "#,
-            start, interval, interval
+        let subquery = format!(r#"
+            with t as (
+                select * from
+                generate_series('{}', now(), {}) timestamp
+            ), c as (
+                select * from {}
+                where start_time between '{}' and now()
+            )
+            select
+               t.timestamp as bucket,
+               c.start_time as start,
+               c.open,
+               c.close,
+               c.high,
+               c.low,
+               c.btc_volume,
+               c.trades,
+               c.usd_volume
+            from t
+            inner join c
+            on c.start_time >= t.timestamp AND c.start_time < t.timestamp + interval {} order by c.start_time
+            "#,
+            start, interval, table, start, interval
         );
 
-        let ohlc_subquery = format!(
-            r#"
-            SELECT
-                window_ts,
-                window_ts as start,
-                window_ts + {} as end,
-                min(open) as open,
-                min(close) as close,
-                max(price) as high,
-                min(price) as low
-            FROM (
-                SELECT
-                     t.timestamp as window_ts,
-                     c.*,
-                     first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp asc) AS open,
-                     first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp desc) AS close
-                FROM generate_series('{}', now(), {}) t(timestamp)
-                LEFT JOIN btc_usd_price c
-                ON c.timestamp >= t.timestamp AND c.timestamp < t.timestamp + {} 
-            ) as w
-            WHERE open IS NOT NULL
-            GROUP BY window_ts
-        "#,
-            interval, start, interval, interval
-        );
-
-        let query = format!(
-            r#"
-                WITH volumes AS (
-                    {}
-                ), ohlc AS (
-                    {}
-                )
-        SELECT
+        let query = format!(r#"
+        select distinct
             now() as updated_at,
-            ohlc.start,
-            ohlc.end,
-            ohlc.open,
-            ohlc.close,
-            ohlc.high,
-            ohlc.low,
             {} as resolution,
-            volumes.btc_volume as btc_volume,
-            volumes.trades as trades,
-            volumes.usd_volume as usd_volume
-        FROM volumes
-         JOIN ohlc ON volumes.window_start = ohlc.window_ts
+            bucket as start,
+            bucket + interval {} as end,
+            max(high) over w as high,
+            min(low) over w as low,
+            last_value(close) over w as close,
+            first_value(open) over w as open,
+            sum(btc_volume) over w as btc_volume,
+            sum(usd_volume) over w as usd_volume,
+            sum(trades) over w as trades
+        from (
+            {}
+        ) as s
+        WINDOW w as (partition by bucket order by start asc ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+        order by start asc
         "#,
-            trader_subquery, ohlc_subquery, interval
+        interval, interval, subquery,
         );
 
         let query = if let Some(limit) = limit {
