@@ -72,8 +72,8 @@ verify-keplr-sign = "0.1.0"
 twilight-relayer-rust = { git = "ssh://git@github.com/twilight-project/twilight-relayer.git", branch = "client-side-trader-order-create" }
 
 [dependencies.zkos-relayer-wallet]
-git = "ssh://github.com/twilight-project/zkos-relayer-wallet.git"
+git = "ssh://git@github.com/twilight-project/zkos-relayer-wallet.git"
 branch = "clienttradeorder"
 [dependencies.zkos-client-wallet]
-git = "ssh://github.com/twilight-project/zkos-client-wallet.git"
+git = "ssh://git@github.com/twilight-project/zkos-client-wallet.git"
 branch = "clienttradeorder"

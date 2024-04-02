@@ -43,6 +43,48 @@ diesel::table! {
 }
 
 diesel::table! {
+    candles_1day (start_time) {
+        start_time -> Timestamptz,
+        end_time -> Timestamptz,
+        low -> Numeric,
+        high -> Numeric,
+        open -> Numeric,
+        close -> Numeric,
+        trades -> Int4,
+        btc_volume -> Numeric,
+        usd_volume -> Numeric,
+    }
+}
+
+diesel::table! {
+    candles_1hour (start_time) {
+        start_time -> Timestamptz,
+        end_time -> Timestamptz,
+        low -> Numeric,
+        high -> Numeric,
+        open -> Numeric,
+        close -> Numeric,
+        trades -> Int4,
+        btc_volume -> Numeric,
+        usd_volume -> Numeric,
+    }
+}
+
+diesel::table! {
+    candles_1min (start_time) {
+        start_time -> Timestamptz,
+        end_time -> Timestamptz,
+        low -> Numeric,
+        high -> Numeric,
+        open -> Numeric,
+        close -> Numeric,
+        trades -> Int4,
+        btc_volume -> Numeric,
+        usd_volume -> Numeric,
+    }
+}
+
+diesel::table! {
     current_nonce (id) {
         id -> Int8,
         nonce -> Int8,
@@ -243,6 +285,9 @@ diesel::joinable!(customer_order_linking -> customer_account (customer_account_i
 diesel::allow_tables_to_appear_in_same_query!(
     address_customer_id,
     btc_usd_price,
+    candles_1day,
+    candles_1hour,
+    candles_1min,
     current_nonce,
     customer_account,
     customer_apikey_linking,

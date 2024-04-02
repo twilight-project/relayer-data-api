@@ -346,6 +346,7 @@ impl DatabaseArchiver {
                     .expect("Bad datetime format")
                     .into();
                 CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts)?;
+                BtcUsdPrice::update_candles(&mut *self.get_conn()?)?;
             }
             Event::PoolUpdate(lend_pool_command, lend_pool, ..) => {
                 self.lend_pool_updates(lend_pool)?;

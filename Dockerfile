@@ -1,4 +1,4 @@
-FROM rust:1.72.0-slim-buster as builder
+FROM rust:1.77.0-slim-buster as builder
 
 ARG SSH_KEY
 RUN apt-get update && apt-get install -y openssh-client git libssl-dev build-essential libpq-dev pkg-config
@@ -13,6 +13,7 @@ COPY . ./twilight-relayerAPI
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=${PWD}/target \
     cd ./twilight-relayerAPI && \
+    git config --global url."ssh://git@github.com/".insteadOf ssh://github.com/ && \
     cargo --config "net.git-fetch-with-cli = true" b --release --bins
 
 FROM debian:10-slim
