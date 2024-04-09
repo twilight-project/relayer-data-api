@@ -835,9 +835,9 @@ pub struct CandleData {
 
 impl BtcUsdPrice {
     pub fn update_candles(conn: &mut PgConnection) -> QueryResult<()> {
-        diesel::sql_query("SELECT * from  update_candles_1min(now() - interval '5 minute')").execute(conn)?;
-        diesel::sql_query("SELECT * from  update_candles_1hour(now() - interval '5 minute')").execute(conn)?;
-        diesel::sql_query("SELECT * from  update_candles_1day(now() - interval '5 minute')").execute(conn)?;
+        diesel::sql_query("SELECT * from  update_candles_1min(date_trunc('minute', now() - interval '5 minute'))").execute(conn)?;
+        diesel::sql_query("SELECT * from  update_candles_1hour(date_trunc('hour', now() - interval '5 minute'))").execute(conn)?;
+        diesel::sql_query("SELECT * from  update_candles_1day(date_trunc('day', now() - interval '5 minute'))").execute(conn)?;
 
         Ok(())
     }
