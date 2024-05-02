@@ -140,7 +140,10 @@ impl WsContext {
 
 pub fn init_methods(database_url: &str) -> RpcModule<WsContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
-    let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
+    let pool = r2d2::Pool::builder()
+        .max_size(50)
+        .build(manager)
+        .expect("Could not instantiate connection pool");
 
     let mut module = RpcModule::new(WsContext::with_pool(pool));
 
