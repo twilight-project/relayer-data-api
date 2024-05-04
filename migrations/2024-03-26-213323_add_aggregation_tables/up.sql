@@ -109,12 +109,12 @@ FROM
 $$
 LANGUAGE SQL;
 
-CREATE FUNCTION update_candles_1min(since timestamptz)
+CREATE FUNCTION update_candles_1min()
 RETURNS void
 AS $$ INSERT INTO candles_1min (
     start_time, end_time, usd_volume, btc_volume, trades, open, high, low, close
 )
-SELECT * FROM get_candles_interval('1 minute', 'minute', since)
+SELECT * FROM get_candles_interval('1 minute', 'minute', (SELECT coalesce(max(start_time) - interval '10 minute', now() - interval '1 week') FROM candles_1min))
     ON CONFLICT(start_time)
     DO UPDATE SET
     start_time = excluded.start_time,
@@ -131,12 +131,12 @@ SELECT * FROM get_candles_interval('1 minute', 'minute', since)
 $$
 LANGUAGE SQL;
 
-CREATE FUNCTION update_candles_1hour(since timestamptz)
+CREATE FUNCTION update_candles_1hour()
 RETURNS void
 AS $$ INSERT INTO candles_1hour (
     start_time, end_time, usd_volume, btc_volume, trades, open, high, low, close
 )
-SELECT * FROM get_candles_interval('1 hour', 'hour', since)
+SELECT * FROM get_candles_interval('1 hour', 'hour', (SELECT coalesce(max(start_time) - interval '10 minute', now() - interval '1 week') FROM candles_1hour))
     ON CONFLICT(start_time)
     DO UPDATE SET
     start_time = excluded.start_time,
@@ -153,12 +153,12 @@ SELECT * FROM get_candles_interval('1 hour', 'hour', since)
 $$
 LANGUAGE SQL;
 
-CREATE FUNCTION update_candles_1day(since timestamptz)
+CREATE FUNCTION update_candles_1day()
 RETURNS void
 AS $$ INSERT INTO candles_1day (
     start_time, end_time, usd_volume, btc_volume, trades, open, high, low, close
 )
-SELECT * FROM get_candles_interval('1 day', 'day', since)
+SELECT * FROM get_candles_interval('1 day', 'day', (SELECT coalesce(max(start_time) - interval '10 minute', now() - interval '1 week') FROM candles_1day))
     ON CONFLICT(start_time)
     DO UPDATE SET
     start_time = excluded.start_time,

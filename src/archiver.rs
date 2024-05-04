@@ -346,7 +346,6 @@ impl DatabaseArchiver {
                     .expect("Bad datetime format")
                     .into();
                 CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts)?;
-                BtcUsdPrice::update_candles(&mut *self.get_conn()?)?;
             }
             Event::PoolUpdate(lend_pool_command, lend_pool, ..) => {
                 self.lend_pool_updates(lend_pool)?;
@@ -387,15 +386,20 @@ impl DatabaseArchiver {
     }
 
     /// Worker task that loops indefinitely, batching commits to postgres backend.
-    pub fn run(mut self, rx: Receiver<(Completion, Vec<Event>)>) -> Result<(), ApiError> {
+    pub fn run(mut self, rx: Receiver<(Completion, Vec<Event>, bool)>) -> Result<(), ApiError> {
         let mut deadline = Instant::now() + Duration::from_millis(BATCH_INTERVAL);
 
         loop {
             match rx.recv_deadline(deadline) {
-                Ok((completion, msgs)) => {
+                Ok((completion, msgs, catchup)) => {
                     for msg in msgs {
                         self.process_msg(msg)?;
                     }
+
+                    if !catchup {
+                        BtcUsdPrice::update_candles(&mut *self.get_conn()?)?;
+                    }
+
                     self.commit_orders()?;
                     self.completions
                         .send(completion)
