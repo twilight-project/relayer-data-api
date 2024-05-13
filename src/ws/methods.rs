@@ -13,7 +13,7 @@ use log::{error, info, warn};
 use serde::Serialize;
 use std::{sync::Arc, time::Duration};
 use tokio::{
-    sync::broadcast::{error::TryRecvError, Receiver},
+    sync::broadcast::{channel, error::TryRecvError, Receiver},
     task::JoinHandle,
     time::sleep,
 };
@@ -61,31 +61,62 @@ pub(super) fn candle_update(
     sink.accept()?;
 
     let CandleSubscription { interval } = params.parse()?;
+
+    let spawn = match ctx.candles.read() {
+        Ok(r) => !r.contains_key(&interval),
+        Err(e) => {
+            sink.send(&format!("RwLock poisoned!"));
+            return Ok(());
+        }
+    };
+
+    if spawn {
+        info!("SPAWNING new subscriber for {:?}", interval);
+        let Ok(mut l) = ctx.candles.write() else { sink.send(&"Write Lock poisoned!"); return Ok(()); };
+        let (tx, _) = channel(10);
+        l.insert(interval, tx.clone());
+
+        let c = ctx.clone();
+        let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
+            loop {
+                let mut conn = c.pool.get()?;
+                let since: DateTime<Utc> = match interval {
+                    Interval::ONE_DAY_CHANGE => Utc::now() - chrono::Duration::hours(24),
+                    _ => Utc::now() - chrono::Duration::milliseconds(250),
+                };
+                let candles = BtcUsdPrice::candles(&mut conn, interval, since, None, None)?;
+
+                if candles.len() > 0 {
+                    let result = serde_json::to_value(&candles)?;
+                    if let Err(e) = tx.send(result) {
+                        error!("Error sending candle updates: {:?}", e);
+                    }
+                    match interval {
+                        Interval::ONE_DAY_CHANGE => {
+                            sleep(Duration::from_millis(1000)).await;
+                        }
+                        _ => {
+                            sleep(Duration::from_millis(250)).await;
+                        }
+                    };
+                } else {
+                    sleep(Duration::from_millis(250)).await;
+                }
+        
+            }
+            Ok(())
+        });
+    }
+
+    let Ok(l) = ctx.candles.read() else { sink.send(&"Failed to acquire rx candles channel"); return Ok(()); };
+
+    let mut rx = l.get(&interval).unwrap().subscribe();
     let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
         loop {
-            let mut conn = ctx.pool.get()?;
-            let since: DateTime<Utc> = match interval {
-                Interval::ONE_DAY_CHANGE => Utc::now() - chrono::Duration::hours(24),
-                _ => Utc::now() - chrono::Duration::milliseconds(250),
-            };
-            let candles = BtcUsdPrice::candles(&mut conn, interval.clone(), since, None, None)?;
+            let Ok(msg) = rx.recv().await else { error!("Recv channel broken!"); break; };
 
-            let result = serde_json::to_value(&candles)?;
-
-            if candles.len() > 0 {
-                if let Err(e) = sink.send(&result) {
-                    error!("Error sending candle updates: {:?}", e);
-                }
-                match interval {
-                    Interval::ONE_DAY_CHANGE => {
-                        sleep(Duration::from_millis(1000)).await;
-                    }
-                    _ => {
-                        sleep(Duration::from_millis(250)).await;
-                    }
-                };
-            } else {
-                sleep(Duration::from_millis(250)).await;
+            if let Err(e) = sink.send(&msg) {
+                error!("Error sending candle updates: {:?}", e);
             }
         }
         Ok(())

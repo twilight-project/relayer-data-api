@@ -219,7 +219,7 @@ pub struct CandleSubscription {
     pub interval: Interval,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Eq, Hash, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub enum Interval {
     ONE_MINUTE,
     FIVE_MINUTE,

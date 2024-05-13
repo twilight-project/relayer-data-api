@@ -1,5 +1,6 @@
 use crate::database::{NewOrderBookOrder, TraderOrder};
 use crate::kafka::start_consumer;
+use crate::rpc::Interval;
 // use bigdecimal::ToPrimitive;
 use chrono::prelude::*;
 use crossbeam_channel::{unbounded, Sender as CrossbeamSender};
@@ -9,7 +10,11 @@ use jsonrpsee::RpcModule;
 use log::{error, info, trace};
 use relayerwalletlib::zkoswalletlib::relayer_types::{OrderStatus, OrderType};
 // use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    sync::RwLock,
+    time::{Duration, Instant},
+};
 use tokio::{
     sync::broadcast::{channel, Sender},
     task::JoinHandle,
@@ -31,6 +36,7 @@ pub struct WsContext {
     price_feed: Sender<(f64, DateTime<Utc>)>,
     order_book: Sender<NewOrderBookOrder>,
     recent_trades: Sender<relayer::TraderOrder>,
+    pub candles: RwLock<HashMap<Interval, Sender<serde_json::Value>>>,
     pub pool: ManagedPool,
     _completions: CrossbeamSender<crate::kafka::Completion>,
     _watcher: JoinHandle<()>,
@@ -105,6 +111,7 @@ impl WsContext {
                                 ) => {}
                                 Event::Stop(_stop) => {}
                                 Event::TxHash(..) => {}
+                                Event::TxHashUpdate(..) => {}
                             }
                         }
                         if let Err(e) = notify.send(completion) {
@@ -130,6 +137,7 @@ impl WsContext {
             price_feed,
             order_book,
             recent_trades,
+            candles: Default::default(),
             pool,
             _completions: completions,
             _watcher,
