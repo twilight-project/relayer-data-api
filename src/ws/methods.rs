@@ -72,7 +72,10 @@ pub(super) fn candle_update(
 
     if spawn {
         info!("SPAWNING new subscriber for {:?}", interval);
-        let Ok(mut l) = ctx.candles.write() else { sink.send(&"Write Lock poisoned!"); return Ok(()); };
+        let Ok(mut l) = ctx.candles.write() else {
+            sink.send(&"Write Lock poisoned!");
+            return Ok(());
+        };
         let (tx, _) = channel(10);
         l.insert(interval, tx.clone());
 
@@ -102,18 +105,23 @@ pub(super) fn candle_update(
                 } else {
                     sleep(Duration::from_millis(250)).await;
                 }
-        
             }
             Ok(())
         });
     }
 
-    let Ok(l) = ctx.candles.read() else { sink.send(&"Failed to acquire rx candles channel"); return Ok(()); };
+    let Ok(l) = ctx.candles.read() else {
+        sink.send(&"Failed to acquire rx candles channel");
+        return Ok(());
+    };
 
     let mut rx = l.get(&interval).unwrap().subscribe();
-    let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
+    let _result = tokio::task::spawn(async move {
         loop {
-            let Ok(msg) = rx.recv().await else { error!("Recv channel broken!"); break; };
+            let Ok(msg) = rx.recv().await else {
+                error!("Recv channel broken!");
+                break;
+            };
 
             if let Err(e) = sink.send(&msg) {
                 error!("Error sending candle updates: {:?}", e);

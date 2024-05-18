@@ -835,18 +835,9 @@ pub struct CandleData {
 
 impl BtcUsdPrice {
     pub fn update_candles(conn: &mut PgConnection) -> QueryResult<()> {
-        diesel::sql_query(
-            "SELECT * from  update_candles_1min()",
-        )
-        .execute(conn)?;
-        diesel::sql_query(
-            "SELECT * from  update_candles_1hour()",
-        )
-        .execute(conn)?;
-        diesel::sql_query(
-            "SELECT * from  update_candles_1day()",
-        )
-        .execute(conn)?;
+        diesel::sql_query("SELECT * from  update_candles_1min()").execute(conn)?;
+        diesel::sql_query("SELECT * from  update_candles_1hour()").execute(conn)?;
+        diesel::sql_query("SELECT * from  update_candles_1day()").execute(conn)?;
 
         Ok(())
     }
@@ -1493,8 +1484,8 @@ impl TraderOrder {
             WITH orders AS (
                 SELECT * FROM trader_order
                 WHERE id IN (
-                    SELECT MAX(id) FROM trader_order
-                    WHERE order_type = 'LIMIT'
+                    SELECT MAX(id) FROM trader_order 
+                    WHERE order_type = 'LIMIT' AND position_type = 'SHORT'
                     GROUP BY uuid
                 )
                 AND order_status <> 'FILLED'
