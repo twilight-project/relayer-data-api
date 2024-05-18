@@ -835,9 +835,18 @@ pub struct CandleData {
 
 impl BtcUsdPrice {
     pub fn update_candles(conn: &mut PgConnection) -> QueryResult<()> {
-        diesel::sql_query("SELECT * from  update_candles_1min(date_trunc('minute', now() - interval '5 minute'))").execute(conn)?;
-        diesel::sql_query("SELECT * from  update_candles_1hour(date_trunc('hour', now() - interval '5 minute'))").execute(conn)?;
-        diesel::sql_query("SELECT * from  update_candles_1day(date_trunc('day', now() - interval '5 minute'))").execute(conn)?;
+        diesel::sql_query(
+            "SELECT * from  update_candles_1min()",
+        )
+        .execute(conn)?;
+        diesel::sql_query(
+            "SELECT * from  update_candles_1hour()",
+        )
+        .execute(conn)?;
+        diesel::sql_query(
+            "SELECT * from  update_candles_1day()",
+        )
+        .execute(conn)?;
 
         Ok(())
     }
@@ -907,7 +916,8 @@ impl BtcUsdPrice {
         }
         let interval = interval.interval_sql();
 
-        let subquery = format!(r#"
+        let subquery = format!(
+            r#"
             with t as (
                 select * from
                 generate_series('{}', now(), {}) timestamp
@@ -932,7 +942,8 @@ impl BtcUsdPrice {
             start, interval, table, start, interval
         );
 
-        let query = format!(r#"
+        let query = format!(
+            r#"
         select distinct
             now() as updated_at,
             {} as resolution,
@@ -951,7 +962,7 @@ impl BtcUsdPrice {
         WINDOW w as (partition by bucket order by start asc ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
         order by start asc
         "#,
-        interval, interval, subquery,
+            interval, interval, subquery,
         );
 
         let query = if let Some(limit) = limit {

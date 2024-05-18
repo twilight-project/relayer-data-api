@@ -4,12 +4,14 @@ use log::{error, info};
 use std::thread::{self, JoinHandle};
 use twilight_relayer_rust::db::Event;
 
+// > 500 offset behind, we'll batch update.
+const CATCHUP_INTERVAL: i64 = 500;
 pub type Completion = (i32, i64);
 
 pub fn start_consumer(
     group: String,
     topic: String,
-    tx: Sender<(Completion, Vec<Event>)>,
+    tx: Sender<(Completion, Vec<Event>, bool)>,
 ) -> (Sender<Completion>, JoinHandle<()>) {
     let (tx_consumed, rx_consumed) = unbounded::<Completion>();
 
@@ -27,10 +29,17 @@ pub fn start_consumer(
             .create()
             .unwrap();
 
+        con.client_mut().load_metadata_all().unwrap();
+
         let mut connection_status = true;
         while connection_status {
             let sender_clone = tx.clone();
             let mss = con.poll().unwrap();
+            let latest = con
+                .client_mut()
+                .fetch_topic_offsets(&topic, kafka::client::FetchOffset::Latest)
+                .unwrap();
+            let latest = latest[0].offset;
             if !mss.is_empty() {
                 for ms in mss.iter() {
                     let mut max_offset = 0i64;
@@ -53,8 +62,9 @@ pub fn start_consumer(
                         .collect();
 
                     let token = (ms.partition(), max_offset);
+                    let catchup = latest - max_offset > CATCHUP_INTERVAL;
 
-                    match sender_clone.send((token, events)) {
+                    match sender_clone.send((token, events, catchup)) {
                         Ok(_) => {}
                         Err(_arg) => {
                             connection_status = false;
