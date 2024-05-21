@@ -517,7 +517,7 @@ fn lend_pool_to_batch(
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::ADD_FUNDING_DATA, uuid, pay).into()]
         }
-        relayer_db::LendPoolCommand::AddTraderOrderLiquidation(_, order, p) => {
+        relayer_db::LendPoolCommand::AddTraderOrderLiquidation(_, order, p, _) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::ADD_TRADER_ORDER_LIQUIDATION, uuid, pay).into()]
