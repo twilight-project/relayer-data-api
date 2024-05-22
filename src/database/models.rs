@@ -1588,7 +1588,7 @@ impl TraderOrder {
             FROM trader_order
             INNER JOIN (
                 SELECT uuid,min(timestamp) AS timestamp
-                FROM trader_order GROUP BY uuid
+                FROM trader_order  WHERE trader_order.order_status <> 'PENDING' GROUP BY uuid
             ) as t
             ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
             WHERE t.timestamp > now() - INTERVAL '1 day'
@@ -1603,7 +1603,7 @@ impl TraderOrder {
                 trader_order.timestamp as timestamp
             FROM trader_order
             INNER JOIN (
-                SELECT uuid,min(timestamp) AS timestamp
+                SELECT uuid,max(timestamp) AS timestamp
                 FROM trader_order GROUP BY uuid
             ) as t
             ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
