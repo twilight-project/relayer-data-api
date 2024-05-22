@@ -1481,23 +1481,23 @@ impl TraderOrder {
         // use diesel::dsl::{max, sum};
 
         let query = r#"
-            WITH orders AS (
-                SELECT * FROM trader_order
-                WHERE id IN (
-                    SELECT MAX(id) FROM trader_order 
-                    WHERE order_type = 'LIMIT' AND position_type = 'SHORT'
-                    GROUP BY uuid
-                )
-                AND order_status <> 'FILLED'
+        WITH orders AS (
+            SELECT * FROM trader_order
+            WHERE id IN (
+                SELECT MAX(id) FROM trader_order 
+                WHERE order_type = 'LIMIT' AND position_type = 'SHORT'
+                GROUP BY uuid
             )
-            SELECT
-                MAX(uuid) AS uuid,
-                entryprice,
-                SUM(positionsize) AS positionsize
-            FROM orders
-            GROUP BY entryprice
-            ORDER BY positionsize DESC
-            LIMIT 10;
+            AND order_status <> 'FILLED'  AND order_status <> 'CANCELLED'  AND order_status <> 'LIQUIDATE'
+        )
+        SELECT
+            MAX(uuid) AS uuid,
+            entryprice,
+            SUM(positionsize) AS positionsize
+        FROM orders
+        GROUP BY entryprice
+        ORDER BY entryprice ASC
+        LIMIT 15;
         "#;
 
         let shorts: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
@@ -1519,7 +1519,7 @@ impl TraderOrder {
                     WHERE order_type = 'LIMIT' AND position_type = 'LONG'
                     GROUP BY uuid
                 )
-                AND order_status <> 'FILLED'
+                AND order_status <> 'FILLED' AND order_status <> 'CANCELLED'  AND order_status <> 'LIQUIDATE'
             )
             SELECT
                 MAX(uuid) AS uuid,
@@ -1527,8 +1527,8 @@ impl TraderOrder {
                 SUM(positionsize) AS positionsize
             FROM orders
             GROUP BY entryprice
-            ORDER BY positionsize DESC
-            LIMIT 10;
+            ORDER BY entryprice DESC
+            LIMIT 15;
         "#;
 
         let longs: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
