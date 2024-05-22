@@ -1597,7 +1597,10 @@ impl TraderOrder {
             UNION ALL
 
             SELECT
-                trader_order.position_type as side,
+            (CASE WHEN trader_order.position_type = 'LONG' THEN position_type('SHORT')
+            ELSE position_type('LONG')
+       		END) as side ,
+               
                 trader_order.settlement_price as price,
                 trader_order.positionsize as positionsize,
                 trader_order.timestamp as timestamp
