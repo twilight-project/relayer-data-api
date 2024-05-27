@@ -1479,7 +1479,7 @@ impl TraderOrder {
                 SELECT * FROM trader_order
                 WHERE id IN (
                     SELECT MAX(id) FROM trader_order
-                    WHERE order_type = 'LIMIT'
+                    WHERE order_type = 'LIMIT' AND position_type = 'SHORT'
                     GROUP BY uuid
                 )
                 AND order_status <> 'FILLED'
@@ -1490,7 +1490,7 @@ impl TraderOrder {
                 SUM(positionsize) AS positionsize
             FROM orders
             GROUP BY entryprice
-            ORDER BY positionsize DESC
+            ORDER BY entryprice ASC
             LIMIT 10;
         "#;
 
@@ -1521,7 +1521,7 @@ impl TraderOrder {
                 SUM(positionsize) AS positionsize
             FROM orders
             GROUP BY entryprice
-            ORDER BY positionsize DESC
+            ORDER BY entryprice DESC
             LIMIT 10;
         "#;
 
