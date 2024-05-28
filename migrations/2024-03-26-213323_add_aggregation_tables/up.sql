@@ -114,7 +114,7 @@ RETURNS void
 AS $$ INSERT INTO candles_1min (
     start_time, end_time, usd_volume, btc_volume, trades, open, high, low, close
 )
-SELECT * FROM get_candles_interval('1 minute', 'minute', (SELECT coalesce(max(start_time) - interval '10 minute', now() - interval '1 week') FROM candles_1min))
+SELECT * FROM get_candles_interval('1 minute', 'minute', (SELECT coalesce(max(start_time) - interval '10 minute', '1970-01-01 00:00:00.0000+00'::timestamptz) FROM candles_1min))
     ON CONFLICT(start_time)
     DO UPDATE SET
     start_time = excluded.start_time,
@@ -136,7 +136,7 @@ RETURNS void
 AS $$ INSERT INTO candles_1hour (
     start_time, end_time, usd_volume, btc_volume, trades, open, high, low, close
 )
-SELECT * FROM get_candles_interval('1 hour', 'hour', (SELECT coalesce(max(start_time) - interval '10 minute', now() - interval '1 week') FROM candles_1hour))
+SELECT * FROM get_candles_interval('1 hour', 'hour', (SELECT coalesce(max(start_time) - interval '10 minute', '1970-01-01 00:00:00.0000+00'::timestamptz) FROM candles_1hour))
     ON CONFLICT(start_time)
     DO UPDATE SET
     start_time = excluded.start_time,
@@ -158,7 +158,7 @@ RETURNS void
 AS $$ INSERT INTO candles_1day (
     start_time, end_time, usd_volume, btc_volume, trades, open, high, low, close
 )
-SELECT * FROM get_candles_interval('1 day', 'day', (SELECT coalesce(max(start_time) - interval '10 minute', now() - interval '1 week') FROM candles_1day))
+SELECT * FROM get_candles_interval('1 day', 'day', (SELECT coalesce(max(start_time) - interval '10 minute', '1970-01-01 00:00:00.0000+00'::timestamptz) FROM candles_1day))
     ON CONFLICT(start_time)
     DO UPDATE SET
     start_time = excluded.start_time,
