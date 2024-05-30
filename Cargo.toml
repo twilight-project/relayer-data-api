@@ -73,7 +73,7 @@ twilight-relayer-rust = { git = "ssh://git@github.com/twilight-project/twilight-
 
 [dependencies.zkos-relayer-wallet]
 git = "ssh://git@github.com/twilight-project/zkos-relayer-wallet.git"
-branch = "develop-rpc"
+branch = "develop-rust"
 [dependencies.zkos-client-wallet]
 git = "ssh://git@github.com/twilight-project/zkos-client-wallet.git"
-branch = "develop-rpc"
+branch = "develop-rust"
