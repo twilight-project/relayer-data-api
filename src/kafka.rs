@@ -54,7 +54,9 @@ pub fn start_consumer(
                             let message: Event = match serde_json::from_str(&msg_data) {
                                 Ok(event) => event,
                                 Err(e) => {
-                                    panic!("Invalid message! {:?} {}", e, msg_data);
+                                    println!("Invalid message! {:?} {}\n", e, msg_data);
+                                    // continue;
+                                    Event::Stop(e.to_string())
                                 }
                             };
                             message
