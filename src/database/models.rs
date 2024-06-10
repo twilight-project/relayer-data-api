@@ -1489,12 +1489,29 @@ impl TraderOrder {
                 GROUP BY uuid
             )
             AND order_status <> 'FILLED'  AND order_status <> 'CANCELLED'  AND order_status <> 'LIQUIDATE'
+        ), commands AS (
+            SELECT MAX(id) as id,uuid FROM sorted_set_command
+            WHERE uuid IN ( SELECT uuid FROM orders )
+            GROUP BY uuid
+        ), updates AS (
+            SELECT * FROM sorted_set_command
+            WHERE id IN ( SELECT id FROM commands )
+        ), updated AS(
+            SELECT
+                orders.uuid as uuid,
+                COALESCE(amount, entryprice) as entryprice,
+                positionsize as positionsize,
+                updates.command as command
+            FROM orders
+            LEFT JOIN updates
+            ON updates.uuid = orders.uuid
         )
         SELECT
             MAX(uuid) AS uuid,
             entryprice,
             SUM(positionsize) AS positionsize
-        FROM orders
+        FROM updated
+        WHERE command IS NULL OR command <> 'REMOVE_CLOSE_LIMIT_PRICE'
         GROUP BY entryprice
         ORDER BY entryprice ASC
         LIMIT 15;
@@ -1520,12 +1537,29 @@ impl TraderOrder {
                     GROUP BY uuid
                 )
                 AND order_status <> 'FILLED' AND order_status <> 'CANCELLED'  AND order_status <> 'LIQUIDATE'
+            ), commands AS (
+                SELECT MAX(id) as id,uuid FROM sorted_set_command
+                WHERE uuid IN ( SELECT uuid FROM orders )
+                GROUP BY uuid
+            ), updates AS (
+                SELECT * FROM sorted_set_command
+                WHERE id IN ( SELECT id FROM commands )
+            ), updated AS(
+                SELECT
+                    orders.uuid as uuid,
+                    COALESCE(amount, entryprice) as entryprice,
+                    positionsize as positionsize,
+                    updates.command as command
+                FROM orders
+                LEFT JOIN updates
+                ON updates.uuid = orders.uuid
             )
             SELECT
                 MAX(uuid) AS uuid,
                 entryprice,
                 SUM(positionsize) AS positionsize
-            FROM orders
+            FROM updated
+            WHERE command IS NULL OR command <> 'REMOVE_CLOSE_LIMIT_PRICE'
             GROUP BY entryprice
             ORDER BY entryprice DESC
             LIMIT 15;
