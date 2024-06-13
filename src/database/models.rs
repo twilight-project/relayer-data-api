@@ -1614,7 +1614,7 @@ impl TraderOrder {
     pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<RecentOrder>> {
         // use crate::database::schema::trader_order::dsl::*;
 
-        let query = r#"SELECT
+        let query = r#"Select * from  (SELECT
             trader_order.position_type as side,
             trader_order.entryprice as price,
             trader_order.positionsize as positionsize,
@@ -1622,11 +1622,11 @@ impl TraderOrder {
             FROM trader_order
             INNER JOIN (
                 SELECT uuid,min(timestamp) AS timestamp
-                FROM trader_order  WHERE trader_order.order_status <> 'PENDING' GROUP BY uuid
+                FROM trader_order  WHERE trader_order.order_status = 'FILLED'  GROUP BY uuid order by timestamp desc limit 100
             ) as t
             ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
             WHERE t.timestamp > now() - INTERVAL '1 day'
-            AND trader_order.order_status = 'FILLED'
+            AND trader_order.order_status = 'FILLED' 
 
             UNION ALL
 
@@ -1641,11 +1641,11 @@ impl TraderOrder {
             FROM trader_order
             INNER JOIN (
                 SELECT uuid,max(timestamp) AS timestamp
-                FROM trader_order GROUP BY uuid
+                FROM trader_order GROUP BY uuid order by timestamp desc limit 100
             ) as t
             ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
             WHERE t.timestamp > now() - INTERVAL '1 day'
-            AND trader_order.order_status IN ('SETTLED', 'LIQUIDATE')
+            AND trader_order.order_status IN ('SETTLED', 'LIQUIDATE') order by timestamp desc limit 100 ) as recent_order order by timestamp desc limit 50
         "#;
 
         diesel::sql_query(query).load(conn)
