@@ -1505,7 +1505,39 @@ impl TraderOrder {
             FROM orders
             LEFT JOIN updates
             ON updates.uuid = orders.uuid
+        ), sorted_set AS (
+            SELECT *
+            FROM sorted_set_command
+            WHERE id IN (
+                SELECT MAX(id) FROM sorted_set_command
+                WHERE uuid IS NOT NULL
+                GROUP BY uuid
+            )
+            AND command IN ('ADD_CLOSE_LIMIT_PRICE', 'UPDATE_CLOSE_LIMIT_PRICE')
+            AND position_type ='LONG' ORDER BY id DESC
         )
+        SELECT
+            trader_o.uuid AS uuid,
+            sort.amount AS entryprice,
+            trader_o.positionsize as positionsize
+        FROM (
+            SELECT *
+            FROM trader_order
+            WHERE id IN (
+                SELECT MAX(id) FROM trader_order
+                WHERE position_type = 'SHORT' AND uuid IN (
+                    SELECT uuid
+                    FROM sorted_Set
+                )
+                GROUP BY uuid
+            )
+            AND order_status = 'FILLED'
+        ) AS trader_o
+        LEFT OUTER JOIN (
+            SELECT amount,uuid FROM sorted_Set
+        ) AS sort
+        ON trader_o.uuid = sort.uuid
+        UNION ALL
         SELECT
             MAX(uuid) AS uuid,
             entryprice,
@@ -1516,6 +1548,7 @@ impl TraderOrder {
         ORDER BY entryprice ASC
         LIMIT 15;
         "#;
+
 
         let shorts: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
 
@@ -1553,7 +1586,38 @@ impl TraderOrder {
                 FROM orders
                 LEFT JOIN updates
                 ON updates.uuid = orders.uuid
+            ), sorted_set AS (
+                SELECT *
+                FROM sorted_set_command
+                WHERE id IN (
+                    SELECT MAX(id) FROM sorted_set_command
+                    WHERE uuid IS NOT NULL
+                    GROUP BY uuid
+                )
+                AND command IN ('ADD_CLOSE_LIMIT_PRICE', 'UPDATE_CLOSE_LIMIT_PRICE')
+                AND position_type ='LONG'
+                ORDER BY id DESC
             )
+            SELECT
+                trader_o.uuid AS uuid,
+                sort.amount AS entryprice,
+                trader_o.positionsize AS positionsize
+            FROM (
+                SELECT *
+                FROM trader_order
+                WHERE id IN (
+                    SELECT MAX(id) FROM trader_order
+                    WHERE position_type = 'LONG'
+                    AND uuid IN ( SELECT uuid FROM sorted_set)
+                    GROUP BY uuid
+                )
+                AND trader_order.order_status = 'FILLED'
+            ) AS trader_o
+            LEFT OUTER JOIN (
+                SELECT amount,uuid FROM sorted_set
+            ) AS sort
+            ON trader_o.uuid = sort.uuid
+            UNION ALL
             SELECT
                 MAX(uuid) AS uuid,
                 entryprice,
