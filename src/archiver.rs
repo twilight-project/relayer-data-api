@@ -423,7 +423,6 @@ impl DatabaseArchiver {
                         BtcUsdPrice::update_candles(&mut *self.get_conn()?)?;
                     }
 
-                    self.commit_orders()?;
                     self.completions
                         .send(completion)
                         .map_err(|e| ApiError::CrossbeamChannel(format!("{:?}", e)))?;
