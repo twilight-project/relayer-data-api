@@ -12,7 +12,7 @@ use twilight_relayer_rust::{
 };
 
 const BATCH_INTERVAL: u64 = 100;
-const BATCH_SIZE: usize = 5_000;
+const BATCH_SIZE: usize = 2_000;
 const MAX_RETRIES: usize = 5;
 const RETRY_SLEEP: u64 = 2000;
 
@@ -413,6 +413,7 @@ impl DatabaseArchiver {
         let mut deadline = Instant::now() + Duration::from_millis(BATCH_INTERVAL);
 
         loop {
+            println!("Deadline: {:?}\n", deadline);
             match rx.recv_deadline(deadline) {
                 Ok((completion, msgs, catchup)) => {
                     for msg in msgs {
