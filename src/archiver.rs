@@ -413,9 +413,8 @@ impl DatabaseArchiver {
         let mut deadline = Instant::now() + Duration::from_millis(BATCH_INTERVAL);
 
         loop {
-            println!("Deadline: {:?}\n", deadline);
             match rx.recv_deadline(deadline) {
-                Ok((completion, msgs, catchup)) => {
+                Ok((completion, msgs, _catchup)) => {
                     for msg in msgs {
                         self.process_msg(msg)?;
                     }
