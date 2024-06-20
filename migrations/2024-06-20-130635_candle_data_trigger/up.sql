@@ -13,7 +13,7 @@ AS $BODY$
 BEGIN
 
 	CASE 
-    	WHEN (NOW() <( New."timestamp" + INTERVAL '250 ms')) THEN
+    	WHEN (NOW() <( New."timestamp" + INTERVAL '500 ms')) THEN
 			PERFORM  update_candles_1min();
 			PERFORM  update_candles_1hour();
 			PERFORM update_candles_1day();
