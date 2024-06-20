@@ -420,9 +420,9 @@ impl DatabaseArchiver {
                         self.process_msg(msg)?;
                     }
 
-                    if !catchup {
-                        BtcUsdPrice::update_candles(&mut *self.get_conn()?)?;
-                    }
+                    // if !catchup {
+                    //     BtcUsdPrice::update_candles(&mut *self.get_conn()?)?;
+                    // }
 
                     self.completions
                         .send(completion)
