@@ -414,14 +414,10 @@ impl DatabaseArchiver {
 
         loop {
             match rx.recv_deadline(deadline) {
-                Ok((completion, msgs, _catchup)) => {
+                Ok((completion, msgs)) => {
                     for msg in msgs {
                         self.process_msg(msg)?;
                     }
-
-                    // if !catchup {
-                    //     BtcUsdPrice::update_candles(&mut *self.get_conn()?)?;
-                    // }
 
                     self.completions
                         .send(completion)

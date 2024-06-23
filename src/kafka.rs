@@ -4,8 +4,6 @@ use log::{error, info};
 use std::thread::{self, JoinHandle};
 use twilight_relayer_rust::db::Event;
 
-// > 500 offset behind, we'll batch update.
-const CATCHUP_INTERVAL: i64 = 500;
 pub type Completion = (i32, i64);
 
 pub fn start_consumer(
@@ -64,9 +62,8 @@ pub fn start_consumer(
                         .collect();
 
                     let token = (ms.partition(), max_offset);
-                    let catchup = latest - max_offset > CATCHUP_INTERVAL;
 
-                    match sender_clone.send((token, events, catchup)) {
+                    match sender_clone.send((token, events)) {
                         Ok(_) => {}
                         Err(_arg) => {
                             connection_status = false;
