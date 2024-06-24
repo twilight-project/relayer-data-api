@@ -1549,7 +1549,6 @@ impl TraderOrder {
         LIMIT 15;
         "#;
 
-
         let shorts: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
 
         let ask: Vec<_> = shorts
@@ -1686,14 +1685,14 @@ impl TraderOrder {
             FROM trader_order
             INNER JOIN (
                 SELECT uuid,min(timestamp) AS timestamp
-                FROM trader_order  WHERE trader_order.order_status = 'FILLED'  GROUP BY uuid order by timestamp desc limit 100
+                FROM trader_order  WHERE trader_order.order_status = 'FILLED' and timestamp > now() - INTERVAL '1 day' GROUP BY uuid order by timestamp desc limit 50
+
             ) as t
             ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
-            WHERE t.timestamp > now() - INTERVAL '1 day'
-            AND trader_order.order_status = 'FILLED' 
 
             UNION ALL
 
+				
             SELECT
             (CASE WHEN trader_order.position_type = 'LONG' THEN position_type('SHORT')
             ELSE position_type('LONG')
@@ -1702,14 +1701,19 @@ impl TraderOrder {
                 trader_order.settlement_price as price,
                 trader_order.positionsize as positionsize,
                 trader_order.timestamp as timestamp
+
             FROM trader_order
             INNER JOIN (
                 SELECT uuid,max(timestamp) AS timestamp
-                FROM trader_order GROUP BY uuid order by timestamp desc limit 100
+                FROM trader_order 
+				where order_status IN ('SETTLED', 'LIQUIDATE')
+				AND timestamp > now() - INTERVAL '1 day'
+				GROUP BY uuid order by timestamp desc limit 50
+			
             ) as t
             ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
-            WHERE t.timestamp > now() - INTERVAL '1 day'
-            AND trader_order.order_status IN ('SETTLED', 'LIQUIDATE') order by timestamp desc limit 100 ) as recent_order order by timestamp desc limit 50
+
+				order by timestamp desc  ) as recent_order order by timestamp desc limit 50
         "#;
 
         diesel::sql_query(query).load(conn)
