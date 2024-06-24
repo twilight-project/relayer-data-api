@@ -1,7 +1,9 @@
 -- Your SQL goes here
 
-CREATE INDEX trader_order_time ON trader_order(timestamp);
-CREATE INDEX price_time ON btc_usd_price(timestamp);
+-- CREATE INDEX trader_order_time ON trader_order(timestamp);
+-- CREATE INDEX price_time ON btc_usd_price(timestamp);
+
+CREATE INDEX trader_order_uuid ON trader_order(uuid);
 
 CREATE TABLE candles_1min (
     start_time timestamptz primary key,

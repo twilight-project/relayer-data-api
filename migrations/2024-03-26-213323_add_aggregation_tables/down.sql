@@ -1,6 +1,7 @@
 -- This file should undo anything in `up.sql`
-DROP INDEX trader_order_time;
-DROP INDEX price_time;
+-- DROP INDEX trader_order_time;
+-- DROP INDEX price_time;
+DROP INDEX trader_order_uuid;
 
 DROP TABLE candles_1min;
 DROP TABLE candles_1hour;
