@@ -4,6 +4,8 @@
 -- CREATE INDEX price_time ON btc_usd_price(timestamp);
 
 CREATE INDEX trader_order_uuid ON trader_order(uuid);
+CREATE INDEX transaction_hash_account_id ON transaction_hash(account_id);
+CREATE INDEX transaction_hash_request_id ON transaction_hash(request_id);
 
 CREATE TABLE candles_1min (
     start_time timestamptz primary key,

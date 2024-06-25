@@ -67,7 +67,7 @@ impl WsContext {
             let mut deadline = Instant::now() + Duration::from_millis(WS_UPDATE_INTERVAL);
             loop {
                 match rx.recv_deadline(deadline) {
-                    Ok((completion, msgs, _)) => {
+                    Ok((completion, msgs)) => {
                         for msg in msgs {
                             match msg {
                                 Event::TraderOrder(to, ..)

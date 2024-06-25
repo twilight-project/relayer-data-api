@@ -32,8 +32,8 @@ struct Opt {
     )]
     ws_listen_addr: SocketAddr,
 }
-// #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 40)]
+// #[tokio::main]
 async fn main() {
     let opts = Opt::from_args();
     dotenv::dotenv().expect("dotenv file not found!");

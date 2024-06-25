@@ -9,7 +9,7 @@ pub type Completion = (i32, i64);
 pub fn start_consumer(
     group: String,
     topic: String,
-    tx: Sender<(Completion, Vec<Event>, bool)>,
+    tx: Sender<(Completion, Vec<Event>)>,
 ) -> (Sender<Completion>, JoinHandle<()>) {
     let (tx_consumed, rx_consumed) = unbounded::<Completion>();
 

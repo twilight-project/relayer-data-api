@@ -409,7 +409,7 @@ impl DatabaseArchiver {
     }
 
     /// Worker task that loops indefinitely, batching commits to postgres backend.
-    pub fn run(mut self, rx: Receiver<(Completion, Vec<Event>, bool)>) -> Result<(), ApiError> {
+    pub fn run(mut self, rx: Receiver<(Completion, Vec<Event>)>) -> Result<(), ApiError> {
         let mut deadline = Instant::now() + Duration::from_millis(BATCH_INTERVAL);
 
         loop {
