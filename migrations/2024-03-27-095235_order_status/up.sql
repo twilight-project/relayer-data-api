@@ -11,3 +11,5 @@ ALTER TYPE order_status ADD VALUE 'SerializationError';
 ALTER TYPE order_status ADD VALUE 'RequestSubmitted';
 ALTER TYPE order_status ADD VALUE 'OrderNotFound';
 ALTER TYPE order_status ADD VALUE 'RejectedFromChain';
+CREATE INDEX transaction_hash_account_id ON transaction_hash(account_id);
+CREATE INDEX transaction_hash_request_id ON transaction_hash(request_id);

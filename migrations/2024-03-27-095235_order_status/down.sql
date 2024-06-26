@@ -11,3 +11,5 @@ ALTER TYPE order_status DROP VALUE 'SerializationError';
 ALTER TYPE order_status DROP VALUE 'RequestSubmitted';
 ALTER TYPE order_status DROP VALUE 'OrderNotFound';
 ALTER TYPE order_status DROP VALUE 'RejectedFromChain';
+DROP INDEX transaction_hash_account_id;
+DROP INDEX transaction_hash_request_id;

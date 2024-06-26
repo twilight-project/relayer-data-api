@@ -2,8 +2,7 @@
 -- DROP INDEX trader_order_time;
 -- DROP INDEX price_time;
 DROP INDEX trader_order_uuid;
-DROP INDEX transaction_hash_account_id;
-DROP INDEX transaction_hash_request_id;
+
 
 DROP TABLE candles_1min;
 DROP TABLE candles_1hour;
