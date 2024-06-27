@@ -1525,7 +1525,7 @@ impl TraderOrder {
             FROM trader_order
             WHERE id IN (
                 SELECT MAX(id) FROM trader_order
-                WHERE position_type = 'SHORT' AND uuid IN (
+                WHERE position_type = 'LONG' AND uuid IN (
                     SELECT uuid
                     FROM sorted_Set
                 )
@@ -1594,7 +1594,7 @@ impl TraderOrder {
                     GROUP BY uuid
                 )
                 AND command IN ('ADD_CLOSE_LIMIT_PRICE', 'UPDATE_CLOSE_LIMIT_PRICE')
-                AND position_type ='LONG'
+                AND position_type ='SHORT'
                 ORDER BY id DESC
             )
             SELECT
@@ -1606,7 +1606,7 @@ impl TraderOrder {
                 FROM trader_order
                 WHERE id IN (
                     SELECT MAX(id) FROM trader_order
-                    WHERE position_type = 'LONG'
+                    WHERE position_type = 'SHORT'
                     AND uuid IN ( SELECT uuid FROM sorted_set)
                     GROUP BY uuid
                 )
