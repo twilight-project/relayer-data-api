@@ -5,6 +5,7 @@ use crate::database::schema::sql_types::{
     OrderType as OrderTypeSql, PositionSizeCommand as PositionSizeCommandSql,
     PositionType as PositionTypeSql, SortedSetCommandType as SortedSetCommandTypeSql,
 };
+use core::fmt::Display;
 use diesel::*;
 use diesel::{
     deserialize::FromSql,
@@ -101,6 +102,29 @@ pub enum OrderStatus {
 }
 
 impl OrderStatus {
+    pub fn as_str(&self) -> &'static str {
+        use OrderStatus::*;
+
+        match self {
+            SETTLED => "SETTLED",
+            LENDED => "LENDED",
+            LIQUIDATE => "LIQUIDATE",
+            CANCELLED => "CANCELLED",
+            PENDING => "PENDING",
+            FILLED => "FILLED",
+            DuplicateOrder => "DuplicateOrder",
+            UtxoError => "UtxoError",
+            Error => "Error",
+            NoResponseFromChain => "NoResponseFromChain",
+            BincodeError => "BincodeError",
+            HexCodeError => "HexCodeError",
+            SerializationError => "SerializationError",
+            RequestSubmitted => "RequestSubmitted",
+            OrderNotFound => "OrderNotFound",
+            RejectedFromChain => "RejectedFromChain",
+        }
+    }
+
     pub fn is_cancelable(&self) -> bool {
         use OrderStatus::*;
 
@@ -349,6 +373,15 @@ impl FromSql<PositionTypeSql, Pg> for PositionType {
             b"LONG" => Ok(PositionType::LONG),
             b"SHORT" => Ok(PositionType::SHORT),
             _ => panic!("Invalid enum type in database!"),
+        }
+    }
+}
+
+impl Display for PositionType {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            PositionType::LONG => write!(fmt, "LONG"),
+            PositionType::SHORT => write!(fmt, "SHORT"),
         }
     }
 }

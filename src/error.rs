@@ -12,4 +12,6 @@ pub enum ApiError {
     JsonError(#[from] serde_json::Error),
     #[error("Connection pool error {0:?}")]
     R2d2(#[from] r2d2::Error),
+    #[error("Redis error {0:?}")]
+    Redis(#[from] redis::RedisError),
 }

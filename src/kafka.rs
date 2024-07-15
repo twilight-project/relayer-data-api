@@ -33,11 +33,6 @@ pub fn start_consumer(
         while connection_status {
             let sender_clone = tx.clone();
             let mss = con.poll().unwrap();
-            let latest = con
-                .client_mut()
-                .fetch_topic_offsets(&topic, kafka::client::FetchOffset::Latest)
-                .unwrap();
-            let latest = latest[0].offset;
             if !mss.is_empty() {
                 for ms in mss.iter() {
                     let mut max_offset = 0i64;
