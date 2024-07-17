@@ -45,6 +45,7 @@ async fn main() {
         .init();
 
     let database_url = std::env::var("DATABASE_URL").expect("No database url found!");
+    let redis_url = std::env::var("ORDERBOOK_REDIS").expect("No redis url found!");
     info!("Database backend: {}", database_url);
 
     let cors = CorsLayer::new()

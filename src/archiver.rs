@@ -5,7 +5,12 @@ use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use log::{debug, error, info, trace};
 use r2d2::PooledConnection;
-use std::time::{Duration, Instant};
+use redis::Client;
+use serde_json::json;
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 use twilight_relayer_rust::{
     db::{self as relayer_db, Event},
     relayer,
@@ -15,12 +20,55 @@ const BATCH_INTERVAL: u64 = 100;
 const BATCH_SIZE: usize = 2_000;
 const MAX_RETRIES: usize = 5;
 const RETRY_SLEEP: u64 = 2000;
+const PIPELINE_CHUNK: usize = 512;
 
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
+const UPDATE_FN: &str = r#"
+    -- args: <order_id> <order_status> <side> <price> <position_size> <timestamp>
+    local id = ARGV[1]
+    local status = ARGV[2]
+    local side = ARGV[3]
+    local price = tonumber(ARGV[4])
+    local size = tonumber(ARGV[5])
+    local time = tonumber(ARGV[6])
+
+    if status == "FILLED" or status == "SETTLED" or status == "LIQUIDATE" then
+        redis.call('HDEL', 'orders', id)
+
+        local table = { order_id = id, side = side, price = price, positionsize = size, timestamp = time }
+
+        local order_json = cjson.encode(table)
+        redis.call('ZADD', 'recent_orders', price, order_json)
+
+        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price, price)[1])
+        local new_size = result - size
+
+        redis.call('ZREM', side, result)
+        redis.call('ZADD', side, price, new_size)
+
+        return
+    end
+
+    -- just opened a new order
+    if status == "PENDING" then
+        redis.call('HSET', 'orders', id, price)
+
+        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price, price)[1])
+        local new_size = result + size
+
+        redis.call('ZREM', side, result)
+        redis.call('ZADD', side, price, new_size)
+    end
+
+    -- TODO: clean out <recent_orders> expired > 24h...
+"#;
+
 pub struct DatabaseArchiver {
+    redis: Client,
     pool: ManagedPool,
+    script_sha: String,
     trader_orders: Vec<InsertTraderOrder>,
     lend_orders: Vec<InsertLendOrder>,
     position_size: Vec<PositionSizeUpdate>,
@@ -34,9 +82,14 @@ pub struct DatabaseArchiver {
 
 impl DatabaseArchiver {
     /// Start an archiver, provided a postgres connection string.
-    pub fn from_host(database_url: String, completions: Sender<Completion>) -> DatabaseArchiver {
+    pub fn from_host(
+        database_url: &str,
+        redis_url: &str,
+        completions: Sender<Completion>,
+    ) -> DatabaseArchiver {
         let manager = ConnectionManager::<PgConnection>::new(database_url);
         let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
+        let redis = Client::open(redis_url).expect("Could not establish redis connection");
 
         let mut conn = pool.get().expect("Could not get pooled connection!");
 
@@ -51,8 +104,19 @@ impl DatabaseArchiver {
         let lend_pool_commands = Vec::with_capacity(BATCH_SIZE);
         let nonce = Nonce::get(&mut conn).expect("Failed to query for current nonce");
 
+        Self::load_cache(pool.clone(), redis.clone());
+
+        let mut redis_conn = redis.get_connection().expect("Redis connection");
+        let script_sha: String = redis::cmd("SCRIPT")
+            .arg("LOAD")
+            .arg(UPDATE_FN)
+            .query(&mut redis_conn)
+            .expect("Script load failed");
+
         DatabaseArchiver {
+            redis,
             pool,
+            script_sha,
             trader_orders,
             lend_orders,
             position_size,
@@ -63,6 +127,123 @@ impl DatabaseArchiver {
             completions,
             nonce,
         }
+    }
+
+    fn load_cache(pool: ManagedPool, redis: Client) {
+        let mut conn = pool.get().expect("Could not get pooled connection!");
+
+        let recent_orders =
+            TraderOrder::list_past_24hrs(&mut conn).expect("Failed to load recent orders");
+        let order_book = TraderOrder::order_book(&mut conn).expect("Failed to load order book");
+
+        for chunk in recent_orders.chunks(PIPELINE_CHUNK) {
+            let mut redis_conn = redis
+                .get_connection()
+                .expect("Failed to acquire redis connection");
+            let mut pipe = redis::pipe();
+
+            for item in chunk {
+                let timestamp = item.timestamp.timestamp_millis();
+
+                let order = json!({
+                    "order_id": item.order_id.clone(),
+                    "side": item.side.to_string(),
+                    "price": item.price,
+                    "positionsize": item.positionsize,
+                    "timestamp": item.timestamp.timestamp_millis(),
+                });
+
+                let order = serde_json::to_string(&order).expect("Invalid JSON");
+
+                let mut cmd = redis::cmd("ZADD");
+                cmd.arg("recent_orders").arg(timestamp).arg(order);
+                pipe.add_command(cmd);
+            }
+
+            pipe.atomic().execute(&mut redis_conn);
+        }
+
+        let OrderBook { bid, ask } = order_book;
+
+        let mut redis_conn = redis
+            .get_connection()
+            .expect("Failed to acquire redis connection");
+        let mut bids = HashMap::new();
+        for bid in bid.iter() {
+            let key = (bid.price * 100.0) as i64;
+            bids.entry(key)
+                .and_modify(|size| *size += bid.positionsize)
+                .or_insert(bid.positionsize);
+
+            redis::cmd("HSET")
+                .arg("orders")
+                .arg("id")
+                .arg(bid.id.clone())
+                .arg("price")
+                .arg(bid.price)
+                .execute(&mut redis_conn);
+        }
+
+        for (price, size) in bids.into_iter() {
+            redis::cmd("ZADD")
+                .arg("bid")
+                .arg(price)
+                .arg(size)
+                .execute(&mut redis_conn);
+        }
+
+        let mut asks = HashMap::new();
+        for ask in ask.iter() {
+            let key = (ask.price * 100.0) as i64;
+            asks.entry(key)
+                .and_modify(|size| *size += ask.positionsize)
+                .or_insert(ask.positionsize);
+
+            redis::cmd("HSET")
+                .arg("orders")
+                .arg("id")
+                .arg(ask.id.clone())
+                .arg("price")
+                .arg(ask.price)
+                .execute(&mut redis_conn);
+        }
+
+        for (price, size) in asks.into_iter() {
+            redis::cmd("ZADD")
+                .arg("ask")
+                .arg(price)
+                .arg(size)
+                .execute(&mut redis_conn);
+        }
+    }
+
+    fn update_sorted_set(&self, cmd: &relayer::SortedSetCommand) -> Result<(), ApiError> {
+        Ok(())
+    }
+
+    fn update_order_cache(&self, order: &InsertTraderOrder) -> Result<(), ApiError> {
+        let mut pipe = redis::pipe();
+
+        let side = match order.position_type {
+            PositionType::LONG => "bid",
+            PositionType::SHORT => "ask",
+        };
+
+        if order.order_status == OrderStatus::FILLED { println!("J"); }
+
+        let mut cmd = redis::cmd("EVALSHA");
+        cmd.arg(&self.script_sha)
+            .arg(order.uuid.clone())
+            .arg(order.order_status.as_str())
+            .arg(side)
+            .arg(order.entryprice.to_string())
+            .arg(order.positionsize.to_string())
+            .arg(order.timestamp.timestamp_millis());
+
+        pipe.add_command(cmd);
+        let mut redis_conn = self.redis.get_connection()?;
+        pipe.atomic().execute(&mut redis_conn);
+        Ok(())
     }
 
     /// Fetch a connection, will retry MAX_RETRIES before giving up.
@@ -95,6 +276,7 @@ impl DatabaseArchiver {
         sorted_set_update: relayer::SortedSetCommand,
     ) -> Result<(), ApiError> {
         debug!("Appending sorted set update");
+        let _ = self.update_sorted_set(&sorted_set_update);
         self.sorted_set.push(sorted_set_update);
 
         if self.sorted_set.len() == self.sorted_set.capacity() {
@@ -179,6 +361,7 @@ impl DatabaseArchiver {
     /// queue.
     fn trader_order(&mut self, order: InsertTraderOrder) -> Result<(), ApiError> {
         debug!("Appending trader order");
+        let _ = self.update_order_cache(&order);
         self.trader_orders.push(order);
 
         if self.trader_orders.len() == self.trader_orders.capacity() {

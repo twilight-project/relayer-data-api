@@ -1150,6 +1150,8 @@ pub struct TraderOrder {
 
 #[derive(Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable)]
 pub struct RecentOrder {
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    pub order_id: String,
     #[diesel(sql_type = crate::database::schema::sql_types::PositionType)]
     pub side: PositionType,
     #[diesel(sql_type = diesel::sql_types::Numeric)]
@@ -1514,7 +1516,7 @@ impl TraderOrder {
                 GROUP BY uuid
             )
             AND command IN ('ADD_CLOSE_LIMIT_PRICE', 'UPDATE_CLOSE_LIMIT_PRICE')
-            AND position_type ='LONG' ORDER BY id DESC
+            AND position_type ='SHORT' ORDER BY id DESC
         )
         SELECT
             trader_o.uuid AS uuid,
@@ -1678,6 +1680,7 @@ impl TraderOrder {
         // use crate::database::schema::trader_order::dsl::*;
 
         let query = r#"Select * from  (SELECT
+            trader_order.uuid as order_id,
             trader_order.position_type as side,
             trader_order.entryprice as price,
             trader_order.positionsize as positionsize,
