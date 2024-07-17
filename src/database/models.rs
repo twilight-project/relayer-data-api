@@ -1697,6 +1697,7 @@ impl TraderOrder {
 
 				
             SELECT
+            trader_order.uuid as order_id,
             (CASE WHEN trader_order.position_type = 'LONG' THEN position_type('SHORT')
             ELSE position_type('LONG')
        		END) as side ,
