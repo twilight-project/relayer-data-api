@@ -1,6 +1,7 @@
 use super::*;
 use crate::database::*;
 use chrono::prelude::*;
+use itertools::Itertools;
 use jsonrpsee::{core::error::Error, server::logger::Params};
 use kafka::producer::Record;
 use relayerwalletlib::verify_client_message::{
@@ -9,6 +10,7 @@ use relayerwalletlib::verify_client_message::{
 };
 use twilight_relayer_rust::relayer;
 use zkoswalletlib::relayer_rpcclient::method::RequestResponse;
+
 pub(super) fn btc_usd_price(
     _: Params<'_>,
     ctx: &RelayerContext,
@@ -97,26 +99,26 @@ pub(super) fn open_limit_orders(
     _: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    match ctx.pool.get() {
-        Ok(mut conn) => match TraderOrder::order_book(&mut conn) {
-            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
-            Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
-        },
-        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
-    }
+    let Ok(mut conn) = ctx.client.get_connection() else {
+        return Ok("Redis connection error.".into());
+    };
+
+    let book = order_book(&mut conn);
+
+    Ok(serde_json::to_value(book).expect("Failed to serialize order book"))
 }
 
 pub(super) fn recent_trade_orders(
     _: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    match ctx.pool.get() {
-        Ok(mut conn) => match TraderOrder::list_past_24hrs(&mut conn) {
-            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
-            Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
-        },
-        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
-    }
+    let Ok(mut conn) = ctx.client.get_connection() else {
+        return Ok("Redis connection error.".into());
+    };
+
+    let orders = recent_orders(&mut conn);
+
+    Ok(serde_json::to_value(&orders).expect("Failed to serialize recent orders"))
 }
 
 pub(super) fn position_size(

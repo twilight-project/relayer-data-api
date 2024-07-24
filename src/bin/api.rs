@@ -1,5 +1,6 @@
 use jsonrpsee::server::ServerBuilder;
 use log::info;
+use redis::Client;
 use relayerarchiverlib::{rpc, ws};
 use std::{net::SocketAddr, time::Duration};
 use structopt::StructOpt;
@@ -67,7 +68,7 @@ async fn main() {
         .await
         .expect("Failed to build public API server");
 
-    let methods = rpc::init_public_methods(&database_url);
+    let methods = rpc::init_public_methods(&database_url, &redis_url);
     let _pub_handle = public_server
         .start(methods)
         .expect("Failed to start API server");
@@ -81,7 +82,7 @@ async fn main() {
         .await
         .expect("Failed to build private API server");
 
-    let methods = rpc::init_private_methods(&database_url);
+    let methods = rpc::init_private_methods(&database_url, &redis_url);
     let _priv_handle = private_server
         .start(methods)
         .expect("Failed to start API server");
@@ -93,7 +94,7 @@ async fn main() {
         .await
         .expect("Failed to build websocket server");
 
-    let ws_methods = ws::init_methods(&database_url);
+    let ws_methods = ws::init_methods(&database_url, &redis_url);
     let _ws_handle = ws_server
         .start(ws_methods)
         .expect("Failed to start websocket server");

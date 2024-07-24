@@ -1679,7 +1679,7 @@ impl TraderOrder {
     pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<RecentOrder>> {
         // use crate::database::schema::trader_order::dsl::*;
 
-        let query = r#"Select * from  (SELECT
+        let query = r#"SELECT * FROM (SELECT
             trader_order.uuid as order_id,
             trader_order.position_type as side,
             trader_order.entryprice as price,
@@ -1694,14 +1694,14 @@ impl TraderOrder {
             ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
 
             UNION ALL
-
 				
             SELECT
-            trader_order.uuid as order_id,
-            (CASE WHEN trader_order.position_type = 'LONG' THEN position_type('SHORT')
-            ELSE position_type('LONG')
-       		END) as side ,
-               
+                trader_order.uuid as order_id,
+                (
+                    CASE WHEN trader_order.position_type = 'LONG' THEN position_type('SHORT')
+                    ELSE position_type('LONG')
+                    END
+                ) as side,
                 trader_order.settlement_price as price,
                 trader_order.positionsize as positionsize,
                 trader_order.timestamp as timestamp
@@ -1716,8 +1716,7 @@ impl TraderOrder {
 			
             ) as t
             ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
-
-				order by timestamp desc  ) as recent_order order by timestamp desc limit 50
+            order by timestamp desc  ) as recent_order order by timestamp desc limit 50
         "#;
 
         diesel::sql_query(query).load(conn)

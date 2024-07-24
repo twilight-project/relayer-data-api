@@ -2,6 +2,7 @@ use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
 use kafka::producer::{Producer, RequiredAcks};
+use redis::Client;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
@@ -9,10 +10,13 @@ use tokio::time::Duration;
 mod private_methods;
 mod public_methods;
 mod types;
+mod util;
+
 pub use types::{
     CandleSubscription, Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval, Order,
     OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs, TransactionHashArgs,
 };
+pub use util::{order_book, recent_orders};
 
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
@@ -22,6 +26,7 @@ type HandlerType<R> =
 
 pub struct RelayerContext {
     pub pool: ManagedPool,
+    pub client: Client,
     pub kafka: Arc<Mutex<Producer>>,
 }
 
@@ -35,9 +40,10 @@ fn register_method<R: Serialize + 'static>(
     }
 }
 
-pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
+pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<RelayerContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
+    let client = Client::open(redis_url).expect("Could not establish redis connection");
 
     let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
     let broker = vec![broker_host.to_owned()];
@@ -48,7 +54,11 @@ pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
         .unwrap();
     let kafka = Arc::new(Mutex::new(kafka));
 
-    let mut module = RpcModule::new(RelayerContext { pool, kafka });
+    let mut module = RpcModule::new(RelayerContext {
+        client,
+        pool,
+        kafka,
+    });
     register_method(
         &mut module,
         "btc_usd_price",
@@ -137,9 +147,10 @@ pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
     module
 }
 
-pub fn init_private_methods(database_url: &str) -> RpcModule<RelayerContext> {
+pub fn init_private_methods(database_url: &str, redis_url: &str) -> RpcModule<RelayerContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
+    let client = Client::open(redis_url).expect("Could not establish redis connection");
 
     let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
     let broker = vec![broker_host.to_owned()];
@@ -150,7 +161,11 @@ pub fn init_private_methods(database_url: &str) -> RpcModule<RelayerContext> {
         .unwrap();
     let kafka = Arc::new(Mutex::new(kafka));
 
-    let mut module = RpcModule::new(RelayerContext { pool, kafka });
+    let mut module = RpcModule::new(RelayerContext {
+        client,
+        pool,
+        kafka,
+    });
 
     register_method(
         &mut module,

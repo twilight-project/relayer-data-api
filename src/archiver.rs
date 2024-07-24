@@ -150,7 +150,7 @@ impl DatabaseArchiver {
                     "side": item.side.to_string(),
                     "price": item.price,
                     "positionsize": item.positionsize,
-                    "timestamp": item.timestamp.timestamp_millis(),
+                    "timestamp": item.timestamp.to_rfc3339(),
                 });
 
                 let order = serde_json::to_string(&order).expect("Invalid JSON");
@@ -228,8 +228,6 @@ impl DatabaseArchiver {
             PositionType::LONG => "bid",
             PositionType::SHORT => "ask",
         };
-
-        if order.order_status == OrderStatus::FILLED { println!("J"); }
 
         let mut cmd = redis::cmd("EVALSHA");
         cmd.arg(&self.script_sha)
@@ -586,7 +584,6 @@ impl DatabaseArchiver {
                 };
                 self.tx_hash(hash)?;
             }
-            Event::AdvanceStateQueue(_, _) => {}
         }
 
         Ok(())

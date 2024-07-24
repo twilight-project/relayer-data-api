@@ -8,6 +8,7 @@ use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::RpcModule;
 use log::{error, info, trace};
+use redis::Client;
 use relayerwalletlib::zkoswalletlib::relayer_types::{OrderStatus, OrderType};
 // use serde::{Deserialize, Serialize};
 use std::{
@@ -33,6 +34,7 @@ type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
 pub struct WsContext {
+    client: Client,
     price_feed: Sender<(f64, DateTime<Utc>)>,
     order_book: Sender<NewOrderBookOrder>,
     recent_trades: Sender<relayer::TraderOrder>,
@@ -44,7 +46,7 @@ pub struct WsContext {
 }
 
 impl WsContext {
-    pub fn with_pool(pool: ManagedPool) -> WsContext {
+    pub fn with_pool(pool: ManagedPool, client: Client) -> WsContext {
         let (price_feed, _) = channel::<(f64, DateTime<Utc>)>(BROADCAST_CHANNEL_CAPACITY);
         let (order_book, _) = channel::<NewOrderBookOrder>(BROADCAST_CHANNEL_CAPACITY);
         let (recent_trades, _) = channel::<relayer::TraderOrder>(BROADCAST_CHANNEL_CAPACITY);
@@ -112,7 +114,6 @@ impl WsContext {
                                 Event::Stop(_stop) => {}
                                 Event::TxHash(..) => {}
                                 Event::TxHashUpdate(..) => {}
-                                Event::AdvanceStateQueue(..) => {}
                             }
                         }
                         if let Err(e) = notify.send(completion) {
@@ -135,6 +136,7 @@ impl WsContext {
         });
 
         WsContext {
+            client,
             price_feed,
             order_book,
             recent_trades,
@@ -147,14 +149,15 @@ impl WsContext {
     }
 }
 
-pub fn init_methods(database_url: &str) -> RpcModule<WsContext> {
+pub fn init_methods(database_url: &str, redis_url: &str) -> RpcModule<WsContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::builder()
         .max_size(50)
         .build(manager)
         .expect("Could not instantiate connection pool");
+    let client = Client::open(redis_url).expect("Could not establish redis connection");
 
-    let mut module = RpcModule::new(WsContext::with_pool(pool));
+    let mut module = RpcModule::new(WsContext::with_pool(pool, client));
 
     module
         .register_subscription(

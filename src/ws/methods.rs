@@ -1,8 +1,8 @@
 #![allow(warnings)]
 use crate::{
-    database::{BtcUsdPrice, TraderOrder},
+    database::{Ask, Bid, BtcUsdPrice, OrderBook, TraderOrder},
     error::ApiError,
-    rpc::{CandleSubscription, Interval},
+    rpc::{order_book, CandleSubscription, Interval},
 };
 use chrono::prelude::*;
 use jsonrpsee::{
@@ -146,7 +146,8 @@ pub(super) fn spawn_order_book(
             match rx.try_recv() {
                 Ok(_mesg) => {
                     let mut conn = ctx.pool.get()?;
-                    let orders = TraderOrder::order_book(&mut conn)?;
+                    let mut redis_conn = ctx.client.get_connection().expect("REDIS connection.");
+                    let orders = order_book(&mut redis_conn);
                     let result = serde_json::to_value(&orders)?;
 
                     if let Err(e) = sink.send(&result) {
