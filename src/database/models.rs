@@ -3,7 +3,8 @@ use crate::database::{
     schema::{
         address_customer_id, btc_usd_price, current_nonce, customer_account,
         customer_apikey_linking, customer_order_linking, funding_rate, lend_order, lend_pool,
-        lend_pool_command, position_size_log, sorted_set_command, trader_order, transaction_hash,
+        lend_pool_command, position_size_log, sorted_set_command, trader_order,
+        trader_order_funding_updated, transaction_hash,
     },
     sql_types::*,
 };
@@ -1148,6 +1149,35 @@ pub struct TraderOrder {
     pub entry_sequence: i64,
 }
 
+#[derive(
+    Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable, Insertable, AsChangeset,
+)]
+#[diesel(table_name = trader_order_funding_updated)]
+pub struct TraderOrderFundingUpdates {
+    pub id: i64,
+    pub uuid: String,
+    pub account_id: String,
+    pub position_type: PositionType,
+    pub order_status: OrderStatus,
+    pub order_type: OrderType,
+    pub entryprice: BigDecimal,
+    pub execution_price: BigDecimal,
+    pub positionsize: BigDecimal,
+    pub leverage: BigDecimal,
+    pub initial_margin: BigDecimal,
+    pub available_margin: BigDecimal,
+    pub timestamp: DateTime<Utc>,
+    pub bankruptcy_price: BigDecimal,
+    pub bankruptcy_value: BigDecimal,
+    pub maintenance_margin: BigDecimal,
+    pub liquidation_price: BigDecimal,
+    pub unrealized_pnl: BigDecimal,
+    pub settlement_price: BigDecimal,
+    pub entry_nonce: i64,
+    pub exit_nonce: i64,
+    pub entry_sequence: i64,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable)]
 pub struct RecentOrder {
     #[diesel(sql_type = crate::database::schema::sql_types::PositionType)]
@@ -1169,6 +1199,32 @@ pub struct TradeVolume {
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
 #[diesel(table_name = trader_order)]
 pub struct InsertTraderOrder {
+    pub uuid: String,
+    pub account_id: String,
+    pub position_type: PositionType,
+    pub order_status: OrderStatus,
+    pub order_type: OrderType,
+    pub entryprice: BigDecimal,
+    pub execution_price: BigDecimal,
+    pub positionsize: BigDecimal,
+    pub leverage: BigDecimal,
+    pub initial_margin: BigDecimal,
+    pub available_margin: BigDecimal,
+    pub timestamp: DateTime<Utc>,
+    pub bankruptcy_price: BigDecimal,
+    pub bankruptcy_value: BigDecimal,
+    pub maintenance_margin: BigDecimal,
+    pub liquidation_price: BigDecimal,
+    pub unrealized_pnl: BigDecimal,
+    pub settlement_price: BigDecimal,
+    pub entry_nonce: i64,
+    pub exit_nonce: i64,
+    pub entry_sequence: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
+#[diesel(table_name = trader_order_funding_updated)]
+pub struct InsertTraderOrderFundingUpdates {
     pub uuid: String,
     pub account_id: String,
     pub position_type: PositionType,
@@ -1720,6 +1776,19 @@ impl TraderOrder {
     }
 }
 
+impl TraderOrderFundingUpdates {
+    pub fn insert(
+        conn: &mut PgConnection,
+        orders: Vec<InsertTraderOrderFundingUpdates>,
+    ) -> QueryResult<usize> {
+        use crate::database::schema::trader_order_funding_updated::dsl::*;
+
+        let query = diesel::insert_into(trader_order_funding_updated).values(&orders);
+
+        query.execute(conn)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OrderBook {
     pub bid: Vec<Bid>,
@@ -1922,6 +1991,115 @@ impl From<relayer::TraderOrder> for InsertTraderOrder {
         } = src;
 
         InsertTraderOrder {
+            uuid: uuid.to_string(),
+            account_id,
+            position_type: position_type.into(),
+            order_status: order_status.into(),
+            order_type: order_type.into(),
+            // TODO: maybe a TryFrom impl instead...
+            entryprice: BigDecimal::from_f64(entryprice).unwrap().round(2),
+            execution_price: BigDecimal::from_f64(execution_price).unwrap().round(2),
+            positionsize: BigDecimal::from_f64(positionsize).unwrap(),
+            leverage: BigDecimal::from_f64(leverage).unwrap(),
+            initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
+            available_margin: BigDecimal::from_f64(available_margin).unwrap().round(4),
+            timestamp: DateTime::parse_from_rfc3339(&timestamp)
+                .expect("Bad datetime format")
+                .into(),
+            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap().round(2),
+            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap().round(4),
+            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap().round(4),
+            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap().round(2),
+            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap().round(2),
+            settlement_price: BigDecimal::from_f64(settlement_price).unwrap().round(2),
+            entry_nonce: entry_nonce as i64,
+            exit_nonce: exit_nonce as i64,
+            entry_sequence: entry_sequence as i64,
+        }
+    }
+}
+impl From<relayer::TraderOrder> for TraderOrderFundingUpdates {
+    fn from(src: relayer::TraderOrder) -> TraderOrderFundingUpdates {
+        let relayer::TraderOrder {
+            uuid,
+            account_id,
+            position_type,
+            order_status,
+            order_type,
+            entryprice,
+            execution_price,
+            positionsize,
+            leverage,
+            initial_margin,
+            available_margin,
+            timestamp,
+            bankruptcy_price,
+            bankruptcy_value,
+            maintenance_margin,
+            liquidation_price,
+            unrealized_pnl,
+            settlement_price,
+            entry_nonce,
+            exit_nonce,
+            entry_sequence,
+        } = src;
+
+        TraderOrderFundingUpdates {
+            id: 0,
+            uuid: uuid.to_string(),
+            account_id,
+            position_type: position_type.into(),
+            order_status: order_status.into(),
+            order_type: order_type.into(),
+            // TODO: maybe a TryFrom impl instead...
+            entryprice: BigDecimal::from_f64(entryprice).unwrap().round(2),
+            execution_price: BigDecimal::from_f64(execution_price).unwrap().round(2),
+            positionsize: BigDecimal::from_f64(positionsize).unwrap(),
+            leverage: BigDecimal::from_f64(leverage).unwrap(),
+            initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
+            available_margin: BigDecimal::from_f64(available_margin).unwrap().round(4),
+            timestamp: DateTime::parse_from_rfc3339(&timestamp)
+                .expect("Bad datetime format")
+                .into(),
+            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap().round(2),
+            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap().round(4),
+            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap().round(4),
+            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap().round(2),
+            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap().round(2),
+            settlement_price: BigDecimal::from_f64(settlement_price).unwrap().round(2),
+            entry_nonce: entry_nonce as i64,
+            exit_nonce: exit_nonce as i64,
+            entry_sequence: entry_sequence as i64,
+        }
+    }
+}
+impl From<relayer::TraderOrder> for InsertTraderOrderFundingUpdates {
+    fn from(src: relayer::TraderOrder) -> InsertTraderOrderFundingUpdates {
+        let relayer::TraderOrder {
+            uuid,
+            account_id,
+            position_type,
+            order_status,
+            order_type,
+            entryprice,
+            execution_price,
+            positionsize,
+            leverage,
+            initial_margin,
+            available_margin,
+            timestamp,
+            bankruptcy_price,
+            bankruptcy_value,
+            maintenance_margin,
+            liquidation_price,
+            unrealized_pnl,
+            settlement_price,
+            entry_nonce,
+            exit_nonce,
+            entry_sequence,
+        } = src;
+
+        InsertTraderOrderFundingUpdates {
             uuid: uuid.to_string(),
             account_id,
             position_type: position_type.into(),

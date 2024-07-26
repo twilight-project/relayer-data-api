@@ -98,6 +98,7 @@ pub enum OrderStatus {
     RequestSubmitted,
     OrderNotFound,
     RejectedFromChain,
+    FilledUpdated,
 }
 
 impl OrderStatus {
@@ -260,6 +261,7 @@ impl ToSql<OrderStatusSql, Pg> for OrderStatus {
             OrderStatus::RequestSubmitted => out.write_all(b"RequestSubmitted")?,
             OrderStatus::OrderNotFound => out.write_all(b"OrderNotFound")?,
             OrderStatus::RejectedFromChain => out.write_all(b"RejectedFromChain")?,
+            OrderStatus::FilledUpdated => out.write_all(b"FilledUpdated")?,
         }
         Ok(IsNull::No)
     }
@@ -304,6 +306,7 @@ impl FromSql<OrderStatusSql, Pg> for OrderStatus {
             b"RequestSubmitted" => Ok(OrderStatus::RequestSubmitted),
             b"OrderNotFound" => Ok(OrderStatus::OrderNotFound),
             b"RejectedFromChain" => Ok(OrderStatus::RejectedFromChain),
+            b"FilledUpdated" => Ok(OrderStatus::FilledUpdated),
             _ => panic!("Invalid enum type in database!"),
         }
     }
@@ -372,6 +375,7 @@ impl From<relayer_types::OrderStatus> for OrderStatus {
             relayer_types::OrderStatus::RequestSubmitted => OrderStatus::RequestSubmitted,
             relayer_types::OrderStatus::OrderNotFound => OrderStatus::OrderNotFound,
             relayer_types::OrderStatus::RejectedFromChain => OrderStatus::RejectedFromChain,
+            relayer_types::OrderStatus::FilledUpdated => OrderStatus::FilledUpdated,
         }
     }
 }

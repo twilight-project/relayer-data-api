@@ -22,6 +22,7 @@ type ManagedPool = r2d2::Pool<ManagedConnection>;
 pub struct DatabaseArchiver {
     pool: ManagedPool,
     trader_orders: Vec<InsertTraderOrder>,
+    trader_order_funding_updated: Vec<InsertTraderOrderFundingUpdates>,
     lend_orders: Vec<InsertLendOrder>,
     position_size: Vec<PositionSizeUpdate>,
     tx_hashes: Vec<NewTxHash>,
@@ -43,6 +44,7 @@ impl DatabaseArchiver {
         migrations::run_migrations(&mut *conn).expect("Failed to run database migrations!");
 
         let trader_orders = Vec::with_capacity(BATCH_SIZE);
+        let trader_order_funding_updated = Vec::with_capacity(BATCH_SIZE);
         let lend_orders = Vec::with_capacity(BATCH_SIZE);
         let position_size = Vec::with_capacity(BATCH_SIZE);
         let tx_hashes = Vec::with_capacity(BATCH_SIZE);
@@ -54,6 +56,7 @@ impl DatabaseArchiver {
         DatabaseArchiver {
             pool,
             trader_orders,
+            trader_order_funding_updated,
             lend_orders,
             position_size,
             tx_hashes,
@@ -202,6 +205,36 @@ impl DatabaseArchiver {
 
         Ok(())
     }
+    /// Add a trader order funidng update to the next update batch, if the queue is full, commit and clear the
+    /// queue.
+    fn trader_order_funding_update(
+        &mut self,
+        order: InsertTraderOrderFundingUpdates,
+    ) -> Result<(), ApiError> {
+        debug!("Appending trader order");
+        self.trader_order_funding_updated.push(order);
+
+        if self.trader_order_funding_updated.len() == self.trader_order_funding_updated.capacity() {
+            self.commit_trader_order_funding_updated()?;
+        }
+
+        Ok(())
+    }
+
+    /// Commit a batch of trader orders funidng update to the database. If we're failing to update the database, we
+    /// should exit.
+    fn commit_trader_order_funding_updated(&mut self) -> Result<(), ApiError> {
+        debug!("Committing trader orders");
+
+        let mut conn = self.get_conn()?;
+
+        let mut orders = Vec::with_capacity(self.trader_order_funding_updated.capacity());
+        std::mem::swap(&mut orders, &mut self.trader_order_funding_updated);
+
+        TraderOrderFundingUpdates::insert(&mut conn, orders)?;
+
+        Ok(())
+    }
 
     /// Add a lend order to the next update batch, if the queue is full, commit and clear the
     /// queue.
@@ -292,6 +325,9 @@ impl DatabaseArchiver {
         if self.trader_orders.len() > 0 {
             self.commit_trader_orders()?;
         }
+        if self.trader_order_funding_updated.len() > 0 {
+            self.commit_trader_order_funding_updated()?;
+        }
 
         if self.lend_orders.len() > 0 {
             self.commit_lend_orders()?;
@@ -329,7 +365,7 @@ impl DatabaseArchiver {
                 self.trader_order(trader_order.into())?;
             }
             Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
-                self.trader_order(trader_order.into())?;
+                self.trader_order_funding_update(trader_order.into())?;
             }
             Event::TraderOrderLiquidation(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into())?;
