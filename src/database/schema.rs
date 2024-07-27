@@ -262,6 +262,39 @@ diesel::table! {
 
 diesel::table! {
     use diesel::sql_types::*;
+    use super::sql_types::PositionType;
+    use super::sql_types::OrderStatus;
+    use super::sql_types::OrderType;
+
+    trader_order_funding_updated (id) {
+        id -> Int8,
+        #[max_length = 64]
+        uuid -> Varchar,
+        account_id -> Varchar,
+        position_type -> PositionType,
+        order_status -> OrderStatus,
+        order_type -> OrderType,
+        entryprice -> Numeric,
+        execution_price -> Numeric,
+        positionsize -> Numeric,
+        leverage -> Numeric,
+        initial_margin -> Numeric,
+        available_margin -> Numeric,
+        timestamp -> Timestamptz,
+        bankruptcy_price -> Numeric,
+        bankruptcy_value -> Numeric,
+        maintenance_margin -> Numeric,
+        liquidation_price -> Numeric,
+        unrealized_pnl -> Numeric,
+        settlement_price -> Numeric,
+        entry_nonce -> Int8,
+        exit_nonce -> Int8,
+        entry_sequence -> Int8,
+    }
+}
+
+diesel::table! {
+    use diesel::sql_types::*;
     use super::sql_types::OrderType;
     use super::sql_types::OrderStatus;
 
@@ -299,5 +332,6 @@ diesel::allow_tables_to_appear_in_same_query!(
     position_size_log,
     sorted_set_command,
     trader_order,
+    trader_order_funding_updated,
     transaction_hash,
 );
