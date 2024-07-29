@@ -123,6 +123,7 @@ impl OrderStatus {
             RequestSubmitted => "RequestSubmitted",
             OrderNotFound => "OrderNotFound",
             RejectedFromChain => "RejectedFromChain",
+            FilledUpdated => "FilledUpdated",
         }
     }
 

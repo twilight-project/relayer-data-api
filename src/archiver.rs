@@ -620,6 +620,7 @@ impl DatabaseArchiver {
                 };
                 self.tx_hash(hash)?;
             }
+            Event::AdvanceStateQueue(_, _) => {}
         }
 
         Ok(())
