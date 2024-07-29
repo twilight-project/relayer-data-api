@@ -1534,6 +1534,20 @@ impl TraderOrder {
         Ok(tv.volume.to_f64().unwrap())
     }
 
+    pub fn order_book_orders(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
+        let query = r#"
+            SELECT * FROM trader_order
+            WHERE id IN (
+                SELECT MAX(id) FROM trader_order
+                WHERE order_type = 'LIMIT'
+                GROUP BY uuid
+            )
+            AND order_status NOT IN ('FILLED', 'CANCELLED', 'LIQUIDATE')
+        "#;
+
+        diesel::sql_query(query).get_results(conn)
+    }
+
     pub fn order_book(conn: &mut PgConnection) -> QueryResult<OrderBook> {
         // use crate::database::schema::trader_order::dsl::*;
         // use diesel::dsl::{max, sum};

@@ -1,6 +1,5 @@
 use jsonrpsee::server::ServerBuilder;
 use log::info;
-use redis::Client;
 use relayerarchiverlib::{rpc, ws};
 use std::{net::SocketAddr, time::Duration};
 use structopt::StructOpt;

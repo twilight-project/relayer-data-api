@@ -1,3 +1,4 @@
+use bigdecimal::ToPrimitive;
 use crate::{database::*, error::ApiError, kafka::Completion, migrations};
 use chrono::prelude::*;
 use crossbeam_channel::{Receiver, Sender};
@@ -26,21 +27,22 @@ type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
 const UPDATE_FN: &str = r#"
-    -- args: <order_id> <order_status> <side> <price> <position_size> <timestamp>
+    -- args: <order_id> <order_status> <side> <price> <position_size> <rfc3339> <timestamp_millis>
     local id = ARGV[1]
     local status = ARGV[2]
     local side = ARGV[3]
     local price = tonumber(ARGV[4])
     local size = tonumber(ARGV[5])
-    local time = tonumber(ARGV[6])
+    local timestamp = ARGV[6]
+    local time = tonumber(ARGV[7])
 
     if status == "FILLED" or status == "SETTLED" or status == "LIQUIDATE" then
         redis.call('HDEL', 'orders', id)
 
-        local table = { order_id = id, side = side, price = price, positionsize = size, timestamp = time }
+        local table = { order_id = id, side = side, price = price, positionsize = size, timestamp = timestamp }
 
         local order_json = cjson.encode(table)
-        redis.call('ZADD', 'recent_orders', price, order_json)
+        redis.call('ZADD', 'recent_orders', time, order_json)
 
         local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price, price)[1])
         local new_size = result - size
@@ -137,7 +139,7 @@ impl DatabaseArchiver {
 
         let recent_orders =
             TraderOrder::list_past_24hrs(&mut conn).expect("Failed to load recent orders");
-        let order_book = TraderOrder::order_book(&mut conn).expect("Failed to load order book");
+        let order_book_orders = TraderOrder::order_book_orders(&mut conn).expect("Failed to load order book");
 
         for chunk in recent_orders.chunks(PIPELINE_CHUNK) {
             let mut redis_conn = redis
@@ -166,24 +168,32 @@ impl DatabaseArchiver {
             pipe.atomic().execute(&mut redis_conn);
         }
 
-        let OrderBook { bid, ask } = order_book;
-
         let mut redis_conn = redis
             .get_connection()
             .expect("Failed to acquire redis connection");
         let mut bids = HashMap::new();
-        for bid in bid.iter() {
-            let key = (bid.price * 100.0) as i64;
-            bids.entry(key)
-                .and_modify(|size| *size += bid.positionsize)
-                .or_insert(bid.positionsize);
+        let mut asks = HashMap::new();
+
+        for order in order_book_orders.iter() {
+            let key = (order.entryprice.to_f64().unwrap() * 100.0) as i64;
+            let positionsize = order.positionsize.to_f64().unwrap();
+
+            if order.position_type == PositionType::SHORT {
+                asks.entry(key)
+                    .and_modify(|size| *size += positionsize)
+                    .or_insert(positionsize);
+            } else {
+                bids.entry(key)
+                    .and_modify(|size| *size += positionsize)
+                    .or_insert(positionsize);
+            }
 
             redis::cmd("HSET")
                 .arg("orders")
                 .arg("id")
-                .arg(bid.id.clone())
+                .arg(order.uuid.clone())
                 .arg("price")
-                .arg(bid.price)
+                .arg(order.entryprice.to_f64())
                 .execute(&mut redis_conn);
         }
 
@@ -191,23 +201,7 @@ impl DatabaseArchiver {
             redis::cmd("ZADD")
                 .arg("bid")
                 .arg(price)
-                .arg(size)
-                .execute(&mut redis_conn);
-        }
-
-        let mut asks = HashMap::new();
-        for ask in ask.iter() {
-            let key = (ask.price * 100.0) as i64;
-            asks.entry(key)
-                .and_modify(|size| *size += ask.positionsize)
-                .or_insert(ask.positionsize);
-
-            redis::cmd("HSET")
-                .arg("orders")
-                .arg("id")
-                .arg(ask.id.clone())
-                .arg("price")
-                .arg(ask.price)
+                .arg(size.to_f64())
                 .execute(&mut redis_conn);
         }
 
@@ -215,7 +209,7 @@ impl DatabaseArchiver {
             redis::cmd("ZADD")
                 .arg("ask")
                 .arg(price)
-                .arg(size)
+                .arg(size.to_f64())
                 .execute(&mut redis_conn);
         }
     }
@@ -239,6 +233,7 @@ impl DatabaseArchiver {
             .arg(side)
             .arg(order.entryprice.to_string())
             .arg(order.positionsize.to_string())
+            .arg(order.timestamp.to_rfc3339())
             .arg(order.timestamp.timestamp_millis());
 
         pipe.add_command(cmd);

@@ -1,7 +1,6 @@
 use super::*;
 use crate::database::*;
 use chrono::prelude::*;
-use itertools::Itertools;
 use jsonrpsee::{core::error::Error, server::logger::Params};
 use kafka::producer::Record;
 use relayerwalletlib::verify_client_message::{
