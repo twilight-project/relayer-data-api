@@ -1,6 +1,7 @@
 use bigdecimal::ToPrimitive;
 use crate::{database::*, error::ApiError, kafka::Completion, migrations};
 use chrono::prelude::*;
+use chrono::TimeDelta;
 use crossbeam_channel::{Receiver, Sender};
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
@@ -27,7 +28,7 @@ type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
 const UPDATE_FN: &str = r#"
-    -- args: <order_id> <order_status> <side> <price> <position_size> <rfc3339> <timestamp_millis>
+    -- args: <order_id> <order_status> <side> <price> <position_size> <rfc3339> <timestamp_millis> <exp_time>
     local id = ARGV[1]
     local status = ARGV[2]
     local side = ARGV[3]
@@ -35,6 +36,7 @@ const UPDATE_FN: &str = r#"
     local size = tonumber(ARGV[5])
     local timestamp = ARGV[6]
     local time = tonumber(ARGV[7])
+    local exp_time = tonumber(ARGV[8])
 
     if status == "FILLED" or status == "SETTLED" or status == "LIQUIDATE" then
         redis.call('HDEL', 'orders', id)
@@ -65,6 +67,7 @@ const UPDATE_FN: &str = r#"
     end
 
     -- TODO: clean out <recent_orders> expired > 24h...
+    redis.call('ZREMRANGEBYSCORE', 'recent_orders', 0, exp_time)
 "#;
 
 pub struct DatabaseArchiver {
@@ -153,8 +156,8 @@ impl DatabaseArchiver {
                 let order = json!({
                     "order_id": item.order_id.clone(),
                     "side": item.side.to_string(),
-                    "price": item.price,
-                    "positionsize": item.positionsize,
+                    "price": item.price.to_f64().unwrap(),
+                    "positionsize": item.positionsize.to_f64().unwrap(),
                     "timestamp": item.timestamp.to_rfc3339(),
                 });
 
@@ -193,7 +196,7 @@ impl DatabaseArchiver {
                 .arg("id")
                 .arg(order.uuid.clone())
                 .arg("price")
-                .arg(order.entryprice.to_f64())
+                .arg(order.entryprice.to_f64().unwrap())
                 .execute(&mut redis_conn);
         }
 
@@ -201,7 +204,7 @@ impl DatabaseArchiver {
             redis::cmd("ZADD")
                 .arg("bid")
                 .arg(price)
-                .arg(size.to_f64())
+                .arg(size.to_f64().unwrap())
                 .execute(&mut redis_conn);
         }
 
@@ -209,7 +212,7 @@ impl DatabaseArchiver {
             redis::cmd("ZADD")
                 .arg("ask")
                 .arg(price)
-                .arg(size.to_f64())
+                .arg(size.to_f64().unwrap())
                 .execute(&mut redis_conn);
         }
     }
@@ -231,10 +234,11 @@ impl DatabaseArchiver {
             .arg(order.uuid.clone())
             .arg(order.order_status.as_str())
             .arg(side)
-            .arg(order.entryprice.to_string())
-            .arg(order.positionsize.to_string())
+            .arg(order.entryprice.to_f64().unwrap())
+            .arg(order.positionsize.to_f64().unwrap())
             .arg(order.timestamp.to_rfc3339())
-            .arg(order.timestamp.timestamp_millis());
+            .arg(order.timestamp.timestamp_millis())
+            .arg((Utc::now() - TimeDelta::days(1)).timestamp_millis());
 
         pipe.add_command(cmd);
         let mut redis_conn = self.redis.get_connection()?;
@@ -615,7 +619,6 @@ impl DatabaseArchiver {
                 };
                 self.tx_hash(hash)?;
             }
-            Event::AdvanceStateQueue(_, _) => {}
         }
 
         Ok(())

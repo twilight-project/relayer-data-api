@@ -114,7 +114,6 @@ impl WsContext {
                                 Event::Stop(_stop) => {}
                                 Event::TxHash(..) => {}
                                 Event::TxHashUpdate(..) => {}
-                                Event::AdvanceStateQueue(..) => {}
                             }
                         }
                         if let Err(e) = notify.send(completion) {

@@ -409,7 +409,6 @@ impl From<relayer_types::OrderStatus> for OrderStatus {
             relayer_types::OrderStatus::RequestSubmitted => OrderStatus::RequestSubmitted,
             relayer_types::OrderStatus::OrderNotFound => OrderStatus::OrderNotFound,
             relayer_types::OrderStatus::RejectedFromChain => OrderStatus::RejectedFromChain,
-            relayer_types::OrderStatus::FilledUpdated => OrderStatus::FilledUpdated,
         }
     }
 }
