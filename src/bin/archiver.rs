@@ -4,7 +4,7 @@ use relayerarchiverlib::kafka;
 use relayerarchiverlib::DatabaseArchiver;
 
 const SNAPSHOT_TOPIC: &str = "CoreEventLogTopic";
-const ARCHIVER_GROUP: &str = "Archiver";
+const ARCHIVER_GROUP: &str = "Archiver_Redis";
 
 fn main() {
     tracing_subscriber::fmt::Subscriber::builder()

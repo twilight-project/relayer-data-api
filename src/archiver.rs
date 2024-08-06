@@ -1,5 +1,5 @@
-use bigdecimal::ToPrimitive;
 use crate::{database::*, error::ApiError, kafka::Completion, migrations};
+use bigdecimal::ToPrimitive;
 use chrono::prelude::*;
 use chrono::TimeDelta;
 use crossbeam_channel::{Receiver, Sender};
@@ -37,6 +37,7 @@ const UPDATE_FN: &str = r#"
     local timestamp = ARGV[6]
     local time = tonumber(ARGV[7])
     local exp_time = tonumber(ARGV[8])
+    redis.call('ECHO', 'id: ' .. id)
 
     if status == "FILLED" or status == "SETTLED" or status == "LIQUIDATE" then
         redis.call('HDEL', 'orders', id)
@@ -46,7 +47,12 @@ const UPDATE_FN: &str = r#"
         local order_json = cjson.encode(table)
         redis.call('ZADD', 'recent_orders', time, order_json)
 
-        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price, price)[1])
+        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price, price)[1]) or 0
+
+        if result == 0 then
+            return
+        end
+
         local new_size = result - size
 
         redis.call('ZREM', side, result)
@@ -59,13 +65,14 @@ const UPDATE_FN: &str = r#"
     if status == "PENDING" then
         redis.call('HSET', 'orders', id, price)
 
-        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price, price)[1])
+        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price, price)[1]) or 0
         local new_size = result + size
 
-        redis.call('ZREM', side, result)
+        if result ~= 0 then
+            redis.call('ZREM', side, result)
+        end
         redis.call('ZADD', side, price, new_size)
     end
-
     -- TODO: clean out <recent_orders> expired > 24h...
     redis.call('ZREMRANGEBYSCORE', 'recent_orders', 0, exp_time)
 "#;
@@ -142,7 +149,8 @@ impl DatabaseArchiver {
 
         let recent_orders =
             TraderOrder::list_past_24hrs(&mut conn).expect("Failed to load recent orders");
-        let order_book_orders = TraderOrder::order_book_orders(&mut conn).expect("Failed to load order book");
+        let order_book_orders =
+            TraderOrder::order_book_orders(&mut conn).expect("Failed to load order book");
 
         for chunk in recent_orders.chunks(PIPELINE_CHUNK) {
             let mut redis_conn = redis
@@ -231,18 +239,20 @@ impl DatabaseArchiver {
 
         let mut cmd = redis::cmd("EVALSHA");
         cmd.arg(&self.script_sha)
+            .arg(0)
             .arg(order.uuid.clone())
             .arg(order.order_status.as_str())
             .arg(side)
-            .arg(order.entryprice.to_f64().unwrap())
-            .arg(order.positionsize.to_f64().unwrap())
+            .arg(order.entryprice.to_f64().unwrap() as i64)
+            .arg(order.positionsize.to_f64().unwrap() as i64)
             .arg(order.timestamp.to_rfc3339())
-            .arg(order.timestamp.timestamp_millis())
-            .arg((Utc::now() - TimeDelta::days(1)).timestamp_millis());
+            .arg(order.timestamp.timestamp_millis() as i64)
+            .arg((Utc::now() - TimeDelta::days(1)).timestamp_millis() as i64);
 
         pipe.add_command(cmd);
         let mut redis_conn = self.redis.get_connection()?;
         pipe.atomic().execute(&mut redis_conn);
+
         Ok(())
     }
 
@@ -619,6 +629,7 @@ impl DatabaseArchiver {
                 };
                 self.tx_hash(hash)?;
             }
+            Event::AdvanceStateQueue(_, _) => {}
         }
 
         Ok(())
