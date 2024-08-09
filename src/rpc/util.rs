@@ -17,8 +17,8 @@ pub fn order_book(conn: &mut redis::Connection) -> OrderBook {
         .into_iter()
         .take(BOOK_LIMIT)
         .map(|mut chunk| {
-            let price = chunk.next().unwrap();
             let positionsize = chunk.next().unwrap();
+            let price = chunk.next().unwrap();
 
             Ask {
                 id: "".into(),
@@ -42,8 +42,8 @@ pub fn order_book(conn: &mut redis::Connection) -> OrderBook {
         .into_iter()
         .take(BOOK_LIMIT)
         .map(|chunk| {
-            let price = chunk[0];
-            let positionsize = chunk[1];
+            let positionsize = chunk[0];
+            let price = chunk[1];
 
             Bid {
                 id: "".into(),
@@ -67,7 +67,8 @@ pub fn recent_orders(conn: &mut redis::Connection) -> Vec<RecentOrder> {
         .query(conn)
         .unwrap();
 
-    orders.into_iter().map(|order| {
-        serde_json::from_str(&order).expect("Invalid recent order!")
-    }).collect()
+    orders
+        .into_iter()
+        .map(|order| serde_json::from_str(&order).expect("Invalid recent order!"))
+        .collect()
 }

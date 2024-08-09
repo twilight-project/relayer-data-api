@@ -76,7 +76,9 @@ impl diesel::query_builder::QueryId for OrderTypeSql {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = PositionTypeSql)]
 pub enum PositionType {
+    #[serde(alias = "bid", alias = "Long", alias = "Bid")]
     LONG,
+    #[serde(alias = "ask", alias = "Short", alias = "Ask")]
     SHORT,
 }
 
