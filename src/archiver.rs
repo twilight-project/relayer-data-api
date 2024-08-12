@@ -231,11 +231,20 @@ impl DatabaseArchiver {
 
     fn update_order_cache(&self, order: &InsertTraderOrder) -> Result<(), ApiError> {
         let mut pipe = redis::pipe();
-
-        let side = match order.position_type {
-            PositionType::LONG => "bid",
-            PositionType::SHORT => "ask",
-        };
+        let side;
+        if order.order_status == OrderStatus::SETTLED
+            || order.order_status == OrderStatus::LIQUIDATE
+        {
+            side = match order.position_type {
+                PositionType::LONG => "ask",
+                PositionType::SHORT => "bid",
+            }
+        } else {
+            side = match order.position_type {
+                PositionType::LONG => "bid",
+                PositionType::SHORT => "ask",
+            };
+        }
 
         let mut cmd = redis::cmd("EVALSHA");
         cmd.arg(&self.script_sha)
@@ -371,6 +380,7 @@ impl DatabaseArchiver {
     /// queue.
     fn trader_order(&mut self, order: InsertTraderOrder) -> Result<(), ApiError> {
         debug!("Appending trader order");
+
         let _ = self.update_order_cache(&order);
         self.trader_orders.push(order);
 
