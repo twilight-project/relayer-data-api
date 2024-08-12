@@ -18,7 +18,7 @@ pub fn order_book(conn: &mut redis::Connection) -> OrderBook {
         .take(BOOK_LIMIT)
         .map(|mut chunk| {
             let positionsize = chunk.next().unwrap();
-            let price = chunk.next().unwrap();
+            let price = chunk.next().unwrap() / 100.0;
 
             Ask {
                 id: "".into(),
@@ -43,7 +43,7 @@ pub fn order_book(conn: &mut redis::Connection) -> OrderBook {
         .take(BOOK_LIMIT)
         .map(|chunk| {
             let positionsize = chunk[0];
-            let price = chunk[1];
+            let price = chunk[1] / 100.0;
 
             Bid {
                 id: "".into(),

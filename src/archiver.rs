@@ -28,15 +28,16 @@ type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
 const UPDATE_FN: &str = r#"
-    -- args: <order_id> <order_status> <side> <price> <position_size> <rfc3339> <timestamp_millis> <exp_time>
+    -- args: <order_id> <order_status> <side> <price> <price_cents> <position_size> <rfc3339> <timestamp_millis> <exp_time>
     local id = ARGV[1]
     local status = ARGV[2]
     local side = ARGV[3]
     local price = tonumber(ARGV[4])
-    local size = tonumber(ARGV[5])
-    local timestamp = ARGV[6]
-    local time = tonumber(ARGV[7])
-    local exp_time = tonumber(ARGV[8])
+    local price_cents = tonumber(ARGV[5])
+    local size = tonumber(ARGV[6])
+    local timestamp = ARGV[7]
+    local time = tonumber(ARGV[8])
+    local exp_time = tonumber(ARGV[9])
     redis.call('ECHO', 'id: ' .. id)
 
     if status == "FILLED" or status == "SETTLED" or status == "LIQUIDATE" then
@@ -47,7 +48,7 @@ const UPDATE_FN: &str = r#"
         local order_json = cjson.encode(table)
         redis.call('ZADD', 'recent_orders', time, order_json)
 
-        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price, price)[1]) or 0
+        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price_cents, price_cents)[1]) or 0
 
         if result == 0 then
             return
@@ -56,7 +57,7 @@ const UPDATE_FN: &str = r#"
         local new_size = result - size
 
         redis.call('ZREM', side, result)
-        redis.call('ZADD', side, price, new_size)
+        redis.call('ZADD', side, price_cents, new_size)
 
         return
     end
@@ -65,13 +66,13 @@ const UPDATE_FN: &str = r#"
     if status == "PENDING" then
         redis.call('HSET', 'orders', id, price)
 
-        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price, price)[1]) or 0
+        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price_cents, price_cents)[1]) or 0
         local new_size = result + size
 
         if result ~= 0 then
             redis.call('ZREM', side, result)
         end
-        redis.call('ZADD', side, price, new_size)
+        redis.call('ZADD', side, price_cents, new_size)
     end
     -- TODO: clean out <recent_orders> expired > 24h...
     redis.call('ZREMRANGEBYSCORE', 'recent_orders', 0, exp_time)
@@ -151,7 +152,38 @@ impl DatabaseArchiver {
             TraderOrder::list_past_24hrs(&mut conn).expect("Failed to load recent orders");
         let order_book_orders =
             TraderOrder::order_book_orders(&mut conn).expect("Failed to load order book");
+        {
+            let mut pipe = redis::pipe();
 
+            let mut redis_conn = redis
+                .get_connection()
+                .expect("Failed to acquire redis connection");
+
+            let mut cmd = redis::cmd("DEL");
+            cmd.arg("recent_orders");
+
+            pipe.add_command(cmd);
+
+            // cmd.execute(&mut redis_conn);
+            let mut cmd = redis::cmd("DEL");
+            cmd.arg("orders");
+
+            pipe.add_command(cmd);
+            // cmd.execute(&mut redis_conn);
+
+            let mut cmd = redis::cmd("DEL");
+            cmd.arg("bid");
+
+            pipe.add_command(cmd);
+            // cmd.execute(&mut redis_conn);
+
+            let mut cmd = redis::cmd("DEL");
+            cmd.arg("ask");
+            // cmd.execute(&mut redis_conn);
+            pipe.add_command(cmd);
+
+            pipe.atomic().execute(&mut redis_conn);
+        }
         for chunk in recent_orders.chunks(PIPELINE_CHUNK) {
             let mut redis_conn = redis
                 .get_connection()
@@ -252,7 +284,8 @@ impl DatabaseArchiver {
             .arg(order.uuid.clone())
             .arg(order.order_status.as_str())
             .arg(side)
-            .arg(order.entryprice.to_f64().unwrap() as i64)
+            .arg((order.entryprice.to_f64().unwrap()) as i64)
+            .arg((order.entryprice.to_f64().unwrap() * 100.0) as i64)
             .arg(order.positionsize.to_f64().unwrap() as i64)
             .arg(order.timestamp.to_rfc3339())
             .arg(order.timestamp.timestamp_millis() as i64)
