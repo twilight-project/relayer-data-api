@@ -3,6 +3,7 @@ use chrono::{TimeDelta, Utc};
 use itertools::Itertools;
 
 const BOOK_LIMIT: usize = 10;
+const RECENT_ORDER_LIMIT: usize = 25;
 
 pub fn order_book(conn: &mut redis::Connection) -> OrderBook {
     let asks: redis::Iter<f64> = redis::cmd("ZSCAN")
@@ -69,6 +70,8 @@ pub fn recent_orders(conn: &mut redis::Connection) -> Vec<RecentOrder> {
 
     orders
         .into_iter()
+        .rev()
+        .take(RECENT_ORDER_LIMIT)
         .map(|order| serde_json::from_str(&order).expect("Invalid recent order!"))
         .collect()
 }

@@ -41,14 +41,14 @@ const UPDATE_FN: &str = r#"
     redis.call('ECHO', 'id: ' .. id)
 
     if status == "FILLED" or status == "SETTLED" or status == "LIQUIDATE" then
-        redis.call('HDEL', 'orders', id)
+        local old_price = redis.call('HDEL', 'orders', id)
 
         local table = { order_id = id, side = side, price = price, positionsize = size, timestamp = timestamp }
 
         local order_json = cjson.encode(table)
         redis.call('ZADD', 'recent_orders', time, order_json)
 
-        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price_cents, price_cents)[1]) or 0
+        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
 
         if result == 0 then
             return
@@ -57,14 +57,18 @@ const UPDATE_FN: &str = r#"
         local new_size = result - size
 
         redis.call('ZREM', side, result)
-        redis.call('ZADD', side, price_cents, new_size)
+        
+        if new_size > 0
+        then
+            redis.call('ZADD', side, old_price, new_size)
+        end
 
         return
     end
 
     -- just opened a new order
     if status == "PENDING" then
-        redis.call('HSET', 'orders', id, price)
+        redis.call('HSET', 'orders', id, price_cents)
 
         local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price_cents, price_cents)[1]) or 0
         local new_size = result + size
