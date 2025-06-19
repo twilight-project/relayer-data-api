@@ -268,14 +268,17 @@ impl DatabaseArchiver {
     fn update_order_cache(&self, order: &InsertTraderOrder) -> Result<(), ApiError> {
         let mut pipe = redis::pipe();
         let side;
+        let price;
         if order.order_status == OrderStatus::SETTLED
             || order.order_status == OrderStatus::LIQUIDATE
         {
+            price = order.settlement_price.to_f64().unwrap();
             side = match order.position_type {
                 PositionType::LONG => "ask",
                 PositionType::SHORT => "bid",
             }
         } else {
+            price = order.entryprice.to_f64().unwrap();
             side = match order.position_type {
                 PositionType::LONG => "bid",
                 PositionType::SHORT => "ask",
@@ -288,8 +291,8 @@ impl DatabaseArchiver {
             .arg(order.uuid.clone())
             .arg(order.order_status.as_str())
             .arg(side)
-            .arg((order.entryprice.to_f64().unwrap()) as i64)
-            .arg((order.entryprice.to_f64().unwrap() * 100.0) as i64)
+            .arg((price) as i64)
+            .arg((price * 100.0) as i64)
             .arg(order.positionsize.to_f64().unwrap() as i64)
             .arg(order.timestamp.to_rfc3339())
             .arg(order.timestamp.timestamp_millis() as i64)
