@@ -144,6 +144,11 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
         "cancel_trader_order",
         Box::new(public_methods::cancel_trader_order),
     );
+    register_method(
+        &mut module,
+        "pool_share_value",
+        Box::new(public_methods::pool_share_value),
+    );
     module
 }
 

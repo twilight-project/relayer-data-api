@@ -261,7 +261,7 @@ impl DatabaseArchiver {
         }
     }
 
-    fn update_sorted_set(&self, cmd: &relayer::SortedSetCommand) -> Result<(), ApiError> {
+    fn update_sorted_set(&self, _cmd: &relayer::SortedSetCommand) -> Result<(), ApiError> {
         Ok(())
     }
 

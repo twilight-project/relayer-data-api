@@ -418,6 +418,11 @@ impl LendPool {
 
         lend_pool.order_by(nonce.desc()).first(conn)
     }
+    pub fn get_pool_share_value(&self) -> f64 {
+        let tps = self.total_pool_share.to_f64().unwrap_or(1.0);
+        let tlv = self.total_locked_value.to_f64().unwrap_or(0.0);
+        tlv / tps * 100.0
+    }
 
     pub fn insert(
         conn: &mut PgConnection,

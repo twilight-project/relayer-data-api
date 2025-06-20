@@ -499,3 +499,22 @@ pub(super) fn cancel_trader_order(
         Ok(response_value)
     }
 }
+
+pub(super) fn pool_share_value(
+    _params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    match ctx.pool.get() {
+        Ok(mut conn) => match LendPool::get(&mut conn) {
+            Ok(o) => {
+                let value = o.get_pool_share_value();
+                Ok(serde_json::to_value(value).expect("Error converting response"))
+            }
+            Err(e) => Err(Error::Custom(format!(
+                "Error fetching lend pool info: {:?}",
+                e
+            ))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
