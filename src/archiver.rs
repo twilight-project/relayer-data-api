@@ -55,7 +55,7 @@ const UPDATE_FN: &str = r#"
             return
         end
 
-        local new_size = result - size
+        local new_size = result - (size*old_price/price_cents)
 
         redis.call('ZREM', side, result)
         
