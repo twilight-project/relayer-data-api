@@ -224,7 +224,7 @@ impl DatabaseArchiver {
 
         for order in order_book_orders.iter() {
             let key = (order.entryprice.to_f64().unwrap() * 100.0) as i64;
-            let positionsize = order.positionsize.to_f64().unwrap();
+            let positionsize = order.positionsize.to_f64().unwrap() as i64;
 
             if order.position_type == PositionType::SHORT {
                 asks.entry(key)
@@ -238,10 +238,10 @@ impl DatabaseArchiver {
 
             redis::cmd("HSET")
                 .arg("orders")
-                .arg("id")
+                // .arg("id")
                 .arg(order.uuid.clone())
-                .arg("price")
-                .arg(order.entryprice.to_f64().unwrap())
+                // .arg("price")
+                .arg((order.entryprice.to_f64().unwrap() * 100.0) as i64)
                 .execute(&mut redis_conn);
         }
 
@@ -249,7 +249,7 @@ impl DatabaseArchiver {
             redis::cmd("ZADD")
                 .arg("bid")
                 .arg(price)
-                .arg(size.to_f64().unwrap())
+                .arg(size.to_i64().unwrap())
                 .execute(&mut redis_conn);
         }
 
@@ -257,7 +257,7 @@ impl DatabaseArchiver {
             redis::cmd("ZADD")
                 .arg("ask")
                 .arg(price)
-                .arg(size.to_f64().unwrap())
+                .arg(size.to_i64().unwrap())
                 .execute(&mut redis_conn);
         }
     }
