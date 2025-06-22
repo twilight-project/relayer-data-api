@@ -91,6 +91,25 @@ impl WsContext {
                                         _ => {}
                                     }
                                 }
+                                // added for limit order update for settlement order
+                                Event::TraderOrderLimitUpdate(to, cmd, _seq) => {
+                                    let settlement_price = match cmd {
+                                        twilight_relayer_rust::relayer::RpcCommand::ExecuteTraderOrder(execute_trader_order, _meta, _zkos_hex_string, _request_id) => {
+                                            execute_trader_order.execution_price
+                                        }
+                                        _ => 0.0, // Default value for other command types
+                                    };
+                                    let positionsize =
+                                        to.positionsize * settlement_price / to.entryprice;
+                                    let order = NewOrderBookOrder::new_limit(
+                                        TraderOrder::from(to.clone()),
+                                        settlement_price,
+                                        positionsize,
+                                    );
+                                    if let Err(e) = order_book2.send(order) {
+                                        info!("No order book subscribers present {:?}", e);
+                                    }
+                                }
                                 Event::LendOrder(_lend_order, _cmd, _seq) => {}
                                 Event::FundingRateUpdate(
                                     _funding_rate,

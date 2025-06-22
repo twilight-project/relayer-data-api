@@ -1295,6 +1295,22 @@ impl NewOrderBookOrder {
             }
         }
     }
+    // added for limit order update for settlement order
+    pub fn new_limit(to: TraderOrder, price: f64, positionsize: f64) -> Self {
+        if to.position_type == PositionType::SHORT {
+            Self::Bid {
+                id: to.uuid,
+                positionsize: positionsize,
+                price: price,
+            }
+        } else {
+            Self::Ask {
+                id: to.uuid,
+                positionsize: positionsize,
+                price: price,
+            }
+        }
+    }
 }
 
 pub fn unrealizedpnl(

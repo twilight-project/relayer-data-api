@@ -48,7 +48,7 @@ const UPDATE_FN: &str = r#"
 
         local order_json = cjson.encode(table)
         redis.call('ZADD', 'recent_orders', time, order_json)
-
+-- check if the order is limit order
         local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
         if result == 0 then
             return
@@ -62,7 +62,7 @@ const UPDATE_FN: &str = r#"
         then
             redis.call('ZADD', side, old_price, new_size)
         end
-
+-- ------------------------------
         return
     end
 
@@ -430,6 +430,20 @@ impl DatabaseArchiver {
 
         Ok(())
     }
+    /// Add a trader order to the next update batch, if the queue is full, commit and clear the
+    /// queue. for trader order limit updates on settlement
+    fn trader_order_limit_update(&mut self, order: InsertTraderOrder) -> Result<(), ApiError> {
+        // debug!("Appending trader order");
+
+        // let _ = self.update_order_cache(&order);
+        // self.trader_orders.push(order);
+
+        // if self.trader_orders.len() == self.trader_orders.capacity() {
+        //     self.commit_trader_orders()?;
+        // }
+
+        Ok(())
+    }
 
     /// Commit a batch of trader orders to the database. If we're failing to update the database, we
     /// should exit.
@@ -606,6 +620,10 @@ impl DatabaseArchiver {
             }
             Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
                 self.trader_order_funding_update(trader_order.into())?;
+            }
+            // added for limit order update for settlement order
+            Event::TraderOrderLimitUpdate(trader_order, _cmd, _seq) => {
+                self.trader_order_limit_update(trader_order.into())?;
             }
             Event::TraderOrderLiquidation(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into())?;
