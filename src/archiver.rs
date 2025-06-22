@@ -48,7 +48,7 @@ const UPDATE_FN: &str = r#"
 
         local order_json = cjson.encode(table)
         redis.call('ZADD', 'recent_orders', time, order_json)
--- check if the order is limit order
+    -- check if the order is limit order
         local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
         if result == 0 then
             return
@@ -62,7 +62,7 @@ const UPDATE_FN: &str = r#"
         then
             redis.call('ZADD', side, old_price, new_size)
         end
--- ------------------------------
+    -- ------------------------------
         return
     end
 

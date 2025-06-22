@@ -1563,7 +1563,7 @@ impl TraderOrder {
                 WHERE order_type = 'LIMIT'
                 GROUP BY uuid
             )
-            AND order_status NOT IN ('FILLED', 'CANCELLED', 'LIQUIDATE')
+            AND order_status NOT IN ('FILLED', 'CANCELLED', 'LIQUIDATE', 'SETTLED')
         "#;
 
         diesel::sql_query(query).get_results(conn)
