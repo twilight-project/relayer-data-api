@@ -1296,17 +1296,17 @@ impl NewOrderBookOrder {
         }
     }
     // added for limit order update for settlement order
-    pub fn new_limit(to: TraderOrder, price: f64, positionsize: f64) -> Self {
+    pub fn new_close_limit(to: TraderOrder, price: f64) -> Self {
         if to.position_type == PositionType::SHORT {
             Self::Bid {
                 id: to.uuid,
-                positionsize: positionsize,
+                positionsize: to.positionsize.to_f64().unwrap(),
                 price: price,
             }
         } else {
             Self::Ask {
                 id: to.uuid,
-                positionsize: positionsize,
+                positionsize: to.positionsize.to_f64().unwrap(),
                 price: price,
             }
         }

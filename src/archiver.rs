@@ -28,7 +28,7 @@ type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
 const UPDATE_FN: &str = r#"
-    -- args: <order_id> <order_status> <side> <price> <price_cents> <position_size> <rfc3339> <timestamp_millis> <exp_time>
+    -- args: <order_id> <order_status> <side> <price> <price_cents> <position_size> <rfc3339> <timestamp_millis> <exp_time> <execution_type>
     local id = ARGV[1]
     local status = ARGV[2]
     local side = ARGV[3]
@@ -38,17 +38,21 @@ const UPDATE_FN: &str = r#"
     local timestamp = ARGV[7]
     local time = tonumber(ARGV[8])
     local exp_time = tonumber(ARGV[9])
+    -- OPEN_LIMIT or CLOSE_LIMIT or OPEN_MARKET or CLOSE_MARKET
+    local execution_type = ARGV[10]
     redis.call('ECHO', 'id: ' .. id)
 
-    if status == "FILLED" or status == "SETTLED" or status == "LIQUIDATE" then
+    if (status == "FILLED" or status == "SETTLED" or status == "LIQUIDATE") and execution_type ~= "CLOSE_LIMIT" then
         local old_price = tonumber(redis.call('HGET', 'orders', id))
         redis.call('HDEL', 'orders', id)
 
+        
         local table = { order_id = id, side = side, price = price, positionsize = size, timestamp = timestamp }
 
         local order_json = cjson.encode(table)
         redis.call('ZADD', 'recent_orders', time, order_json)
-    -- check if the order is limit order
+        
+
         local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
         if result == 0 then
             return
@@ -57,17 +61,36 @@ const UPDATE_FN: &str = r#"
         local new_size = result - (size*old_price/price_cents)
 
         redis.call('ZREM', side, result)
-        
+            
         if new_size > 0
         then
             redis.call('ZADD', side, old_price, new_size)
         end
-    -- ------------------------------
         return
     end
 
+    -- settle order on limit
     -- just opened a new order
-    if status == "PENDING" then
+    if status == "PENDING" or (status == "FILLED" and execution_type == "CLOSE_LIMIT") then
+        -- if the limit order is already exist then remove the old limit price and position size
+        local is_exist =redis.call('HEXISTS', 'orders', id)
+        if is_exist == 1 then
+            local old_price = tonumber(redis.call('HGET', 'orders', id))
+            redis.call('HDEL', 'orders', id)
+            local old_position_size = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
+            if old_position_size > 0 then
+
+                local new_size = old_position_size - size
+
+                redis.call('ZREM', side, old_position_size)
+                
+                if new_size > 0
+                then
+                    redis.call('ZADD', side, old_price, new_size)
+                end
+            end
+        end    
+        -- add the new limit price and position size
         redis.call('HSET', 'orders', id, price_cents)
 
         local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price_cents, price_cents)[1]) or 0
@@ -269,15 +292,23 @@ impl DatabaseArchiver {
         let mut pipe = redis::pipe();
         let side;
         let price;
+        let execution_type;
         if order.order_status == OrderStatus::SETTLED
             || order.order_status == OrderStatus::LIQUIDATE
         {
+            execution_type = "CLOSE_MARKET";
             price = order.settlement_price.to_f64().unwrap();
             side = match order.position_type {
                 PositionType::LONG => "ask",
                 PositionType::SHORT => "bid",
             }
         } else {
+            execution_type = match order.order_type {
+                OrderType::LIMIT => "OPEN_LIMIT",
+                OrderType::MARKET => "OPEN_MARKET",
+                OrderType::DARK => "OPEN_MARKET",
+                _ => "", //lend not applicable
+            };
             price = order.entryprice.to_f64().unwrap();
             side = match order.position_type {
                 PositionType::LONG => "bid",
@@ -296,7 +327,8 @@ impl DatabaseArchiver {
             .arg(order.positionsize.to_f64().unwrap() as i64)
             .arg(order.timestamp.to_rfc3339())
             .arg(order.timestamp.timestamp_millis() as i64)
-            .arg((Utc::now() - TimeDelta::days(1)).timestamp_millis() as i64);
+            .arg((Utc::now() - TimeDelta::days(1)).timestamp_millis() as i64)
+            .arg(execution_type);
 
         pipe.add_command(cmd);
         let mut redis_conn = self.redis.get_connection()?;
@@ -432,15 +464,50 @@ impl DatabaseArchiver {
     }
     /// Add a trader order to the next update batch, if the queue is full, commit and clear the
     /// queue. for trader order limit updates on settlement
-    fn trader_order_limit_update(&mut self, order: InsertTraderOrder) -> Result<(), ApiError> {
-        // debug!("Appending trader order");
+    fn trader_order_limit_update_redis(
+        &mut self,
+        order: InsertTraderOrder,
+        settlement_price: f64,
+    ) -> Result<(), ApiError> {
+        let mut pipe = redis::pipe();
+        let side;
+        let price;
+        let execution_type;
+        if order.order_status == OrderStatus::SETTLED
+            || order.order_status == OrderStatus::LIQUIDATE
+        {
+            execution_type = "CLOSE_MARKET";
+            price = order.settlement_price.to_f64().unwrap();
+            side = match order.position_type {
+                PositionType::LONG => "ask",
+                PositionType::SHORT => "bid",
+            }
+        } else {
+            execution_type = "CLOSE_LIMIT";
+            price = settlement_price;
+            side = match order.position_type {
+                PositionType::LONG => "ask",
+                PositionType::SHORT => "bid",
+            };
+        }
 
-        // let _ = self.update_order_cache(&order);
-        // self.trader_orders.push(order);
+        let mut cmd = redis::cmd("EVALSHA");
+        cmd.arg(&self.script_sha)
+            .arg(0)
+            .arg(order.uuid.clone())
+            .arg(order.order_status.as_str())
+            .arg(side)
+            .arg((price) as i64)
+            .arg((price * 100.0) as i64)
+            .arg(order.positionsize.to_f64().unwrap() as i64)
+            .arg(order.timestamp.to_rfc3339())
+            .arg(order.timestamp.timestamp_millis() as i64)
+            .arg((Utc::now() - TimeDelta::days(1)).timestamp_millis() as i64)
+            .arg(execution_type);
 
-        // if self.trader_orders.len() == self.trader_orders.capacity() {
-        //     self.commit_trader_orders()?;
-        // }
+        pipe.add_command(cmd);
+        let mut redis_conn = self.redis.get_connection()?;
+        pipe.atomic().execute(&mut redis_conn);
 
         Ok(())
     }
@@ -622,8 +689,17 @@ impl DatabaseArchiver {
                 self.trader_order_funding_update(trader_order.into())?;
             }
             // added for limit order update for settlement order
-            Event::TraderOrderLimitUpdate(trader_order, _cmd, _seq) => {
-                self.trader_order_limit_update(trader_order.into())?;
+            Event::TraderOrderLimitUpdate(trader_order, cmd, _seq) => {
+                let settlement_price = match cmd {
+                    twilight_relayer_rust::relayer::RpcCommand::ExecuteTraderOrder(
+                        execute_trader_order,
+                        _meta,
+                        _zkos_hex_string,
+                        _request_id,
+                    ) => execute_trader_order.execution_price,
+                    _ => 0.0, // Default value for other command types
+                };
+                self.trader_order_limit_update_redis(trader_order.into(), settlement_price)?;
             }
             Event::TraderOrderLiquidation(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into())?;

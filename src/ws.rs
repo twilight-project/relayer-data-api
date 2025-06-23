@@ -99,12 +99,10 @@ impl WsContext {
                                         }
                                         _ => 0.0, // Default value for other command types
                                     };
-                                    let positionsize =
-                                        to.positionsize * settlement_price / to.entryprice;
-                                    let order = NewOrderBookOrder::new_limit(
+
+                                    let order = NewOrderBookOrder::new_close_limit(
                                         TraderOrder::from(to.clone()),
                                         settlement_price,
-                                        positionsize,
                                     );
                                     if let Err(e) = order_book2.send(order) {
                                         info!("No order book subscribers present {:?}", e);
