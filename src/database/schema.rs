@@ -335,3 +335,32 @@ diesel::allow_tables_to_appear_in_same_query!(
     trader_order_funding_updated,
     transaction_hash,
 );
+
+// // /* ----  View: orderbook -------------------------------------------- */
+// diesel::table! {
+//     // Read-only view.  No primary key.
+//     orderbook (id) {
+//         id                  -> Int8,
+//         uuid                -> Uuid,
+//         account_id          -> Text,
+//         position_type       -> Varchar,
+//         order_status        -> Varchar,
+//         order_type          -> Varchar,
+//         entryprice          -> Numeric,
+//         execution_price     -> Numeric,
+//         positionsize        -> Numeric,
+//         leverage            -> Numeric,
+//         initial_margin      -> Numeric,
+//         available_margin    -> Numeric,
+//         timestamp           -> Timestamp,
+//         bankruptcy_price    -> Numeric,
+//         bankruptcy_value    -> Numeric,
+//         maintenance_margin  -> Numeric,
+//         liquidation_price   -> Numeric,
+//         unrealized_pnl      -> Numeric,
+//         settlement_price    -> Nullable<Numeric>,
+//         entry_nonce         -> Nullable<Int8>,
+//         exit_nonce          -> Nullable<Int8>,
+//         entry_sequence      -> Nullable<Int8>,
+//     }
+// }

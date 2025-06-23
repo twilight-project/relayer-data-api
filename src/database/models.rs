@@ -1556,14 +1556,17 @@ impl TraderOrder {
     }
 
     pub fn order_book_orders(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
+        // let query = r#"
+        //     SELECT * FROM trader_order
+        //     WHERE id IN (
+        //         SELECT MAX(id) FROM trader_order
+        //         WHERE order_type = 'LIMIT'
+        //         GROUP BY uuid
+        //     )
+        //     AND order_status NOT IN ('FILLED', 'CANCELLED', 'LIQUIDATE', 'SETTLED')
+        // "#;
         let query = r#"
-            SELECT * FROM trader_order
-            WHERE id IN (
-                SELECT MAX(id) FROM trader_order
-                WHERE order_type = 'LIMIT'
-                GROUP BY uuid
-            )
-            AND order_status NOT IN ('FILLED', 'CANCELLED', 'LIQUIDATE', 'SETTLED')
+            SELECT * FROM orderbook
         "#;
 
         diesel::sql_query(query).get_results(conn)
