@@ -1265,7 +1265,8 @@ pub struct OrderBookOrder {
     positionsize: BigDecimal,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
 pub enum NewOrderBookOrder {
     Bid {
         id: String,
