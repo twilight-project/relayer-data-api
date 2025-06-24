@@ -1283,13 +1283,13 @@ impl NewOrderBookOrder {
     pub fn new(to: TraderOrder) -> Self {
         if to.position_type == PositionType::LONG {
             Self::Bid {
-                id: to.uuid,
+                id: "".to_string(),
                 positionsize: to.positionsize.to_f64().unwrap(),
                 price: to.entryprice.to_f64().unwrap(),
             }
         } else {
             Self::Ask {
-                id: to.uuid,
+                id: "".to_string(),
                 positionsize: to.positionsize.to_f64().unwrap(),
                 price: to.entryprice.to_f64().unwrap(),
             }
@@ -1299,13 +1299,13 @@ impl NewOrderBookOrder {
     pub fn new_close_limit(to: TraderOrder, price: f64) -> Self {
         if to.position_type == PositionType::SHORT {
             Self::Bid {
-                id: to.uuid,
+                id: "".to_string(),
                 positionsize: to.positionsize.to_f64().unwrap(),
                 price: price,
             }
         } else {
             Self::Ask {
-                id: to.uuid,
+                id: "".to_string(),
                 positionsize: to.positionsize.to_f64().unwrap(),
                 price: price,
             }
@@ -1847,7 +1847,7 @@ impl OrderBook {
                 price,
             } => {
                 self.bid.push(Bid {
-                    id,
+                    id: "".to_string(),
                     positionsize,
                     price,
                 });
@@ -1858,7 +1858,7 @@ impl OrderBook {
                 price,
             } => {
                 self.ask.push(Ask {
-                    id,
+                    id: "".to_string(),
                     positionsize,
                     price,
                 });
