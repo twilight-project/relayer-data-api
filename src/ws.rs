@@ -100,7 +100,7 @@ impl WsContext {
                                             let recent_order = RecentOrder {
                                                 order_id: to.uuid.to_string(),
                                                 side: to.position_type.into(),
-                                                price: to.execution_price.into(),
+                                                price: to.entryprice.into(),
                                                 positionsize: to.positionsize.into(),
                                                 timestamp: to.timestamp,
                                             };
