@@ -151,7 +151,7 @@ pub(super) fn spawn_order_book(
                     let result = serde_json::to_value(&orders)?;
 
                     if let Err(e) = sink.send(&result) {
-                        error!("Error sending candle updates: {:?}", e);
+                        error!("Error sending orderbook updates: {:?}", e);
                     }
                     sleep(Duration::from_secs(5)).await;
                 }

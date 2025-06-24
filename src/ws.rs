@@ -10,7 +10,7 @@ use jsonrpsee::RpcModule;
 use log::{error, info, trace};
 use redis::Client;
 use relayerwalletlib::zkoswalletlib::relayer_types::{OrderStatus, OrderType};
-// use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     sync::RwLock,
@@ -20,7 +20,8 @@ use tokio::{
     sync::broadcast::{channel, Sender},
     task::JoinHandle,
 };
-use twilight_relayer_rust::{db::Event, relayer};
+use twilight_relayer_rust::db::Event;
+use twilight_relayer_rust::relayer::PositionType;
 
 mod methods;
 
@@ -33,11 +34,19 @@ const BROADCAST_CHANNEL_CAPACITY: usize = 20;
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+struct RecentOrder {
+    order_id: String,
+    side: PositionType,
+    price: f64,
+    positionsize: f64,
+    timestamp: String,
+}
 pub struct WsContext {
     client: Client,
     price_feed: Sender<(f64, DateTime<Utc>)>,
     order_book: Sender<NewOrderBookOrder>,
-    recent_trades: Sender<relayer::TraderOrder>,
+    recent_trades: Sender<RecentOrder>,
     pub candles: RwLock<HashMap<Interval, Sender<serde_json::Value>>>,
     pub pool: ManagedPool,
     _completions: CrossbeamSender<crate::kafka::Completion>,
@@ -49,7 +58,7 @@ impl WsContext {
     pub fn with_pool(pool: ManagedPool, client: Client) -> WsContext {
         let (price_feed, _) = channel::<(f64, DateTime<Utc>)>(BROADCAST_CHANNEL_CAPACITY);
         let (order_book, _) = channel::<NewOrderBookOrder>(BROADCAST_CHANNEL_CAPACITY);
-        let (recent_trades, _) = channel::<relayer::TraderOrder>(BROADCAST_CHANNEL_CAPACITY);
+        let (recent_trades, _) = channel::<RecentOrder>(BROADCAST_CHANNEL_CAPACITY);
 
         let price_feed2 = price_feed.clone();
         let order_book2 = order_book.clone();
@@ -85,8 +94,17 @@ impl WsContext {
                                     }
 
                                     match to.order_status {
-                                        OrderStatus::PENDING | OrderStatus::FILLED => {
-                                            let _ = recent_trades2.send(to);
+                                        OrderStatus::SETTLED
+                                        | OrderStatus::FILLED
+                                        | OrderStatus::LIQUIDATE => {
+                                            let recent_order = RecentOrder {
+                                                order_id: to.uuid.to_string(),
+                                                side: to.position_type.into(),
+                                                price: to.execution_price.into(),
+                                                positionsize: to.positionsize.into(),
+                                                timestamp: to.timestamp,
+                                            };
+                                            let _ = recent_trades2.send(recent_order);
                                         }
                                         _ => {}
                                     }
