@@ -144,11 +144,11 @@ pub(super) fn spawn_order_book(
     let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
         loop {
             match rx.try_recv() {
-                Ok(_mesg) => {
+                Ok(mesg) => {
                     let mut conn = ctx.pool.get()?;
                     let mut redis_conn = ctx.client.get_connection().expect("REDIS connection.");
-                    let orders = order_book(&mut redis_conn);
-                    let result = serde_json::to_value(&orders)?;
+                    let mut orders = order_book(&mut redis_conn);
+                    let result = serde_json::to_value(&orders.add_order(mesg))?;
 
                     if let Err(e) = sink.send(&result) {
                         error!("Error sending orderbook updates: {:?}", e);

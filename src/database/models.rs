@@ -1835,6 +1835,37 @@ pub struct OrderBook {
     pub bid: Vec<Bid>,
     pub ask: Vec<Ask>,
 }
+impl OrderBook {
+    pub fn new(bid: Vec<Bid>, ask: Vec<Ask>) -> OrderBook {
+        OrderBook { bid, ask }
+    }
+    pub fn add_order(&mut self, order: NewOrderBookOrder) {
+        match order {
+            NewOrderBookOrder::Bid {
+                id,
+                positionsize,
+                price,
+            } => {
+                self.bid.push(Bid {
+                    id,
+                    positionsize,
+                    price,
+                });
+            }
+            NewOrderBookOrder::Ask {
+                id,
+                positionsize,
+                price,
+            } => {
+                self.ask.push(Ask {
+                    id,
+                    positionsize,
+                    price,
+                });
+            }
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Ask {
