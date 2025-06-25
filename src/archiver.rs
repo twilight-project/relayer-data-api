@@ -57,8 +57,12 @@ const UPDATE_FN: &str = r#"
         if result == 0 then
             return
         end
-
-        local new_size = result - (size*old_price/price_cents)
+        local new_size = 0
+        if (status == "SETTLED" or status == "LIQUIDATE") then
+            new_size = result - size
+        else
+            new_size = result - (size*old_price/price_cents)
+        end
 
         redis.call('ZREM', side, result)
             

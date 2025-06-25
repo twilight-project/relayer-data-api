@@ -23,13 +23,16 @@
         redis.call('ZADD', 'recent_orders', time, order_json)
         
 
-        -- check if the order is limit order
         local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
         if result == 0 then
             return
         end
-
-        local new_size = result - (size*old_price/price_cents)
+        local new_size = 0
+        if (status == "SETTLED" or status == "LIQUIDATE") then
+            new_size = result - size
+        else
+            new_size = result - (size*old_price/price_cents)
+        end
 
         redis.call('ZREM', side, result)
             
@@ -37,7 +40,6 @@
         then
             redis.call('ZADD', side, old_price, new_size)
         end
-        -- ------------------------------
         return
     end
 
