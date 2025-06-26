@@ -1,11 +1,11 @@
 use jsonrpsee::server::ServerBuilder;
 use log::info;
+use relayerarchiverlib::{rpc, ws};
 use std::{net::SocketAddr, time::Duration};
 use structopt::StructOpt;
 use tokio::time::sleep;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
-use twilight_relayerAPI::{rpc, ws};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Relayer API", about = "Twilight Relayer API server")]
@@ -32,8 +32,8 @@ struct Opt {
     )]
     ws_listen_addr: SocketAddr,
 }
-
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 40)]
+// #[tokio::main]
 async fn main() {
     let opts = Opt::from_args();
     dotenv::dotenv().expect("dotenv file not found!");
@@ -45,6 +45,7 @@ async fn main() {
         .init();
 
     let database_url = std::env::var("DATABASE_URL").expect("No database url found!");
+    let redis_url = std::env::var("ORDERBOOK_REDIS").expect("No redis url found!");
     info!("Database backend: {}", database_url);
 
     let cors = CorsLayer::new()
@@ -66,7 +67,7 @@ async fn main() {
         .await
         .expect("Failed to build public API server");
 
-    let methods = rpc::init_public_methods(&database_url);
+    let methods = rpc::init_public_methods(&database_url, &redis_url);
     let _pub_handle = public_server
         .start(methods)
         .expect("Failed to start API server");
@@ -80,7 +81,7 @@ async fn main() {
         .await
         .expect("Failed to build private API server");
 
-    let methods = rpc::init_private_methods(&database_url);
+    let methods = rpc::init_private_methods(&database_url, &redis_url);
     let _priv_handle = private_server
         .start(methods)
         .expect("Failed to start API server");
@@ -92,7 +93,7 @@ async fn main() {
         .await
         .expect("Failed to build websocket server");
 
-    let ws_methods = ws::init_methods(&database_url);
+    let ws_methods = ws::init_methods(&database_url, &redis_url);
     let _ws_handle = ws_server
         .start(ws_methods)
         .expect("Failed to start websocket server");

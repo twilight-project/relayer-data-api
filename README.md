@@ -3,12 +3,14 @@
 For subscriptions and rpcs, see [here](./docs/API.md)
 
 ## install diesel_cli (Only necessary for development)
+
 ```command
 sudo apt install libpq-dev
 cargo install diesel_cli --no-default-features --features postgres
 ```
 
 ## running with docker-compose
+
 Build the container, you will need an ssh-key with read-only access to the twilight-relayer repo for this:
 
 ```console
@@ -34,7 +36,12 @@ Check the .env file for the DATABASE_URL environment variable, be sure it's set 
 
 `cargo r --release --bin api`
 
+## Run the auth server
+
+`cargo r --release --bin auth`
+
 ## Testing
+
 Tests are using uuid features that require additional compiler flags:
 
 ```command

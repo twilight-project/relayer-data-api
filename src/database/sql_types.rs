@@ -1,13 +1,13 @@
 #![allow(non_camel_case_types)]
-
+#![allow(warnings)]
 use crate::database::schema::sql_types::{
     LendPoolCommandType as LendPoolCommandTypeSql, OrderStatus as OrderStatusSql,
     OrderType as OrderTypeSql, PositionSizeCommand as PositionSizeCommandSql,
     PositionType as PositionTypeSql, SortedSetCommandType as SortedSetCommandTypeSql,
 };
+use core::fmt::Display;
 use diesel::*;
 use diesel::{
-    backend::Backend,
     deserialize::FromSql,
     pg::Pg,
     serialize::{self, IsNull, Output, ToSql},
@@ -15,7 +15,6 @@ use diesel::{
 use relayerwalletlib::zkoswalletlib::relayer_types;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
-use twilight_relayer_rust::relayer;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum TXType {
@@ -77,7 +76,9 @@ impl diesel::query_builder::QueryId for OrderTypeSql {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
 #[diesel(sql_type = PositionTypeSql)]
 pub enum PositionType {
+    #[serde(alias = "bid", alias = "Long", alias = "Bid")]
     LONG,
+    #[serde(alias = "ask", alias = "Short", alias = "Ask")]
     SHORT,
 }
 
@@ -90,19 +91,50 @@ pub enum OrderStatus {
     CANCELLED,
     PENDING,
     FILLED,
+    DuplicateOrder,
+    UtxoError,
+    Error,
+    NoResponseFromChain,
+    BincodeError,
+    HexCodeError,
+    SerializationError,
+    RequestSubmitted,
+    OrderNotFound,
+    RejectedFromChain,
+    FilledUpdated,
 }
 
 impl OrderStatus {
+    pub fn as_str(&self) -> &'static str {
+        use OrderStatus::*;
+
+        match self {
+            SETTLED => "SETTLED",
+            LENDED => "LENDED",
+            LIQUIDATE => "LIQUIDATE",
+            CANCELLED => "CANCELLED",
+            PENDING => "PENDING",
+            FILLED => "FILLED",
+            DuplicateOrder => "DuplicateOrder",
+            UtxoError => "UtxoError",
+            Error => "Error",
+            NoResponseFromChain => "NoResponseFromChain",
+            BincodeError => "BincodeError",
+            HexCodeError => "HexCodeError",
+            SerializationError => "SerializationError",
+            RequestSubmitted => "RequestSubmitted",
+            OrderNotFound => "OrderNotFound",
+            RejectedFromChain => "RejectedFromChain",
+            FilledUpdated => "FilledUpdated",
+        }
+    }
+
     pub fn is_cancelable(&self) -> bool {
         use OrderStatus::*;
 
         match self {
-            SETTLED => false,
-            LENDED => false,
-            LIQUIDATE => false,
-            CANCELLED => false,
             PENDING => true,
-            FILLED => false,
+            _ => false,
         }
     }
 
@@ -110,12 +142,8 @@ impl OrderStatus {
         use OrderStatus::*;
 
         match self {
-            SETTLED => true,
-            LENDED => true,
-            LIQUIDATE => true,
-            CANCELLED => true,
-            PENDING => false,
             FILLED => true,
+            _ => false,
         }
     }
 }
@@ -250,6 +278,17 @@ impl ToSql<OrderStatusSql, Pg> for OrderStatus {
             OrderStatus::CANCELLED => out.write_all(b"CANCELLED")?,
             OrderStatus::PENDING => out.write_all(b"PENDING")?,
             OrderStatus::FILLED => out.write_all(b"FILLED")?,
+            OrderStatus::DuplicateOrder => out.write_all(b"DuplicateOrder")?,
+            OrderStatus::UtxoError => out.write_all(b"UtxoError")?,
+            OrderStatus::Error => out.write_all(b"Error")?,
+            OrderStatus::NoResponseFromChain => out.write_all(b"NoResponseFromChain")?,
+            OrderStatus::BincodeError => out.write_all(b"BincodeError")?,
+            OrderStatus::HexCodeError => out.write_all(b"HexCodeError")?,
+            OrderStatus::SerializationError => out.write_all(b"SerializationError")?,
+            OrderStatus::RequestSubmitted => out.write_all(b"RequestSubmitted")?,
+            OrderStatus::OrderNotFound => out.write_all(b"OrderNotFound")?,
+            OrderStatus::RejectedFromChain => out.write_all(b"RejectedFromChain")?,
+            OrderStatus::FilledUpdated => out.write_all(b"FilledUpdated")?,
         }
         Ok(IsNull::No)
     }
@@ -284,6 +323,17 @@ impl FromSql<OrderStatusSql, Pg> for OrderStatus {
             b"CANCELLED" => Ok(OrderStatus::CANCELLED),
             b"PENDING" => Ok(OrderStatus::PENDING),
             b"FILLED" => Ok(OrderStatus::FILLED),
+            b"DuplicateOrder" => Ok(OrderStatus::DuplicateOrder),
+            b"UtxoError" => Ok(OrderStatus::UtxoError),
+            b"Error" => Ok(OrderStatus::Error),
+            b"NoResponseFromChain" => Ok(OrderStatus::NoResponseFromChain),
+            b"BincodeError" => Ok(OrderStatus::BincodeError),
+            b"HexCodeError" => Ok(OrderStatus::HexCodeError),
+            b"SerializationError" => Ok(OrderStatus::SerializationError),
+            b"RequestSubmitted" => Ok(OrderStatus::RequestSubmitted),
+            b"OrderNotFound" => Ok(OrderStatus::OrderNotFound),
+            b"RejectedFromChain" => Ok(OrderStatus::RejectedFromChain),
+            b"FilledUpdated" => Ok(OrderStatus::FilledUpdated),
             _ => panic!("Invalid enum type in database!"),
         }
     }
@@ -333,6 +383,15 @@ impl FromSql<PositionTypeSql, Pg> for PositionType {
     }
 }
 
+impl Display for PositionType {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            PositionType::LONG => write!(fmt, "LONG"),
+            PositionType::SHORT => write!(fmt, "SHORT"),
+        }
+    }
+}
+
 impl From<relayer_types::OrderStatus> for OrderStatus {
     fn from(status: relayer_types::OrderStatus) -> OrderStatus {
         match status {
@@ -342,6 +401,17 @@ impl From<relayer_types::OrderStatus> for OrderStatus {
             relayer_types::OrderStatus::CANCELLED => OrderStatus::CANCELLED,
             relayer_types::OrderStatus::PENDING => OrderStatus::PENDING,
             relayer_types::OrderStatus::FILLED => OrderStatus::FILLED,
+            relayer_types::OrderStatus::DuplicateOrder => OrderStatus::DuplicateOrder,
+            relayer_types::OrderStatus::UtxoError => OrderStatus::UtxoError,
+            relayer_types::OrderStatus::Error => OrderStatus::Error,
+            relayer_types::OrderStatus::NoResponseFromChain => OrderStatus::NoResponseFromChain,
+            relayer_types::OrderStatus::BincodeError => OrderStatus::BincodeError,
+            relayer_types::OrderStatus::HexCodeError => OrderStatus::HexCodeError,
+            relayer_types::OrderStatus::SerializationError => OrderStatus::SerializationError,
+            relayer_types::OrderStatus::RequestSubmitted => OrderStatus::RequestSubmitted,
+            relayer_types::OrderStatus::OrderNotFound => OrderStatus::OrderNotFound,
+            relayer_types::OrderStatus::RejectedFromChain => OrderStatus::RejectedFromChain,
+            relayer_types::OrderStatus::FilledUpdated => OrderStatus::FilledUpdated,
         }
     }
 }

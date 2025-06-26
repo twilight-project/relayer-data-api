@@ -1,7 +1,8 @@
+#![allow(warnings)]
 use crate::{
-    database::{BtcUsdPrice, CandleData, TraderOrder},
+    database::{Ask, Bid, BtcUsdPrice, OrderBook, TraderOrder},
     error::ApiError,
-    rpc::{CandleSubscription, Interval},
+    rpc::{order_book, CandleSubscription, Interval},
 };
 use chrono::prelude::*;
 use jsonrpsee::{
@@ -10,12 +11,9 @@ use jsonrpsee::{
 };
 use log::{error, info, warn};
 use serde::Serialize;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 use tokio::{
-    sync::broadcast::{error::TryRecvError, Receiver},
+    sync::broadcast::{channel, error::TryRecvError, Receiver},
     task::JoinHandle,
     time::sleep,
 };
@@ -63,45 +61,73 @@ pub(super) fn candle_update(
     sink.accept()?;
 
     let CandleSubscription { interval } = params.parse()?;
-    // let time = match interval {
-    //     Interval::ONE_MINUTE => chrono::Duration::minutes(1),
-    //     Interval::FIVE_MINUTE => chrono::Duration::minutes(5),
-    //     Interval::FIFTEEN_MINUTE => chrono::Duration::minutes(15),
-    //     Interval::THIRTY_MINUTE => chrono::Duration::minutes(30),
-    //     Interval::ONE_HOUR => chrono::Duration::minutes(60),
-    //     Interval::FOUR_HOUR => chrono::Duration::hours(4),
-    //     Interval::EIGHT_HOUR => chrono::Duration::hours(8),
-    //     Interval::TWELVE_HOUR => chrono::Duration::hours(12),
-    //     Interval::ONE_DAY => chrono::Duration::hours(24),
-    //     _ => chrono::Duration::minutes(1),
-    // };
-    // let mut last_candle_vec: Vec<CandleData> = Vec::new();
-    let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
-        loop {
-            let mut conn = ctx.pool.get()?;
-            // let time_now = Utc::now();
-            // let time_interval = chrono::Duration::seconds(time_now.second() as i64)
-            //     + chrono::Duration::milliseconds(time_now.timestamp_millis() as i64)
-            //     + chrono::Duration::microseconds(time_now.timestamp_micros() as i64)
-            //     + chrono::Duration::nanoseconds(time_now.timestamp_nanos() as i64);
-            let since = Utc::now() - chrono::Duration::minutes(1);
-            let candles = BtcUsdPrice::candles(&mut conn, interval.clone(), since, None, None)?;
 
-            let result = serde_json::to_value(&candles)?;
+    let spawn = match ctx.candles.read() {
+        Ok(r) => !r.contains_key(&interval),
+        Err(e) => {
+            sink.send(&format!("RwLock poisoned!"));
+            return Ok(());
+        }
+    };
 
-            if candles.len() > 0 {
-                // if candles.len() > 0 && candles != last_candle_vec {
-                // last_candle_vec = candles;
-                if let Err(e) = sink.send(&result) {
-                    error!("Error sending candle updates: {:?}", e);
+    if spawn {
+        info!("SPAWNING new subscriber for {:?}", interval);
+        let Ok(mut l) = ctx.candles.write() else {
+            sink.send(&"Write Lock poisoned!");
+            return Ok(());
+        };
+        let (tx, _) = channel(10);
+        l.insert(interval, tx.clone());
+
+        let c = ctx.clone();
+        let _: JoinHandle<Result<(), ApiError>> = tokio::task::spawn(async move {
+            loop {
+                let mut conn = c.pool.get()?;
+                let since: DateTime<Utc> = match interval {
+                    Interval::ONE_DAY_CHANGE => Utc::now() - chrono::Duration::hours(24),
+                    _ => Utc::now() - chrono::Duration::milliseconds(250),
+                };
+                let candles = BtcUsdPrice::candles(&mut conn, interval, since, None, None)?;
+
+                if candles.len() > 0 {
+                    let result = serde_json::to_value(&candles)?;
+                    if let Err(e) = tx.send(result) {
+                        error!("Error sending candle updates: {:?}", e);
+                    }
+                    match interval {
+                        Interval::ONE_DAY_CHANGE => {
+                            sleep(Duration::from_millis(1000)).await;
+                        }
+                        _ => {
+                            sleep(Duration::from_millis(250)).await;
+                        }
+                    };
+                } else {
+                    sleep(Duration::from_millis(250)).await;
                 }
-                sleep(Duration::from_millis(500)).await;
-            } else {
-                sleep(Duration::from_millis(300)).await;
-                continue;
+            }
+            Ok(())
+        });
+    }
+
+    let Ok(l) = ctx.candles.read() else {
+        sink.send(&"Failed to acquire rx candles channel");
+        return Ok(());
+    };
+
+    let mut rx = l.get(&interval).unwrap().subscribe();
+    let _result = tokio::task::spawn(async move {
+        loop {
+            let Ok(msg) = rx.recv().await else {
+                error!("Recv channel broken!");
+                break;
+            };
+
+            if let Err(e) = sink.send(&msg) {
+                error!("Error sending candle updates: {:?}", e);
             }
         }
-        Ok(())
+        // Ok(())
     });
 
     Ok(())
@@ -120,11 +146,13 @@ pub(super) fn spawn_order_book(
             match rx.try_recv() {
                 Ok(mesg) => {
                     let mut conn = ctx.pool.get()?;
-                    let orders = TraderOrder::order_book(&mut conn)?;
-                    let result = serde_json::to_value(&orders)?;
+                    let mut redis_conn = ctx.client.get_connection().expect("REDIS connection.");
+                    // let mut orders = order_book(&mut redis_conn);
+                    // orders.add_order(mesg);
+                    let result = serde_json::to_value(&mesg)?;
 
                     if let Err(e) = sink.send(&result) {
-                        error!("Error sending candle updates: {:?}", e);
+                        error!("Error sending orderbook updates: {:?}", e);
                     }
                     sleep(Duration::from_secs(5)).await;
                 }
@@ -149,7 +177,7 @@ pub(super) fn spawn_order_book(
 pub(super) fn heartbeat(
     _params: Params<'_>,
     mut sink: SubscriptionSink,
-    ctx: Arc<WsContext>,
+    _ctx: Arc<WsContext>,
 ) -> SubscriptionResult {
     sink.accept()?;
 
@@ -161,7 +189,7 @@ pub(super) fn heartbeat(
             }
             sleep(Duration::from_secs(5)).await;
         }
-        Ok(())
+        // Ok(())
     });
 
     Ok(())

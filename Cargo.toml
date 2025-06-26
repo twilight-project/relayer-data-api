@@ -11,9 +11,9 @@ name = "archiver"
 [[bin]]
 name = "api"
 
-# [lib]
-# name = "relayerarchiverlib"
-# path = "src/lib.rs"
+[lib]
+name = "relayerarchiverlib"
+path = "src/lib.rs"
 
 
 [dependencies]
@@ -67,14 +67,14 @@ tower-http = { version = "0.4", features = [
     "validate-request",
 ] }
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
-twilight-relayer-rust = { git = "ssh://git@github.com/twilight-project/twilight-relayer.git", branch = "output-archiver-0.03.031" }
-
 uuid = { version = "1.3.3", features = ["serde", "v4", "v7"] }
 verify-keplr-sign = "0.1.0"
+twilight-relayer-rust = { git = "ssh://git@github.com/twilight-project/twilight-relayer.git", branch = "develop" }
+redis = { version = "0.25.4", features = ["r2d2"] }
 
 [dependencies.zkos-relayer-wallet]
-git = "ssh://github.com/twilight-project/zkos-relayer-wallet.git"
+git = "ssh://git@github.com/twilight-project/zkos-relayer-wallet.git"
 branch = "develop"
 [dependencies.zkos-client-wallet]
-git = "ssh://github.com/twilight-project/zkos-client-wallet.git"
+git = "ssh://git@github.com/twilight-project/zkos-client-wallet.git"
 branch = "develop"

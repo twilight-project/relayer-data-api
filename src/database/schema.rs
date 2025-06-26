@@ -43,6 +43,48 @@ diesel::table! {
 }
 
 diesel::table! {
+    candles_1day (start_time) {
+        start_time -> Timestamptz,
+        end_time -> Timestamptz,
+        low -> Numeric,
+        high -> Numeric,
+        open -> Numeric,
+        close -> Numeric,
+        trades -> Int4,
+        btc_volume -> Numeric,
+        usd_volume -> Numeric,
+    }
+}
+
+diesel::table! {
+    candles_1hour (start_time) {
+        start_time -> Timestamptz,
+        end_time -> Timestamptz,
+        low -> Numeric,
+        high -> Numeric,
+        open -> Numeric,
+        close -> Numeric,
+        trades -> Int4,
+        btc_volume -> Numeric,
+        usd_volume -> Numeric,
+    }
+}
+
+diesel::table! {
+    candles_1min (start_time) {
+        start_time -> Timestamptz,
+        end_time -> Timestamptz,
+        low -> Numeric,
+        high -> Numeric,
+        open -> Numeric,
+        close -> Numeric,
+        trades -> Int4,
+        btc_volume -> Numeric,
+        usd_volume -> Numeric,
+    }
+}
+
+diesel::table! {
     current_nonce (id) {
         id -> Int8,
         nonce -> Int8,
@@ -220,6 +262,39 @@ diesel::table! {
 
 diesel::table! {
     use diesel::sql_types::*;
+    use super::sql_types::PositionType;
+    use super::sql_types::OrderStatus;
+    use super::sql_types::OrderType;
+
+    trader_order_funding_updated (id) {
+        id -> Int8,
+        #[max_length = 64]
+        uuid -> Varchar,
+        account_id -> Varchar,
+        position_type -> PositionType,
+        order_status -> OrderStatus,
+        order_type -> OrderType,
+        entryprice -> Numeric,
+        execution_price -> Numeric,
+        positionsize -> Numeric,
+        leverage -> Numeric,
+        initial_margin -> Numeric,
+        available_margin -> Numeric,
+        timestamp -> Timestamptz,
+        bankruptcy_price -> Numeric,
+        bankruptcy_value -> Numeric,
+        maintenance_margin -> Numeric,
+        liquidation_price -> Numeric,
+        unrealized_pnl -> Numeric,
+        settlement_price -> Numeric,
+        entry_nonce -> Int8,
+        exit_nonce -> Int8,
+        entry_sequence -> Int8,
+    }
+}
+
+diesel::table! {
+    use diesel::sql_types::*;
     use super::sql_types::OrderType;
     use super::sql_types::OrderStatus;
 
@@ -232,6 +307,7 @@ diesel::table! {
         order_status -> OrderStatus,
         datetime -> Varchar,
         output -> Nullable<Varchar>,
+        request_id -> Nullable<Varchar>,
     }
 }
 
@@ -242,6 +318,9 @@ diesel::joinable!(customer_order_linking -> customer_account (customer_account_i
 diesel::allow_tables_to_appear_in_same_query!(
     address_customer_id,
     btc_usd_price,
+    candles_1day,
+    candles_1hour,
+    candles_1min,
     current_nonce,
     customer_account,
     customer_apikey_linking,
@@ -253,5 +332,35 @@ diesel::allow_tables_to_appear_in_same_query!(
     position_size_log,
     sorted_set_command,
     trader_order,
+    trader_order_funding_updated,
     transaction_hash,
 );
+
+// // /* ----  View: orderbook -------------------------------------------- */
+// diesel::table! {
+//     // Read-only view.  No primary key.
+//     orderbook (id) {
+//         id                  -> Int8,
+//         uuid                -> Uuid,
+//         account_id          -> Text,
+//         position_type       -> Varchar,
+//         order_status        -> Varchar,
+//         order_type          -> Varchar,
+//         entryprice          -> Numeric,
+//         execution_price     -> Numeric,
+//         positionsize        -> Numeric,
+//         leverage            -> Numeric,
+//         initial_margin      -> Numeric,
+//         available_margin    -> Numeric,
+//         timestamp           -> Timestamp,
+//         bankruptcy_price    -> Numeric,
+//         bankruptcy_value    -> Numeric,
+//         maintenance_margin  -> Numeric,
+//         liquidation_price   -> Numeric,
+//         unrealized_pnl      -> Numeric,
+//         settlement_price    -> Nullable<Numeric>,
+//         entry_nonce         -> Nullable<Int8>,
+//         exit_nonce          -> Nullable<Int8>,
+//         entry_sequence      -> Nullable<Int8>,
+//     }
+// }

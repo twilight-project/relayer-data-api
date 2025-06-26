@@ -1,27 +1,120 @@
 use crate::{database::*, error::ApiError, kafka::Completion, migrations};
+use bigdecimal::ToPrimitive;
 use chrono::prelude::*;
+use chrono::TimeDelta;
 use crossbeam_channel::{Receiver, Sender};
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use log::{debug, error, info, trace};
 use r2d2::PooledConnection;
-use std::time::{Duration, Instant};
+use redis::Client;
+use serde_json::json;
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 use twilight_relayer_rust::{
     db::{self as relayer_db, Event},
     relayer,
 };
 
 const BATCH_INTERVAL: u64 = 100;
-const BATCH_SIZE: usize = 500;
+const BATCH_SIZE: usize = 2_000;
 const MAX_RETRIES: usize = 5;
 const RETRY_SLEEP: u64 = 2000;
+const PIPELINE_CHUNK: usize = 512;
 
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
+const UPDATE_FN: &str = r#"
+    -- args: <order_id> <order_status> <side> <price> <price_cents> <position_size> <rfc3339> <timestamp_millis> <exp_time> <execution_type>
+    local id = ARGV[1]
+    local status = ARGV[2]
+    local side = ARGV[3]
+    local price = tonumber(ARGV[4])
+    local price_cents = tonumber(ARGV[5])
+    local size = tonumber(ARGV[6])
+    local timestamp = ARGV[7]
+    local time = tonumber(ARGV[8])
+    local exp_time = tonumber(ARGV[9])
+    -- OPEN_LIMIT or CLOSE_LIMIT or OPEN_MARKET or CLOSE_MARKET
+    local execution_type = ARGV[10]
+    redis.call('ECHO', 'id: ' .. id)
+
+    if (status == "FILLED" or status == "SETTLED" or status == "LIQUIDATE") and execution_type ~= "CLOSE_LIMIT" then
+        local old_price = tonumber(redis.call('HGET', 'orders', id))
+        redis.call('HDEL', 'orders', id)
+
+        
+        local table = { order_id = id, side = side, price = price, positionsize = size, timestamp = timestamp }
+
+        local order_json = cjson.encode(table)
+        redis.call('ZADD', 'recent_orders', time, order_json)
+        
+
+        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
+        if result == 0 then
+            return
+        end
+        local new_size = 0
+        if (status == "SETTLED" or status == "LIQUIDATE") then
+            new_size = result - size
+        else
+            new_size = result - (size*old_price/price_cents)
+        end
+
+        redis.call('ZREM', side, result)
+            
+        if new_size > 0
+        then
+            redis.call('ZADD', side, old_price, new_size)
+        end
+        return
+    end
+
+    -- settle order on limit
+    -- just opened a new order
+    if status == "PENDING" or (status == "FILLED" and execution_type == "CLOSE_LIMIT") then
+        -- if the limit order is already exist then remove the old limit price and position size
+        local is_exist =redis.call('HEXISTS', 'orders', id)
+        if is_exist == 1 then
+            local old_price = tonumber(redis.call('HGET', 'orders', id))
+            redis.call('HDEL', 'orders', id)
+            local old_position_size = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
+            if old_position_size > 0 then
+
+                local new_size = old_position_size - size
+
+                redis.call('ZREM', side, old_position_size)
+                
+                if new_size > 0
+                then
+                    redis.call('ZADD', side, old_price, new_size)
+                end
+            end
+        end    
+        -- add the new limit price and position size
+        redis.call('HSET', 'orders', id, price_cents)
+
+        local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, price_cents, price_cents)[1]) or 0
+        local new_size = result + size
+
+        if result ~= 0 then
+            redis.call('ZREM', side, result)
+        end
+        redis.call('ZADD', side, price_cents, new_size)
+    end
+    -- TODO: clean out <recent_orders> expired > 24h...
+    redis.call('ZREMRANGEBYSCORE', 'recent_orders', 0, exp_time)
+"#;
+
 pub struct DatabaseArchiver {
+    redis: Client,
     pool: ManagedPool,
+    script_sha: String,
     trader_orders: Vec<InsertTraderOrder>,
+    trader_order_funding_updated: Vec<InsertTraderOrderFundingUpdates>,
     lend_orders: Vec<InsertLendOrder>,
     position_size: Vec<PositionSizeUpdate>,
     tx_hashes: Vec<NewTxHash>,
@@ -34,15 +127,21 @@ pub struct DatabaseArchiver {
 
 impl DatabaseArchiver {
     /// Start an archiver, provided a postgres connection string.
-    pub fn from_host(database_url: String, completions: Sender<Completion>) -> DatabaseArchiver {
+    pub fn from_host(
+        database_url: &str,
+        redis_url: &str,
+        completions: Sender<Completion>,
+    ) -> DatabaseArchiver {
         let manager = ConnectionManager::<PgConnection>::new(database_url);
         let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
+        let redis = Client::open(redis_url).expect("Could not establish redis connection");
 
         let mut conn = pool.get().expect("Could not get pooled connection!");
 
         migrations::run_migrations(&mut *conn).expect("Failed to run database migrations!");
 
         let trader_orders = Vec::with_capacity(BATCH_SIZE);
+        let trader_order_funding_updated = Vec::with_capacity(BATCH_SIZE);
         let lend_orders = Vec::with_capacity(BATCH_SIZE);
         let position_size = Vec::with_capacity(BATCH_SIZE);
         let tx_hashes = Vec::with_capacity(BATCH_SIZE);
@@ -51,9 +150,21 @@ impl DatabaseArchiver {
         let lend_pool_commands = Vec::with_capacity(BATCH_SIZE);
         let nonce = Nonce::get(&mut conn).expect("Failed to query for current nonce");
 
+        Self::load_cache(pool.clone(), redis.clone());
+
+        let mut redis_conn = redis.get_connection().expect("Redis connection");
+        let script_sha: String = redis::cmd("SCRIPT")
+            .arg("LOAD")
+            .arg(UPDATE_FN)
+            .query(&mut redis_conn)
+            .expect("Script load failed");
+
         DatabaseArchiver {
+            redis,
             pool,
+            script_sha,
             trader_orders,
+            trader_order_funding_updated,
             lend_orders,
             position_size,
             tx_hashes,
@@ -63,6 +174,171 @@ impl DatabaseArchiver {
             completions,
             nonce,
         }
+    }
+
+    fn load_cache(pool: ManagedPool, redis: Client) {
+        let mut conn = pool.get().expect("Could not get pooled connection!");
+
+        let recent_orders =
+            TraderOrder::list_past_24hrs(&mut conn).expect("Failed to load recent orders");
+        let order_book_orders =
+            TraderOrder::order_book_orders(&mut conn).expect("Failed to load order book");
+        {
+            let mut pipe = redis::pipe();
+
+            let mut redis_conn = redis
+                .get_connection()
+                .expect("Failed to acquire redis connection");
+
+            let mut cmd = redis::cmd("DEL");
+            cmd.arg("recent_orders");
+
+            pipe.add_command(cmd);
+
+            // cmd.execute(&mut redis_conn);
+            let mut cmd = redis::cmd("DEL");
+            cmd.arg("orders");
+
+            pipe.add_command(cmd);
+            // cmd.execute(&mut redis_conn);
+
+            let mut cmd = redis::cmd("DEL");
+            cmd.arg("bid");
+
+            pipe.add_command(cmd);
+            // cmd.execute(&mut redis_conn);
+
+            let mut cmd = redis::cmd("DEL");
+            cmd.arg("ask");
+            // cmd.execute(&mut redis_conn);
+            pipe.add_command(cmd);
+
+            pipe.atomic().execute(&mut redis_conn);
+        }
+        for chunk in recent_orders.chunks(PIPELINE_CHUNK) {
+            let mut redis_conn = redis
+                .get_connection()
+                .expect("Failed to acquire redis connection");
+            let mut pipe = redis::pipe();
+
+            for item in chunk {
+                let timestamp = item.timestamp.timestamp_millis();
+
+                let order = json!({
+                    "order_id": item.order_id.clone(),
+                    "side": item.side.to_string(),
+                    "price": item.price.to_f64().unwrap(),
+                    "positionsize": item.positionsize.to_f64().unwrap(),
+                    "timestamp": item.timestamp.to_rfc3339(),
+                });
+
+                let order = serde_json::to_string(&order).expect("Invalid JSON");
+
+                let mut cmd = redis::cmd("ZADD");
+                cmd.arg("recent_orders").arg(timestamp).arg(order);
+                pipe.add_command(cmd);
+            }
+
+            pipe.atomic().execute(&mut redis_conn);
+        }
+
+        let mut redis_conn = redis
+            .get_connection()
+            .expect("Failed to acquire redis connection");
+        let mut bids = HashMap::new();
+        let mut asks = HashMap::new();
+
+        for order in order_book_orders.iter() {
+            let key = (order.entryprice.to_f64().unwrap() * 100.0) as i64;
+            let positionsize = order.positionsize.to_f64().unwrap() as i64;
+
+            if order.position_type == PositionType::SHORT {
+                asks.entry(key)
+                    .and_modify(|size| *size += positionsize)
+                    .or_insert(positionsize);
+            } else {
+                bids.entry(key)
+                    .and_modify(|size| *size += positionsize)
+                    .or_insert(positionsize);
+            }
+
+            redis::cmd("HSET")
+                .arg("orders")
+                // .arg("id")
+                .arg(order.uuid.clone())
+                // .arg("price")
+                .arg((order.entryprice.to_f64().unwrap() * 100.0) as i64)
+                .execute(&mut redis_conn);
+        }
+
+        for (price, size) in bids.into_iter() {
+            redis::cmd("ZADD")
+                .arg("bid")
+                .arg(price)
+                .arg(size.to_i64().unwrap())
+                .execute(&mut redis_conn);
+        }
+
+        for (price, size) in asks.into_iter() {
+            redis::cmd("ZADD")
+                .arg("ask")
+                .arg(price)
+                .arg(size.to_i64().unwrap())
+                .execute(&mut redis_conn);
+        }
+    }
+
+    fn update_sorted_set(&self, _cmd: &relayer::SortedSetCommand) -> Result<(), ApiError> {
+        Ok(())
+    }
+
+    fn update_order_cache(&self, order: &InsertTraderOrder) -> Result<(), ApiError> {
+        let mut pipe = redis::pipe();
+        let side;
+        let price;
+        let execution_type;
+        if order.order_status == OrderStatus::SETTLED
+            || order.order_status == OrderStatus::LIQUIDATE
+        {
+            execution_type = "CLOSE_MARKET";
+            price = order.settlement_price.to_f64().unwrap();
+            side = match order.position_type {
+                PositionType::LONG => "ask",
+                PositionType::SHORT => "bid",
+            }
+        } else {
+            execution_type = match order.order_type {
+                OrderType::LIMIT => "OPEN_LIMIT",
+                OrderType::MARKET => "OPEN_MARKET",
+                OrderType::DARK => "OPEN_MARKET",
+                _ => "", //lend not applicable
+            };
+            price = order.entryprice.to_f64().unwrap();
+            side = match order.position_type {
+                PositionType::LONG => "bid",
+                PositionType::SHORT => "ask",
+            };
+        }
+
+        let mut cmd = redis::cmd("EVALSHA");
+        cmd.arg(&self.script_sha)
+            .arg(0)
+            .arg(order.uuid.clone())
+            .arg(order.order_status.as_str())
+            .arg(side)
+            .arg((price) as i64)
+            .arg((price * 100.0) as i64)
+            .arg(order.positionsize.to_f64().unwrap() as i64)
+            .arg(order.timestamp.to_rfc3339())
+            .arg(order.timestamp.timestamp_millis() as i64)
+            .arg((Utc::now() - TimeDelta::days(1)).timestamp_millis() as i64)
+            .arg(execution_type);
+
+        pipe.add_command(cmd);
+        let mut redis_conn = self.redis.get_connection()?;
+        pipe.atomic().execute(&mut redis_conn);
+
+        Ok(())
     }
 
     /// Fetch a connection, will retry MAX_RETRIES before giving up.
@@ -95,6 +371,7 @@ impl DatabaseArchiver {
         sorted_set_update: relayer::SortedSetCommand,
     ) -> Result<(), ApiError> {
         debug!("Appending sorted set update");
+        let _ = self.update_sorted_set(&sorted_set_update);
         self.sorted_set.push(sorted_set_update);
 
         if self.sorted_set.len() == self.sorted_set.capacity() {
@@ -179,11 +456,62 @@ impl DatabaseArchiver {
     /// queue.
     fn trader_order(&mut self, order: InsertTraderOrder) -> Result<(), ApiError> {
         debug!("Appending trader order");
+
+        let _ = self.update_order_cache(&order);
         self.trader_orders.push(order);
 
         if self.trader_orders.len() == self.trader_orders.capacity() {
             self.commit_trader_orders()?;
         }
+
+        Ok(())
+    }
+    /// Add a trader order to the next update batch, if the queue is full, commit and clear the
+    /// queue. for trader order limit updates on settlement
+    fn trader_order_limit_update_redis(
+        &mut self,
+        order: InsertTraderOrder,
+        settlement_price: f64,
+    ) -> Result<(), ApiError> {
+        let mut pipe = redis::pipe();
+        let side;
+        let price;
+        let execution_type;
+        if order.order_status == OrderStatus::SETTLED
+            || order.order_status == OrderStatus::LIQUIDATE
+        {
+            execution_type = "CLOSE_MARKET";
+            price = order.settlement_price.to_f64().unwrap();
+            side = match order.position_type {
+                PositionType::LONG => "ask",
+                PositionType::SHORT => "bid",
+            }
+        } else {
+            execution_type = "CLOSE_LIMIT";
+            price = settlement_price;
+            side = match order.position_type {
+                PositionType::LONG => "ask",
+                PositionType::SHORT => "bid",
+            };
+        }
+
+        let mut cmd = redis::cmd("EVALSHA");
+        cmd.arg(&self.script_sha)
+            .arg(0)
+            .arg(order.uuid.clone())
+            .arg(order.order_status.as_str())
+            .arg(side)
+            .arg((price) as i64)
+            .arg((price * 100.0) as i64)
+            .arg(order.positionsize.to_f64().unwrap() as i64)
+            .arg(order.timestamp.to_rfc3339())
+            .arg(order.timestamp.timestamp_millis() as i64)
+            .arg((Utc::now() - TimeDelta::days(1)).timestamp_millis() as i64)
+            .arg(execution_type);
+
+        pipe.add_command(cmd);
+        let mut redis_conn = self.redis.get_connection()?;
+        pipe.atomic().execute(&mut redis_conn);
 
         Ok(())
     }
@@ -199,6 +527,36 @@ impl DatabaseArchiver {
         std::mem::swap(&mut orders, &mut self.trader_orders);
 
         TraderOrder::insert(&mut conn, orders)?;
+
+        Ok(())
+    }
+    /// Add a trader order funidng update to the next update batch, if the queue is full, commit and clear the
+    /// queue.
+    fn trader_order_funding_update(
+        &mut self,
+        order: InsertTraderOrderFundingUpdates,
+    ) -> Result<(), ApiError> {
+        debug!("Appending trader order");
+        self.trader_order_funding_updated.push(order);
+
+        if self.trader_order_funding_updated.len() == self.trader_order_funding_updated.capacity() {
+            self.commit_trader_order_funding_updated()?;
+        }
+
+        Ok(())
+    }
+
+    /// Commit a batch of trader orders funidng update to the database. If we're failing to update the database, we
+    /// should exit.
+    fn commit_trader_order_funding_updated(&mut self) -> Result<(), ApiError> {
+        debug!("Committing trader orders");
+
+        let mut conn = self.get_conn()?;
+
+        let mut orders = Vec::with_capacity(self.trader_order_funding_updated.capacity());
+        std::mem::swap(&mut orders, &mut self.trader_order_funding_updated);
+
+        TraderOrderFundingUpdates::insert(&mut conn, orders)?;
 
         Ok(())
     }
@@ -292,6 +650,9 @@ impl DatabaseArchiver {
         if self.trader_orders.len() > 0 {
             self.commit_trader_orders()?;
         }
+        if self.trader_order_funding_updated.len() > 0 {
+            self.commit_trader_order_funding_updated()?;
+        }
 
         if self.lend_orders.len() > 0 {
             self.commit_lend_orders()?;
@@ -329,7 +690,20 @@ impl DatabaseArchiver {
                 self.trader_order(trader_order.into())?;
             }
             Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
-                self.trader_order(trader_order.into())?;
+                self.trader_order_funding_update(trader_order.into())?;
+            }
+            // added for limit order update for settlement order
+            Event::TraderOrderLimitUpdate(trader_order, cmd, _seq) => {
+                let settlement_price = match cmd {
+                    twilight_relayer_rust::relayer::RpcCommand::ExecuteTraderOrder(
+                        execute_trader_order,
+                        _meta,
+                        _zkos_hex_string,
+                        _request_id,
+                    ) => execute_trader_order.execution_price,
+                    _ => 0.0, // Default value for other command types
+                };
+                self.trader_order_limit_update_redis(trader_order.into(), settlement_price)?;
             }
             Event::TraderOrderLiquidation(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into())?;
@@ -368,6 +742,7 @@ impl DatabaseArchiver {
                 order_status,
                 datetime,
                 output,
+                request_id,
             ) => {
                 let hash = NewTxHash {
                     order_id: uuid.to_string(),
@@ -377,9 +752,32 @@ impl DatabaseArchiver {
                     order_status: order_status.into(),
                     datetime,
                     output,
+                    request_id: Some(request_id),
                 };
                 self.tx_hash(hash)?;
             }
+            Event::TxHashUpdate(
+                uuid,
+                account_id,
+                tx_hash,
+                order_type,
+                order_status,
+                datetime,
+                output,
+            ) => {
+                let hash = NewTxHash {
+                    order_id: uuid.to_string(),
+                    account_id,
+                    tx_hash,
+                    order_type: order_type.into(),
+                    order_status: order_status.into(),
+                    datetime,
+                    output,
+                    request_id: None,
+                };
+                self.tx_hash(hash)?;
+            }
+            Event::AdvanceStateQueue(_, _) => {}
         }
 
         Ok(())
@@ -395,7 +793,7 @@ impl DatabaseArchiver {
                     for msg in msgs {
                         self.process_msg(msg)?;
                     }
-                    self.commit_orders()?;
+
                     self.completions
                         .send(completion)
                         .map_err(|e| ApiError::CrossbeamChannel(format!("{:?}", e)))?;

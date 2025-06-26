@@ -1,20 +1,27 @@
 use crate::database::{NewOrderBookOrder, TraderOrder};
 use crate::kafka::start_consumer;
-use bigdecimal::ToPrimitive;
+use crate::rpc::Interval;
+// use bigdecimal::ToPrimitive;
 use chrono::prelude::*;
 use crossbeam_channel::{unbounded, Sender as CrossbeamSender};
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::RpcModule;
 use log::{error, info, trace};
+use redis::Client;
 use relayerwalletlib::zkoswalletlib::relayer_types::{OrderStatus, OrderType};
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    sync::RwLock,
+    time::{Duration, Instant},
+};
 use tokio::{
     sync::broadcast::{channel, Sender},
     task::JoinHandle,
 };
-use twilight_relayer_rust::{db::Event, relayer};
+use twilight_relayer_rust::db::Event;
+use twilight_relayer_rust::relayer::PositionType;
 
 mod methods;
 
@@ -27,10 +34,20 @@ const BROADCAST_CHANNEL_CAPACITY: usize = 20;
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+struct RecentOrder {
+    order_id: String,
+    side: PositionType,
+    price: f64,
+    positionsize: f64,
+    timestamp: String,
+}
 pub struct WsContext {
+    client: Client,
     price_feed: Sender<(f64, DateTime<Utc>)>,
     order_book: Sender<NewOrderBookOrder>,
-    recent_trades: Sender<relayer::TraderOrder>,
+    recent_trades: Sender<RecentOrder>,
+    pub candles: RwLock<HashMap<Interval, Sender<serde_json::Value>>>,
     pub pool: ManagedPool,
     _completions: CrossbeamSender<crate::kafka::Completion>,
     _watcher: JoinHandle<()>,
@@ -38,10 +55,10 @@ pub struct WsContext {
 }
 
 impl WsContext {
-    pub fn with_pool(pool: ManagedPool) -> WsContext {
+    pub fn with_pool(pool: ManagedPool, client: Client) -> WsContext {
         let (price_feed, _) = channel::<(f64, DateTime<Utc>)>(BROADCAST_CHANNEL_CAPACITY);
         let (order_book, _) = channel::<NewOrderBookOrder>(BROADCAST_CHANNEL_CAPACITY);
-        let (recent_trades, _) = channel::<relayer::TraderOrder>(BROADCAST_CHANNEL_CAPACITY);
+        let (recent_trades, _) = channel::<RecentOrder>(BROADCAST_CHANNEL_CAPACITY);
 
         let price_feed2 = price_feed.clone();
         let order_book2 = order_book.clone();
@@ -77,10 +94,36 @@ impl WsContext {
                                     }
 
                                     match to.order_status {
-                                        OrderStatus::PENDING | OrderStatus::FILLED => {
-                                            recent_trades2.send(to);
+                                        OrderStatus::SETTLED
+                                        | OrderStatus::FILLED
+                                        | OrderStatus::LIQUIDATE => {
+                                            let recent_order = RecentOrder {
+                                                order_id: to.uuid.to_string(),
+                                                side: to.position_type.into(),
+                                                price: to.entryprice.into(),
+                                                positionsize: to.positionsize.into(),
+                                                timestamp: to.timestamp,
+                                            };
+                                            let _ = recent_trades2.send(recent_order);
                                         }
                                         _ => {}
+                                    }
+                                }
+                                // added for limit order update for settlement order
+                                Event::TraderOrderLimitUpdate(to, cmd, _seq) => {
+                                    let settlement_price = match cmd {
+                                        twilight_relayer_rust::relayer::RpcCommand::ExecuteTraderOrder(execute_trader_order, _meta, _zkos_hex_string, _request_id) => {
+                                            execute_trader_order.execution_price
+                                        }
+                                        _ => 0.0, // Default value for other command types
+                                    };
+
+                                    let order = NewOrderBookOrder::new_close_limit(
+                                        TraderOrder::from(to.clone()),
+                                        settlement_price,
+                                    );
+                                    if let Err(e) = order_book2.send(order) {
+                                        info!("No order book subscribers present {:?}", e);
                                     }
                                 }
                                 Event::LendOrder(_lend_order, _cmd, _seq) => {}
@@ -105,6 +148,8 @@ impl WsContext {
                                 ) => {}
                                 Event::Stop(_stop) => {}
                                 Event::TxHash(..) => {}
+                                Event::TxHashUpdate(..) => {}
+                                Event::AdvanceStateQueue(..) => {}
                             }
                         }
                         if let Err(e) = notify.send(completion) {
@@ -127,9 +172,11 @@ impl WsContext {
         });
 
         WsContext {
+            client,
             price_feed,
             order_book,
             recent_trades,
+            candles: Default::default(),
             pool,
             _completions: completions,
             _watcher,
@@ -138,11 +185,15 @@ impl WsContext {
     }
 }
 
-pub fn init_methods(database_url: &str) -> RpcModule<WsContext> {
+pub fn init_methods(database_url: &str, redis_url: &str) -> RpcModule<WsContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
-    let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
+    let pool = r2d2::Pool::builder()
+        .max_size(50)
+        .build(manager)
+        .expect("Could not instantiate connection pool");
+    let client = Client::open(redis_url).expect("Could not establish redis connection");
 
-    let mut module = RpcModule::new(WsContext::with_pool(pool));
+    let mut module = RpcModule::new(WsContext::with_pool(pool, client));
 
     module
         .register_subscription(
@@ -194,15 +245,15 @@ pub fn init_methods(database_url: &str) -> RpcModule<WsContext> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use jsonrpsee::{
-        core::{
-            client::ClientT,
-            params::{ArrayParams, ObjectParams},
-        },
-        http_client::HttpClientBuilder,
-        server::ServerBuilder,
-    };
+    // use super::*;
+    // use jsonrpsee::{
+    //     core::{
+    //         client::ClientT,
+    //         params::{ArrayParams, ObjectParams},
+    //     },
+    //     http_client::HttpClientBuilder,
+    //     server::ServerBuilder,
+    // };
 
     // #[tokio::test]
     // async fn test_hello() {

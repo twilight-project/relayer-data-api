@@ -1,18 +1,22 @@
-FROM rust:1.72.0-slim-buster as builder
+FROM rust:1.87 as builder
 
 ARG SSH_KEY
 RUN apt-get update && apt-get install -y openssh-client git libssl-dev build-essential libpq-dev pkg-config
 RUN mkdir /root/.ssh
-RUN echo "${SSH_KEY}" > /root/.ssh/id_rsa && \
+RUN echo "${SSH_KEY}" > /root/.ssh/id_ed25519 && \
     touch /root/.ssh/known_hosts && \
     ssh-keyscan github.com >> /root/.ssh/known_hosts && \
-    chmod 0600 /root/.ssh/id_rsa
-
+    chmod 0600 /root/.ssh/id_ed25519
 COPY . ./twilight-relayerAPI
+WORKDIR /twilight-relayerAPI
 
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=${PWD}/target \
-    cd ./twilight-relayerAPI && \
+RUN git config --global url."ssh://git@github.com/".insteadOf https://github.com/
+RUN git config --global url."ssh://git@github.com/".insteadOf ssh://github.com/
+
+RUN eval `ssh-agent -s` && ssh-add /root/.ssh/id_ed25519 && \
+    git config --global url."ssh://git@github.com/".insteadOf https://github.com/ && \
+    git config --global url."ssh://git@github.com/".insteadOf ssh://github.com/ && \
+    git config --global url."ssh://git@github.com/twilight-project/zkos-relayer-wallet.git".insteadOf https://github.com/twilight-project/zkos-relayer-wallet.git && \
     cargo --config "net.git-fetch-with-cli = true" b --release --bins
 
 FROM debian:10-slim
@@ -23,7 +27,7 @@ COPY --from=builder ./twilight-relayerAPI/target/release/api ./
 COPY --from=builder ./twilight-relayerAPI/target/release/archiver ./
 COPY --from=builder ./twilight-relayerAPI/target/release/auth ./
 COPY ./scripts/run.sh ./
-COPY ./.compose.env .env
+COPY ./.env ./.env
 
 
 ENTRYPOINT ["/app/run.sh"]

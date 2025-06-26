@@ -27,6 +27,8 @@ pub fn start_consumer(
             .create()
             .unwrap();
 
+        con.client_mut().load_metadata_all().unwrap();
+
         let mut connection_status = true;
         while connection_status {
             let sender_clone = tx.clone();
@@ -45,7 +47,9 @@ pub fn start_consumer(
                             let message: Event = match serde_json::from_str(&msg_data) {
                                 Ok(event) => event,
                                 Err(e) => {
-                                    panic!("Invalid message! {:?} {}", e, msg_data);
+                                    println!("Invalid message! {:?} {}\n", e, msg_data);
+                                    // continue;
+                                    Event::Stop(e.to_string())
                                 }
                             };
                             message

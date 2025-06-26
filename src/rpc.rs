@@ -1,7 +1,8 @@
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::{core::error::Error, server::logger::Params, RpcModule};
-use kafka::producer::{Producer, Record, RequiredAcks};
+use kafka::producer::{Producer, RequiredAcks};
+use redis::Client;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
@@ -9,10 +10,13 @@ use tokio::time::Duration;
 mod private_methods;
 mod public_methods;
 mod types;
+mod util;
+
 pub use types::{
     CandleSubscription, Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval, Order,
     OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs, TransactionHashArgs,
 };
+pub use util::{order_book, recent_orders};
 
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
@@ -22,6 +26,7 @@ type HandlerType<R> =
 
 pub struct RelayerContext {
     pub pool: ManagedPool,
+    pub client: Client,
     pub kafka: Arc<Mutex<Producer>>,
 }
 
@@ -35,20 +40,25 @@ fn register_method<R: Serialize + 'static>(
     }
 }
 
-pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
+pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<RelayerContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
+    let client = Client::open(redis_url).expect("Could not establish redis connection");
 
     let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
     let broker = vec![broker_host.to_owned()];
-    let mut kafka = Producer::from_hosts(broker)
+    let kafka = Producer::from_hosts(broker)
         .with_ack_timeout(Duration::from_secs(1))
         .with_required_acks(RequiredAcks::One)
         .create()
         .unwrap();
     let kafka = Arc::new(Mutex::new(kafka));
 
-    let mut module = RpcModule::new(RelayerContext { pool, kafka });
+    let mut module = RpcModule::new(RelayerContext {
+        client,
+        pool,
+        kafka,
+    });
     register_method(
         &mut module,
         "btc_usd_price",
@@ -99,23 +109,68 @@ pub fn init_public_methods(database_url: &str) -> RpcModule<RelayerContext> {
         "transaction_hashes",
         Box::new(public_methods::transaction_hashes),
     );
+    register_method(
+        &mut module,
+        "trader_order_info",
+        Box::new(public_methods::trader_order_info),
+    );
+    register_method(
+        &mut module,
+        "lend_order_info",
+        Box::new(public_methods::lend_order_info),
+    );
+    register_method(
+        &mut module,
+        "submit_trade_order",
+        Box::new(public_methods::submit_trade_order),
+    );
+    register_method(
+        &mut module,
+        "submit_lend_order",
+        Box::new(public_methods::submit_lend_order),
+    );
+    register_method(
+        &mut module,
+        "settle_trade_order",
+        Box::new(public_methods::settle_trade_order),
+    );
+    register_method(
+        &mut module,
+        "settle_lend_order",
+        Box::new(public_methods::settle_lend_order),
+    );
+    register_method(
+        &mut module,
+        "cancel_trader_order",
+        Box::new(public_methods::cancel_trader_order),
+    );
+    register_method(
+        &mut module,
+        "pool_share_value",
+        Box::new(public_methods::pool_share_value),
+    );
     module
 }
 
-pub fn init_private_methods(database_url: &str) -> RpcModule<RelayerContext> {
+pub fn init_private_methods(database_url: &str, redis_url: &str) -> RpcModule<RelayerContext> {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
+    let client = Client::open(redis_url).expect("Could not establish redis connection");
 
     let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
     let broker = vec![broker_host.to_owned()];
-    let mut kafka = Producer::from_hosts(broker)
+    let kafka = Producer::from_hosts(broker)
         .with_ack_timeout(Duration::from_secs(1))
         .with_required_acks(RequiredAcks::One)
         .create()
         .unwrap();
     let kafka = Arc::new(Mutex::new(kafka));
 
-    let mut module = RpcModule::new(RelayerContext { pool, kafka });
+    let mut module = RpcModule::new(RelayerContext {
+        client,
+        pool,
+        kafka,
+    });
 
     register_method(
         &mut module,
@@ -136,6 +191,11 @@ pub fn init_private_methods(database_url: &str) -> RpcModule<RelayerContext> {
         &mut module,
         "settle_trade_order",
         Box::new(private_methods::settle_trade_order),
+    );
+    register_method(
+        &mut module,
+        "cancel_trader_order",
+        Box::new(private_methods::cancel_trader_order),
     );
     register_method(
         &mut module,

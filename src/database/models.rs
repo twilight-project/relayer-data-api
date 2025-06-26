@@ -1,8 +1,10 @@
+#![allow(warnings)]
 use crate::database::{
     schema::{
         address_customer_id, btc_usd_price, current_nonce, customer_account,
         customer_apikey_linking, customer_order_linking, funding_rate, lend_order, lend_pool,
-        lend_pool_command, position_size_log, sorted_set_command, trader_order, transaction_hash,
+        lend_pool_command, position_size_log, sorted_set_command, trader_order,
+        trader_order_funding_updated, transaction_hash,
     },
     sql_types::*,
 };
@@ -11,8 +13,8 @@ use crate::rpc::{
     TradeVolumeArgs, TransactionHashArgs,
 };
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
-use chrono::prelude::*;
-use diesel::pg::Pg;
+use chrono::{prelude::*, DurationRound};
+// use diesel::pg::Pg;
 use diesel::prelude::*;
 use itertools::join;
 use serde::{Deserialize, Serialize};
@@ -32,6 +34,7 @@ pub struct TxHash {
     pub order_status: OrderStatus,
     pub datetime: String,
     pub output: Option<String>,
+    pub request_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
@@ -44,6 +47,7 @@ pub struct NewTxHash {
     pub order_status: OrderStatus,
     pub datetime: String,
     pub output: Option<String>,
+    pub request_id: Option<String>,
 }
 
 impl TxHash {
@@ -70,6 +74,18 @@ impl TxHash {
                         .load(conn)
                 } else {
                     transaction_hash.filter(account_id.eq(acct_id)).load(conn)
+                }
+            }
+            TransactionHashArgs::RequestId {
+                id: reqt_id,
+                status,
+            } => {
+                if let Some(status) = status {
+                    transaction_hash
+                        .filter(request_id.eq(reqt_id).and(order_status.eq(status)))
+                        .load(conn)
+                } else {
+                    transaction_hash.filter(request_id.eq(reqt_id)).load(conn)
                 }
             }
         }
@@ -186,7 +202,7 @@ impl AddressCustomerId {
             .filter(address.eq(addr))
             .first::<AddressCustomerId>(conn)
         {
-            Ok(o) => return Ok(None),
+            Ok(_o) => return Ok(None),
             Err(diesel::result::Error::NotFound) => {
                 let mut account = NewCustomerAccount::default();
                 account.customer_registration_id = Uuid::new_v4().to_string();
@@ -402,6 +418,11 @@ impl LendPool {
 
         lend_pool.order_by(nonce.desc()).first(conn)
     }
+    pub fn get_pool_share_value(&self) -> f64 {
+        let tps = self.total_pool_share.to_f64().unwrap_or(1.0);
+        let tlv = self.total_locked_value.to_f64().unwrap_or(0.0);
+        tlv / tps * 100.0
+    }
 
     pub fn insert(
         conn: &mut PgConnection,
@@ -502,7 +523,7 @@ fn lend_pool_to_batch(
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::ADD_FUNDING_DATA, uuid, pay).into()]
         }
-        relayer_db::LendPoolCommand::AddTraderOrderLiquidation(_, order, p) => {
+        relayer_db::LendPoolCommand::AddTraderOrderLiquidation(_, order, p, _) => {
             let pay = Some(BigDecimal::from_f64(p).expect("Invalid floating point number"));
             let uuid = order.uuid.to_string();
             vec![(LendPoolCommandType::ADD_TRADER_ORDER_LIQUIDATION, uuid, pay).into()]
@@ -795,6 +816,8 @@ pub struct BtcUsdPrice {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Queryable, QueryableByName)]
 pub struct CandleData {
     #[diesel(sql_type = diesel::sql_types::Timestamptz)]
+    pub updated_at: DateTime<Utc>,
+    #[diesel(sql_type = diesel::sql_types::Timestamptz)]
     pub start: DateTime<Utc>,
     #[diesel(sql_type = diesel::sql_types::Timestamptz)]
     pub end: DateTime<Utc>,
@@ -817,6 +840,14 @@ pub struct CandleData {
 }
 
 impl BtcUsdPrice {
+    pub fn update_candles(conn: &mut PgConnection) -> QueryResult<()> {
+        diesel::sql_query("SELECT * from  update_candles_1min()").execute(conn)?;
+        diesel::sql_query("SELECT * from  update_candles_1hour()").execute(conn)?;
+        diesel::sql_query("SELECT * from  update_candles_1day()").execute(conn)?;
+
+        Ok(())
+    }
+
     pub fn get(conn: &mut PgConnection) -> QueryResult<BtcUsdPrice> {
         use crate::database::schema::btc_usd_price::dsl::*;
 
@@ -852,77 +883,83 @@ impl BtcUsdPrice {
         limit: Option<i64>,
         offset: Option<i64>,
     ) -> QueryResult<Vec<CandleData>> {
+        let start: DateTime<Utc>;
+        let table: String;
+        // temp for 24 hour candle change
+        // need to create new api for 24hour candle change data
+        match interval {
+            Interval::ONE_DAY_CHANGE => {
+                start = since + chrono::Duration::seconds(5);
+                table = "candles_1hour".into()
+            }
+            Interval::ONE_MINUTE
+            | Interval::FIVE_MINUTE
+            | Interval::FIFTEEN_MINUTE
+            | Interval::THIRTY_MINUTE => {
+                start = since.duration_trunc(interval.duration()).unwrap();
+                table = "candles_1min".into()
+            }
+            Interval::ONE_HOUR
+            | Interval::FOUR_HOUR
+            | Interval::EIGHT_HOUR
+            | Interval::TWELVE_HOUR => {
+                start = since.duration_trunc(interval.duration()).unwrap();
+                table = "candles_1hour".into()
+            }
+            Interval::ONE_DAY => {
+                start = since.duration_trunc(interval.duration()).unwrap();
+                table = "candles_1day".into()
+            }
+        }
         let interval = interval.interval_sql();
 
-        let trader_subquery = format!(
+        let subquery = format!(
             r#"
-            SELECT
-                window_start,
-                sum(entryprice) as usd_volume,
-                sum(positionsize) as btc_volume,
-                count(*) as trades
-            FROM (
-                SELECT
-                    t.timestamp as window_start,
-                    coalesce(c.entryprice, 0) as entryprice,
-                    coalesce(c.positionsize, 0) as positionsize
-                FROM generate_series('{}', now(), {}) t(timestamp)
-                LEFT JOIN trader_order c
-                ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {}
-            ) as sq
-            GROUP BY window_start
-        "#,
-            since, interval, interval
-        );
-
-        let ohlc_subquery = format!(
-            r#"
-            SELECT
-                window_ts,
-                min(timestamp) as start,
-                max(timestamp) as end,
-                min(open) as open,
-                min(close) as close,
-                max(price) as high,
-                min(price) as low
-            FROM (
-                SELECT
-                     t.timestamp as window_ts,
-                     c.*,
-                     first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp asc) AS open,
-                     first_value(price) OVER (PARTITION BY t.timestamp ORDER BY c.timestamp desc) AS close
-                FROM generate_series('{}', now(), {}) t(timestamp)
-                LEFT JOIN btc_usd_price c
-                ON c.timestamp BETWEEN t.timestamp AND t.timestamp + {} 
-            ) as w
-            WHERE open IS NOT NULL
-            GROUP BY window_ts
-        "#,
-            since, interval, interval
+            with t as (
+                select * from
+                generate_series('{}', now(), {}) timestamp
+            ), c as (
+                select * from {}
+                where start_time between '{}' and now()
+            )
+            select
+               t.timestamp as bucket,
+               c.start_time as start,
+               c.open,
+               c.close,
+               c.high,
+               c.low,
+               c.btc_volume,
+               c.trades,
+               c.usd_volume
+            from t
+            inner join c
+            on c.start_time >= t.timestamp AND c.start_time < t.timestamp + interval {} order by c.start_time
+            "#,
+            start, interval, table, start, interval
         );
 
         let query = format!(
             r#"
-                WITH volumes AS (
-                    {}
-                ), ohlc AS (
-                    {}
-                )
-        SELECT
-            ohlc.start,
-            ohlc.end,
-            ohlc.open,
-            ohlc.close,
-            ohlc.high,
-            ohlc.low,
+        select distinct
+            now() as updated_at,
             {} as resolution,
-            volumes.btc_volume as btc_volume,
-            volumes.trades as trades,
-            volumes.usd_volume as usd_volume
-        FROM volumes
-         JOIN ohlc ON volumes.window_start = ohlc.window_ts
+            bucket as start,
+            bucket + interval {} as end,
+            max(high) over w as high,
+            min(low) over w as low,
+            last_value(close) over w as close,
+            first_value(open) over w as open,
+            sum(btc_volume) over w as btc_volume,
+            sum(usd_volume) over w as usd_volume,
+            sum(trades) over w as trades
+        from (
+            {}
+        ) as s
+        WINDOW w as (partition by bucket order by start asc ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+        order by start asc
         "#,
-            trader_subquery, ohlc_subquery, interval
+            interval, interval, subquery,
         );
 
         let query = if let Some(limit) = limit {
@@ -1117,8 +1154,39 @@ pub struct TraderOrder {
     pub entry_sequence: i64,
 }
 
+#[derive(
+    Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable, Insertable, AsChangeset,
+)]
+#[diesel(table_name = trader_order_funding_updated)]
+pub struct TraderOrderFundingUpdates {
+    pub id: i64,
+    pub uuid: String,
+    pub account_id: String,
+    pub position_type: PositionType,
+    pub order_status: OrderStatus,
+    pub order_type: OrderType,
+    pub entryprice: BigDecimal,
+    pub execution_price: BigDecimal,
+    pub positionsize: BigDecimal,
+    pub leverage: BigDecimal,
+    pub initial_margin: BigDecimal,
+    pub available_margin: BigDecimal,
+    pub timestamp: DateTime<Utc>,
+    pub bankruptcy_price: BigDecimal,
+    pub bankruptcy_value: BigDecimal,
+    pub maintenance_margin: BigDecimal,
+    pub liquidation_price: BigDecimal,
+    pub unrealized_pnl: BigDecimal,
+    pub settlement_price: BigDecimal,
+    pub entry_nonce: i64,
+    pub exit_nonce: i64,
+    pub entry_sequence: i64,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable)]
 pub struct RecentOrder {
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    pub order_id: String,
     #[diesel(sql_type = crate::database::schema::sql_types::PositionType)]
     pub side: PositionType,
     #[diesel(sql_type = diesel::sql_types::Numeric)]
@@ -1161,6 +1229,32 @@ pub struct InsertTraderOrder {
     pub entry_sequence: i64,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
+#[diesel(table_name = trader_order_funding_updated)]
+pub struct InsertTraderOrderFundingUpdates {
+    pub uuid: String,
+    pub account_id: String,
+    pub position_type: PositionType,
+    pub order_status: OrderStatus,
+    pub order_type: OrderType,
+    pub entryprice: BigDecimal,
+    pub execution_price: BigDecimal,
+    pub positionsize: BigDecimal,
+    pub leverage: BigDecimal,
+    pub initial_margin: BigDecimal,
+    pub available_margin: BigDecimal,
+    pub timestamp: DateTime<Utc>,
+    pub bankruptcy_price: BigDecimal,
+    pub bankruptcy_value: BigDecimal,
+    pub maintenance_margin: BigDecimal,
+    pub liquidation_price: BigDecimal,
+    pub unrealized_pnl: BigDecimal,
+    pub settlement_price: BigDecimal,
+    pub entry_nonce: i64,
+    pub exit_nonce: i64,
+    pub entry_sequence: i64,
+}
+
 #[derive(
     Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName, Insertable, AsChangeset,
 )]
@@ -1172,6 +1266,7 @@ pub struct OrderBookOrder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "lowercase")]
 pub enum NewOrderBookOrder {
     Bid {
         id: String,
@@ -1189,15 +1284,31 @@ impl NewOrderBookOrder {
     pub fn new(to: TraderOrder) -> Self {
         if to.position_type == PositionType::LONG {
             Self::Bid {
-                id: to.uuid,
+                id: "".to_string(),
                 positionsize: to.positionsize.to_f64().unwrap(),
                 price: to.entryprice.to_f64().unwrap(),
             }
         } else {
             Self::Ask {
-                id: to.uuid,
+                id: "".to_string(),
                 positionsize: to.positionsize.to_f64().unwrap(),
                 price: to.entryprice.to_f64().unwrap(),
+            }
+        }
+    }
+    // added for limit order update for settlement order
+    pub fn new_close_limit(to: TraderOrder, price: f64) -> Self {
+        if to.position_type == PositionType::SHORT {
+            Self::Bid {
+                id: "".to_string(),
+                positionsize: to.positionsize.to_f64().unwrap(),
+                price: price,
+            }
+        } else {
+            Self::Ask {
+                id: "".to_string(),
+                positionsize: to.positionsize.to_f64().unwrap(),
+                price: price,
             }
         }
     }
@@ -1248,6 +1359,25 @@ impl TraderOrder {
             .order(timestamp.desc())
             .first(conn)
     }
+    pub fn get_by_signature(
+        conn: &mut PgConnection,
+        accountid: String,
+    ) -> QueryResult<TraderOrder> {
+        use crate::database::schema::trader_order::dsl::*;
+        trader_order
+            .filter(account_id.eq(accountid))
+            .order(timestamp.desc())
+            .first(conn)
+    }
+    pub fn get_by_uuid(conn: &mut PgConnection, order_id: String) -> QueryResult<TraderOrder> {
+        // use crate::database::schema::address_customer_id::dsl as addr_dsl;
+        use crate::database::schema::trader_order::dsl::*;
+
+        trader_order
+            .filter(uuid.eq(order_id))
+            .order(timestamp.desc())
+            .first(conn)
+    }
 
     pub fn insert(conn: &mut PgConnection, orders: Vec<InsertTraderOrder>) -> QueryResult<usize> {
         use crate::database::schema::trader_order::dsl::*;
@@ -1270,7 +1400,7 @@ impl TraderOrder {
             .load(conn)?;
         let accounts: Vec<_> = accounts.into_iter().map(|a| a.address).collect();
 
-        let price = BtcUsdPrice::get(conn)?;
+        let _price = BtcUsdPrice::get(conn)?;
         let closed = vec![
             OrderStatus::PENDING,
             OrderStatus::CANCELLED,
@@ -1401,7 +1531,7 @@ impl TraderOrder {
         args: TradeVolumeArgs,
     ) -> QueryResult<f64> {
         use crate::database::schema::address_customer_id::dsl as acct_dsl;
-        use crate::database::schema::trader_order::dsl::*;
+        // use crate::database::schema::trader_order::dsl::*;
 
         let accounts: Vec<AddressCustomerId> = acct_dsl::address_customer_id
             .filter(acct_dsl::customer_id.eq(customer_id))
@@ -1426,33 +1556,99 @@ impl TraderOrder {
         Ok(tv.volume.to_f64().unwrap())
     }
 
+    pub fn order_book_orders(conn: &mut PgConnection) -> QueryResult<Vec<TraderOrder>> {
+        // let query = r#"
+        //     SELECT * FROM trader_order
+        //     WHERE id IN (
+        //         SELECT MAX(id) FROM trader_order
+        //         WHERE order_type = 'LIMIT'
+        //         GROUP BY uuid
+        //     )
+        //     AND order_status NOT IN ('FILLED', 'CANCELLED', 'LIQUIDATE', 'SETTLED')
+        // "#;
+        let query = r#"
+            SELECT * FROM orderbook
+        "#;
+
+        diesel::sql_query(query).get_results(conn)
+    }
+
     pub fn order_book(conn: &mut PgConnection) -> QueryResult<OrderBook> {
-        use crate::database::schema::trader_order::dsl::*;
-        use diesel::dsl::{max, sum};
+        // use crate::database::schema::trader_order::dsl::*;
+        // use diesel::dsl::{max, sum};
 
         let query = r#"
-            WITH orders AS (
-                SELECT * FROM trader_order
-                WHERE id IN (
-                    SELECT MAX(id) FROM trader_order
-                    WHERE order_type = 'LIMIT'
-                    GROUP BY uuid
-                )
-                AND order_status <> 'FILLED'
+        WITH orders AS (
+            SELECT * FROM trader_order
+            WHERE id IN (
+                SELECT MAX(id) FROM trader_order 
+                WHERE order_type = 'LIMIT' AND position_type = 'SHORT'
+                GROUP BY uuid
             )
+            AND order_status <> 'FILLED'  AND order_status <> 'CANCELLED'  AND order_status <> 'LIQUIDATE'
+        ), commands AS (
+            SELECT MAX(id) as id,uuid FROM sorted_set_command
+            WHERE uuid IN ( SELECT uuid FROM orders )
+            GROUP BY uuid
+        ), updates AS (
+            SELECT * FROM sorted_set_command
+            WHERE id IN ( SELECT id FROM commands )
+        ), updated AS(
             SELECT
-                MAX(uuid) AS uuid,
-                entryprice,
-                SUM(positionsize) AS positionsize
+                orders.uuid as uuid,
+                COALESCE(amount, entryprice) as entryprice,
+                positionsize as positionsize,
+                updates.command as command
             FROM orders
-            GROUP BY entryprice
-            ORDER BY positionsize DESC
-            LIMIT 10;
+            LEFT JOIN updates
+            ON updates.uuid = orders.uuid
+        ), sorted_set AS (
+            SELECT *
+            FROM sorted_set_command
+            WHERE id IN (
+                SELECT MAX(id) FROM sorted_set_command
+                WHERE uuid IS NOT NULL
+                GROUP BY uuid
+            )
+            AND command IN ('ADD_CLOSE_LIMIT_PRICE', 'UPDATE_CLOSE_LIMIT_PRICE')
+            AND position_type ='SHORT' ORDER BY id DESC
+        )
+        SELECT
+            trader_o.uuid AS uuid,
+            sort.amount AS entryprice,
+            trader_o.positionsize as positionsize
+        FROM (
+            SELECT *
+            FROM trader_order
+            WHERE id IN (
+                SELECT MAX(id) FROM trader_order
+                WHERE position_type = 'LONG' AND uuid IN (
+                    SELECT uuid
+                    FROM sorted_Set
+                )
+                GROUP BY uuid
+            )
+            AND order_status = 'FILLED'
+        ) AS trader_o
+        LEFT OUTER JOIN (
+            SELECT amount,uuid FROM sorted_Set
+        ) AS sort
+        ON trader_o.uuid = sort.uuid
+        UNION ALL
+        SELECT
+            MAX(uuid) AS uuid,
+            entryprice,
+            SUM(positionsize) AS positionsize
+        FROM updated
+        WHERE command IS NULL OR command <> 'REMOVE_CLOSE_LIMIT_PRICE'
+        GROUP BY entryprice
+        ORDER BY entryprice ASC
+        LIMIT 15;
         "#;
 
         let shorts: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
 
-        let mut ask: Vec<_> = shorts
+        let ask: Vec<_> = shorts
             .into_iter()
             .map(|order| Ask {
                 id: order.uuid,
@@ -1469,21 +1665,69 @@ impl TraderOrder {
                     WHERE order_type = 'LIMIT' AND position_type = 'LONG'
                     GROUP BY uuid
                 )
-                AND order_status <> 'FILLED'
+                AND order_status <> 'FILLED' AND order_status <> 'CANCELLED'  AND order_status <> 'LIQUIDATE'
+            ), commands AS (
+                SELECT MAX(id) as id,uuid FROM sorted_set_command
+                WHERE uuid IN ( SELECT uuid FROM orders )
+                GROUP BY uuid
+            ), updates AS (
+                SELECT * FROM sorted_set_command
+                WHERE id IN ( SELECT id FROM commands )
+            ), updated AS(
+                SELECT
+                    orders.uuid as uuid,
+                    COALESCE(amount, entryprice) as entryprice,
+                    positionsize as positionsize,
+                    updates.command as command
+                FROM orders
+                LEFT JOIN updates
+                ON updates.uuid = orders.uuid
+            ), sorted_set AS (
+                SELECT *
+                FROM sorted_set_command
+                WHERE id IN (
+                    SELECT MAX(id) FROM sorted_set_command
+                    WHERE uuid IS NOT NULL
+                    GROUP BY uuid
+                )
+                AND command IN ('ADD_CLOSE_LIMIT_PRICE', 'UPDATE_CLOSE_LIMIT_PRICE')
+                AND position_type ='SHORT'
+                ORDER BY id DESC
             )
+            SELECT
+                trader_o.uuid AS uuid,
+                sort.amount AS entryprice,
+                trader_o.positionsize AS positionsize
+            FROM (
+                SELECT *
+                FROM trader_order
+                WHERE id IN (
+                    SELECT MAX(id) FROM trader_order
+                    WHERE position_type = 'SHORT'
+                    AND uuid IN ( SELECT uuid FROM sorted_set)
+                    GROUP BY uuid
+                )
+                AND trader_order.order_status = 'FILLED'
+            ) AS trader_o
+            LEFT OUTER JOIN (
+                SELECT amount,uuid FROM sorted_set
+            ) AS sort
+            ON trader_o.uuid = sort.uuid
+            UNION ALL
             SELECT
                 MAX(uuid) AS uuid,
                 entryprice,
                 SUM(positionsize) AS positionsize
-            FROM orders
+            FROM updated
+            WHERE command IS NULL OR command <> 'REMOVE_CLOSE_LIMIT_PRICE'
             GROUP BY entryprice
-            ORDER BY positionsize DESC
-            LIMIT 10;
+            ORDER BY entryprice DESC
+            LIMIT 15;
         "#;
 
         let longs: Vec<OrderBookOrder> = diesel::sql_query(query).get_results(conn)?;
 
-        let mut bid = longs
+        let bid = longs
             .into_iter()
             .map(|order| Bid {
                 id: order.uuid,
@@ -1499,7 +1743,7 @@ impl TraderOrder {
 
     pub fn open_orders(conn: &mut PgConnection, customer_id: i64) -> QueryResult<Vec<TraderOrder>> {
         use crate::database::schema::address_customer_id::dsl as acct_dsl;
-        use crate::database::schema::trader_order::dsl::*;
+        // use crate::database::schema::trader_order::dsl::*;
 
         let account: Vec<AddressCustomerId> = acct_dsl::address_customer_id
             .filter(acct_dsl::customer_id.eq(customer_id))
@@ -1528,9 +1772,10 @@ impl TraderOrder {
     }
 
     pub fn list_past_24hrs(conn: &mut PgConnection) -> QueryResult<Vec<RecentOrder>> {
-        use crate::database::schema::trader_order::dsl::*;
+        // use crate::database::schema::trader_order::dsl::*;
 
-        let query = r#"SELECT
+        let query = r#"SELECT * FROM (SELECT
+            trader_order.uuid as order_id,
             trader_order.position_type as side,
             trader_order.entryprice as price,
             trader_order.positionsize as positionsize,
@@ -1538,30 +1783,51 @@ impl TraderOrder {
             FROM trader_order
             INNER JOIN (
                 SELECT uuid,min(timestamp) AS timestamp
-                FROM trader_order GROUP BY uuid
+                FROM trader_order  WHERE trader_order.order_status = 'FILLED' and timestamp > now() - INTERVAL '1 day' GROUP BY uuid order by timestamp desc limit 50
+
             ) as t
             ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
-            WHERE t.timestamp > now() - INTERVAL '1 day'
-            AND trader_order.order_status = 'FILLED'
 
             UNION ALL
-
+				
             SELECT
-                trader_order.position_type as side,
+                trader_order.uuid as order_id,
+                (
+                    CASE WHEN trader_order.position_type = 'LONG' THEN position_type('SHORT')
+                    ELSE position_type('LONG')
+                    END
+                ) as side,
                 trader_order.settlement_price as price,
                 trader_order.positionsize as positionsize,
                 trader_order.timestamp as timestamp
+
             FROM trader_order
             INNER JOIN (
-                SELECT uuid,min(timestamp) AS timestamp
-                FROM trader_order GROUP BY uuid
+                SELECT uuid,max(timestamp) AS timestamp
+                FROM trader_order 
+				where order_status IN ('SETTLED', 'LIQUIDATE')
+				AND timestamp > now() - INTERVAL '1 day'
+				GROUP BY uuid order by timestamp desc limit 50
+			
             ) as t
             ON trader_order.uuid = t.uuid AND trader_order.timestamp = t.timestamp
-            WHERE t.timestamp > now() - INTERVAL '1 day'
-            AND trader_order.order_status IN ('SETTLED', 'LIQUIDATE')
+            order by timestamp desc  ) as recent_order order by timestamp desc limit 50
         "#;
 
         diesel::sql_query(query).load(conn)
+    }
+}
+
+impl TraderOrderFundingUpdates {
+    pub fn insert(
+        conn: &mut PgConnection,
+        orders: Vec<InsertTraderOrderFundingUpdates>,
+    ) -> QueryResult<usize> {
+        use crate::database::schema::trader_order_funding_updated::dsl::*;
+
+        let query = diesel::insert_into(trader_order_funding_updated).values(&orders);
+
+        query.execute(conn)
     }
 }
 
@@ -1569,6 +1835,37 @@ impl TraderOrder {
 pub struct OrderBook {
     pub bid: Vec<Bid>,
     pub ask: Vec<Ask>,
+}
+impl OrderBook {
+    pub fn new(bid: Vec<Bid>, ask: Vec<Ask>) -> OrderBook {
+        OrderBook { bid, ask }
+    }
+    pub fn add_order(&mut self, order: NewOrderBookOrder) {
+        match order {
+            NewOrderBookOrder::Bid {
+                id,
+                positionsize,
+                price,
+            } => {
+                self.bid.push(Bid {
+                    id: "".to_string(),
+                    positionsize,
+                    price,
+                });
+            }
+            NewOrderBookOrder::Ask {
+                id,
+                positionsize,
+                price,
+            } => {
+                self.ask.push(Ask {
+                    id: "".to_string(),
+                    positionsize,
+                    price,
+                });
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1656,6 +1953,22 @@ impl LendOrder {
 
         lend_order
             .filter(uuid.eq(params.id).and(account_id.eq_any(accounts)))
+            .order(timestamp.desc())
+            .first(conn)
+    }
+    pub fn get_by_signature(conn: &mut PgConnection, accountid: String) -> QueryResult<LendOrder> {
+        use crate::database::schema::lend_order::dsl::*;
+
+        lend_order
+            .filter(account_id.eq(accountid))
+            .order(timestamp.desc())
+            .first(conn)
+    }
+    pub fn get_by_uuid(conn: &mut PgConnection, order_id: String) -> QueryResult<LendOrder> {
+        use crate::database::schema::lend_order::dsl::*;
+
+        lend_order
+            .filter(uuid.eq(order_id))
             .order(timestamp.desc())
             .first(conn)
     }
@@ -1751,6 +2064,115 @@ impl From<relayer::TraderOrder> for InsertTraderOrder {
         } = src;
 
         InsertTraderOrder {
+            uuid: uuid.to_string(),
+            account_id,
+            position_type: position_type.into(),
+            order_status: order_status.into(),
+            order_type: order_type.into(),
+            // TODO: maybe a TryFrom impl instead...
+            entryprice: BigDecimal::from_f64(entryprice).unwrap().round(2),
+            execution_price: BigDecimal::from_f64(execution_price).unwrap().round(2),
+            positionsize: BigDecimal::from_f64(positionsize).unwrap(),
+            leverage: BigDecimal::from_f64(leverage).unwrap(),
+            initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
+            available_margin: BigDecimal::from_f64(available_margin).unwrap().round(4),
+            timestamp: DateTime::parse_from_rfc3339(&timestamp)
+                .expect("Bad datetime format")
+                .into(),
+            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap().round(2),
+            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap().round(4),
+            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap().round(4),
+            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap().round(2),
+            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap().round(2),
+            settlement_price: BigDecimal::from_f64(settlement_price).unwrap().round(2),
+            entry_nonce: entry_nonce as i64,
+            exit_nonce: exit_nonce as i64,
+            entry_sequence: entry_sequence as i64,
+        }
+    }
+}
+impl From<relayer::TraderOrder> for TraderOrderFundingUpdates {
+    fn from(src: relayer::TraderOrder) -> TraderOrderFundingUpdates {
+        let relayer::TraderOrder {
+            uuid,
+            account_id,
+            position_type,
+            order_status,
+            order_type,
+            entryprice,
+            execution_price,
+            positionsize,
+            leverage,
+            initial_margin,
+            available_margin,
+            timestamp,
+            bankruptcy_price,
+            bankruptcy_value,
+            maintenance_margin,
+            liquidation_price,
+            unrealized_pnl,
+            settlement_price,
+            entry_nonce,
+            exit_nonce,
+            entry_sequence,
+        } = src;
+
+        TraderOrderFundingUpdates {
+            id: 0,
+            uuid: uuid.to_string(),
+            account_id,
+            position_type: position_type.into(),
+            order_status: order_status.into(),
+            order_type: order_type.into(),
+            // TODO: maybe a TryFrom impl instead...
+            entryprice: BigDecimal::from_f64(entryprice).unwrap().round(2),
+            execution_price: BigDecimal::from_f64(execution_price).unwrap().round(2),
+            positionsize: BigDecimal::from_f64(positionsize).unwrap(),
+            leverage: BigDecimal::from_f64(leverage).unwrap(),
+            initial_margin: BigDecimal::from_f64(initial_margin).unwrap(),
+            available_margin: BigDecimal::from_f64(available_margin).unwrap().round(4),
+            timestamp: DateTime::parse_from_rfc3339(&timestamp)
+                .expect("Bad datetime format")
+                .into(),
+            bankruptcy_price: BigDecimal::from_f64(bankruptcy_price).unwrap().round(2),
+            bankruptcy_value: BigDecimal::from_f64(bankruptcy_value).unwrap().round(4),
+            maintenance_margin: BigDecimal::from_f64(maintenance_margin).unwrap().round(4),
+            liquidation_price: BigDecimal::from_f64(liquidation_price).unwrap().round(2),
+            unrealized_pnl: BigDecimal::from_f64(unrealized_pnl).unwrap().round(2),
+            settlement_price: BigDecimal::from_f64(settlement_price).unwrap().round(2),
+            entry_nonce: entry_nonce as i64,
+            exit_nonce: exit_nonce as i64,
+            entry_sequence: entry_sequence as i64,
+        }
+    }
+}
+impl From<relayer::TraderOrder> for InsertTraderOrderFundingUpdates {
+    fn from(src: relayer::TraderOrder) -> InsertTraderOrderFundingUpdates {
+        let relayer::TraderOrder {
+            uuid,
+            account_id,
+            position_type,
+            order_status,
+            order_type,
+            entryprice,
+            execution_price,
+            positionsize,
+            leverage,
+            initial_margin,
+            available_margin,
+            timestamp,
+            bankruptcy_price,
+            bankruptcy_value,
+            maintenance_margin,
+            liquidation_price,
+            unrealized_pnl,
+            settlement_price,
+            entry_nonce,
+            exit_nonce,
+            entry_sequence,
+        } = src;
+
+        InsertTraderOrderFundingUpdates {
             uuid: uuid.to_string(),
             account_id,
             position_type: position_type.into(),
