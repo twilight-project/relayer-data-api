@@ -2006,6 +2006,8 @@ impl From<relayer::TraderOrder> for TraderOrder {
             entry_nonce,
             exit_nonce,
             entry_sequence,
+            fee_filled,
+            fee_settled,
         } = src;
 
         TraderOrder {
@@ -2061,6 +2063,8 @@ impl From<relayer::TraderOrder> for InsertTraderOrder {
             entry_nonce,
             exit_nonce,
             entry_sequence,
+            fee_filled,
+            fee_settled,
         } = src;
 
         InsertTraderOrder {
@@ -2115,6 +2119,8 @@ impl From<relayer::TraderOrder> for TraderOrderFundingUpdates {
             entry_nonce,
             exit_nonce,
             entry_sequence,
+            fee_filled,
+            fee_settled,
         } = src;
 
         TraderOrderFundingUpdates {
@@ -2170,6 +2176,8 @@ impl From<relayer::TraderOrder> for InsertTraderOrderFundingUpdates {
             entry_nonce,
             exit_nonce,
             entry_sequence,
+            fee_filled,
+            fee_settled,
         } = src;
 
         InsertTraderOrderFundingUpdates {

@@ -81,6 +81,24 @@ impl WsContext {
                     Ok((completion, msgs)) => {
                         for msg in msgs {
                             match msg {
+                                Event::FeeUpdate(cmd, event_time) => match cmd {
+                                    twilight_relayer_rust::relayer::RelayerCommand::UpdateFees(
+                                        order_filled_on_market,
+                                        order_filled_on_limit,
+                                        order_settled_on_limit,
+                                        order_settled_on_market,
+                                    ) => {
+                                        info!(
+                                            "Fee update: {:?}, {:?}, {:?}, {:?} at {:?}",
+                                            order_filled_on_market,
+                                            order_filled_on_limit,
+                                            order_settled_on_limit,
+                                            order_settled_on_market,
+                                            event_time,
+                                        );
+                                    }
+                                    _ => {}
+                                },
                                 Event::TraderOrder(to, ..)
                                 | Event::TraderOrderUpdate(to, ..)
                                 | Event::TraderOrderFundingUpdate(to, ..)

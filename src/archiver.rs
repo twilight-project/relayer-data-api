@@ -683,6 +683,9 @@ impl DatabaseArchiver {
 
     fn process_msg(&mut self, event: Event) -> Result<(), ApiError> {
         match event {
+            Event::FeeUpdate(cmd, event_time) => {
+                info!("Fee update: {:?}, {:?}", cmd, event_time);
+            }
             Event::TraderOrder(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into())?;
             }
