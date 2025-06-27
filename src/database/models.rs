@@ -2,15 +2,15 @@
 use crate::database::{
     schema::{
         address_customer_id, btc_usd_price, current_nonce, customer_account,
-        customer_apikey_linking, customer_order_linking, funding_rate, lend_order, lend_pool,
-        lend_pool_command, position_size_log, sorted_set_command, trader_order,
+        customer_apikey_linking, customer_order_linking, fee_history, funding_rate, lend_order,
+        lend_pool, lend_pool_command, position_size_log, sorted_set_command, trader_order,
         trader_order_funding_updated, transaction_hash,
     },
     sql_types::*,
 };
 use crate::rpc::{
-    HistoricalFundingArgs, HistoricalPriceArgs, Interval, OrderHistoryArgs, OrderId, PnlArgs,
-    TradeVolumeArgs, TransactionHashArgs,
+    HistoricalFeeArgs, HistoricalFundingArgs, HistoricalPriceArgs, Interval, OrderHistoryArgs,
+    OrderId, PnlArgs, TradeVolumeArgs, TransactionHashArgs,
 };
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive, Zero};
 use chrono::{prelude::*, DurationRound};
@@ -22,6 +22,103 @@ use twilight_relayer_rust::{db as relayer_db, relayer};
 use uuid::Uuid;
 
 pub type PositionSizeUpdate = (relayer::PositionSizeLogCommand, relayer_db::PositionSizeLog);
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName)]
+#[diesel(table_name = fee_history)]
+pub struct FeeHistory {
+    pub id: i64,
+    pub order_filled_on_market: BigDecimal,
+    pub order_filled_on_limit: BigDecimal,
+    pub order_settled_on_market: BigDecimal,
+    pub order_settled_on_limit: BigDecimal,
+    #[diesel(sql_type = diesel::sql_types::Timestamptz)]
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
+#[diesel(table_name = fee_history)]
+pub struct NewFeeHistory {
+    pub order_filled_on_market: BigDecimal,
+    pub order_filled_on_limit: BigDecimal,
+    pub order_settled_on_market: BigDecimal,
+    pub order_settled_on_limit: BigDecimal,
+    #[diesel(sql_type = diesel::sql_types::Timestamptz)]
+    pub timestamp: DateTime<Utc>,
+}
+
+impl NewFeeHistory {
+    pub fn new(
+        order_filled_on_market: f64,
+        order_filled_on_limit: f64,
+        order_settled_on_market: f64,
+        order_settled_on_limit: f64,
+        updated_at: String,
+    ) -> Self {
+        Self {
+            order_filled_on_market: BigDecimal::from_f64(order_filled_on_market)
+                .unwrap_or(BigDecimal::from_f64(0.0).unwrap())
+                .round(4),
+            order_filled_on_limit: BigDecimal::from_f64(order_filled_on_limit)
+                .unwrap_or(BigDecimal::from_f64(0.0).unwrap())
+                .round(4),
+            order_settled_on_market: BigDecimal::from_f64(order_settled_on_market)
+                .unwrap_or(BigDecimal::from_f64(0.0).unwrap())
+                .round(4),
+            order_settled_on_limit: BigDecimal::from_f64(order_settled_on_limit)
+                .unwrap_or(BigDecimal::from_f64(0.0).unwrap())
+                .round(4),
+            timestamp: DateTime::parse_from_rfc3339(&updated_at)
+                .unwrap_or(Utc::now().with_timezone(&FixedOffset::east(0)))
+                .into(),
+        }
+    }
+}
+
+impl FeeHistory {
+    pub fn get(conn: &mut PgConnection) -> QueryResult<FeeHistory> {
+        use crate::database::schema::fee_history::dsl::*;
+
+        fee_history.order_by(timestamp.desc()).first(conn)
+    }
+
+    pub fn get_historical(
+        conn: &mut PgConnection,
+        args: HistoricalFeeArgs,
+    ) -> QueryResult<Vec<FeeHistory>> {
+        use crate::database::schema::fee_history::dsl::*;
+        let HistoricalFeeArgs {
+            from,
+            to,
+            limit,
+            offset,
+        } = args;
+
+        fee_history
+            .filter(diesel::BoolExpressionMethods::and(
+                timestamp.ge(from),
+                timestamp.lt(to),
+            ))
+            .limit(limit)
+            .offset(offset)
+            .load(conn)
+    }
+
+    pub fn create(conn: &mut PgConnection, new: NewFeeHistory) -> QueryResult<()> {
+        use crate::database::schema::fee_history::dsl::*;
+
+        diesel::insert_into(fee_history).values(new).execute(conn)?;
+
+        Ok(())
+    }
+
+    pub fn append(conn: &mut PgConnection, new_hashes: Vec<NewFeeHistory>) -> QueryResult<usize> {
+        use crate::database::schema::fee_history::dsl::*;
+
+        diesel::insert_into(fee_history)
+            .values(new_hashes)
+            .execute(conn)
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName)]
 #[diesel(table_name = transaction_hash)]

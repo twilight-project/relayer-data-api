@@ -130,6 +130,7 @@ diesel::table! {
 }
 
 diesel::table! {
+    use diesel::sql_types::*;
     fee_history (id) {
         id -> Int8,
         order_filled_on_market -> Numeric,
