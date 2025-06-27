@@ -1152,6 +1152,8 @@ pub struct TraderOrder {
     pub entry_nonce: i64,
     pub exit_nonce: i64,
     pub entry_sequence: i64,
+    pub fee_filled: BigDecimal,
+    pub fee_settled: BigDecimal,
 }
 
 #[derive(
@@ -1181,6 +1183,8 @@ pub struct TraderOrderFundingUpdates {
     pub entry_nonce: i64,
     pub exit_nonce: i64,
     pub entry_sequence: i64,
+    pub fee_filled: BigDecimal,
+    pub fee_settled: BigDecimal,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, QueryableByName, Queryable)]
@@ -1227,6 +1231,8 @@ pub struct InsertTraderOrder {
     pub entry_nonce: i64,
     pub exit_nonce: i64,
     pub entry_sequence: i64,
+    pub fee_filled: BigDecimal,
+    pub fee_settled: BigDecimal,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, Insertable, AsChangeset)]
@@ -1253,6 +1259,8 @@ pub struct InsertTraderOrderFundingUpdates {
     pub entry_nonce: i64,
     pub exit_nonce: i64,
     pub entry_sequence: i64,
+    pub fee_filled: BigDecimal,
+    pub fee_settled: BigDecimal,
 }
 
 #[derive(
@@ -2036,6 +2044,8 @@ impl From<relayer::TraderOrder> for TraderOrder {
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
             entry_sequence: entry_sequence as i64,
+            fee_filled: BigDecimal::from_f64(fee_filled).unwrap().round(4),
+            fee_settled: BigDecimal::from_f64(fee_settled).unwrap().round(4),
         }
     }
 }
@@ -2092,6 +2102,8 @@ impl From<relayer::TraderOrder> for InsertTraderOrder {
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
             entry_sequence: entry_sequence as i64,
+            fee_filled: BigDecimal::from_f64(fee_filled).unwrap().round(4),
+            fee_settled: BigDecimal::from_f64(fee_settled).unwrap().round(4),
         }
     }
 }
@@ -2149,6 +2161,8 @@ impl From<relayer::TraderOrder> for TraderOrderFundingUpdates {
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
             entry_sequence: entry_sequence as i64,
+            fee_filled: BigDecimal::from_f64(fee_filled).unwrap().round(4),
+            fee_settled: BigDecimal::from_f64(fee_settled).unwrap().round(4),
         }
     }
 }
@@ -2205,6 +2219,8 @@ impl From<relayer::TraderOrder> for InsertTraderOrderFundingUpdates {
             entry_nonce: entry_nonce as i64,
             exit_nonce: exit_nonce as i64,
             entry_sequence: entry_sequence as i64,
+            fee_filled: BigDecimal::from_f64(fee_filled).unwrap().round(4),
+            fee_settled: BigDecimal::from_f64(fee_settled).unwrap().round(4),
         }
     }
 }

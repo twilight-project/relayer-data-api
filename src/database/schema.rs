@@ -130,6 +130,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    fee_history (id) {
+        id -> Int8,
+        order_filled_on_market -> Numeric,
+        order_filled_on_limit -> Numeric,
+        order_settled_on_market -> Numeric,
+        order_settled_on_limit -> Numeric,
+        timestamp -> Timestamptz,
+    }
+}
+
+diesel::table! {
     funding_rate (id) {
         id -> Int8,
         rate -> Numeric,
@@ -257,6 +268,8 @@ diesel::table! {
         entry_nonce -> Int8,
         exit_nonce -> Int8,
         entry_sequence -> Int8,
+        fee_filled -> Numeric,
+        fee_settled -> Numeric,
     }
 }
 
@@ -290,6 +303,8 @@ diesel::table! {
         entry_nonce -> Int8,
         exit_nonce -> Int8,
         entry_sequence -> Int8,
+        fee_filled -> Numeric,
+        fee_settled -> Numeric,
     }
 }
 
@@ -325,6 +340,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     customer_account,
     customer_apikey_linking,
     customer_order_linking,
+    fee_history,
     funding_rate,
     lend_order,
     lend_pool,
@@ -335,32 +351,3 @@ diesel::allow_tables_to_appear_in_same_query!(
     trader_order_funding_updated,
     transaction_hash,
 );
-
-// // /* ----  View: orderbook -------------------------------------------- */
-// diesel::table! {
-//     // Read-only view.  No primary key.
-//     orderbook (id) {
-//         id                  -> Int8,
-//         uuid                -> Uuid,
-//         account_id          -> Text,
-//         position_type       -> Varchar,
-//         order_status        -> Varchar,
-//         order_type          -> Varchar,
-//         entryprice          -> Numeric,
-//         execution_price     -> Numeric,
-//         positionsize        -> Numeric,
-//         leverage            -> Numeric,
-//         initial_margin      -> Numeric,
-//         available_margin    -> Numeric,
-//         timestamp           -> Timestamp,
-//         bankruptcy_price    -> Numeric,
-//         bankruptcy_value    -> Numeric,
-//         maintenance_margin  -> Numeric,
-//         liquidation_price   -> Numeric,
-//         unrealized_pnl      -> Numeric,
-//         settlement_price    -> Nullable<Numeric>,
-//         entry_nonce         -> Nullable<Int8>,
-//         exit_nonce          -> Nullable<Int8>,
-//         entry_sequence      -> Nullable<Int8>,
-//     }
-// }

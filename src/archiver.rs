@@ -115,6 +115,7 @@ pub struct DatabaseArchiver {
     script_sha: String,
     trader_orders: Vec<InsertTraderOrder>,
     trader_order_funding_updated: Vec<InsertTraderOrderFundingUpdates>,
+    fee_history: Vec<InsertFeeHistory>,
     lend_orders: Vec<InsertLendOrder>,
     position_size: Vec<PositionSizeUpdate>,
     tx_hashes: Vec<NewTxHash>,
@@ -142,6 +143,7 @@ impl DatabaseArchiver {
 
         let trader_orders = Vec::with_capacity(BATCH_SIZE);
         let trader_order_funding_updated = Vec::with_capacity(BATCH_SIZE);
+        let fee_history = Vec::with_capacity(BATCH_SIZE);
         let lend_orders = Vec::with_capacity(BATCH_SIZE);
         let position_size = Vec::with_capacity(BATCH_SIZE);
         let tx_hashes = Vec::with_capacity(BATCH_SIZE);
@@ -165,6 +167,7 @@ impl DatabaseArchiver {
             script_sha,
             trader_orders,
             trader_order_funding_updated,
+            fee_history,
             lend_orders,
             position_size,
             tx_hashes,
