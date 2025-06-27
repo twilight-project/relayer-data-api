@@ -13,8 +13,9 @@ mod types;
 mod util;
 
 pub use types::{
-    CandleSubscription, Candles, HistoricalFundingArgs, HistoricalPriceArgs, Interval, Order,
-    OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs, TransactionHashArgs,
+    CandleSubscription, Candles, HistoricalFeeArgs, HistoricalFundingArgs, HistoricalPriceArgs,
+    Interval, Order, OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs,
+    TransactionHashArgs,
 };
 pub use util::{order_book, recent_orders};
 
@@ -88,6 +89,16 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
         &mut module,
         "historical_funding_rate",
         Box::new(public_methods::historical_funding_rate),
+    );
+    register_method(
+        &mut module,
+        "get_fee_rate",
+        Box::new(public_methods::get_fee_rate),
+    );
+    register_method(
+        &mut module,
+        "historical_fee_rate",
+        Box::new(public_methods::historical_fee_rate),
     );
     register_method(
         &mut module,

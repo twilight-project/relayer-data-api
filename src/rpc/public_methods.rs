@@ -93,6 +93,33 @@ pub(super) fn get_funding_rate(
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
 }
+pub(super) fn historical_fee_rate(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let args: HistoricalFeeArgs = params.parse()?;
+
+    match ctx.pool.get() {
+        Ok(mut conn) => match FeeHistory::get_historical(&mut conn, args) {
+            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+            Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
+pub(super) fn get_fee_rate(
+    _: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    match ctx.pool.get() {
+        Ok(mut conn) => match FeeHistory::get(&mut conn) {
+            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+            Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
 
 pub(super) fn open_limit_orders(
     _: Params<'_>,
