@@ -11,6 +11,7 @@
 // •	Candle data (Kline data: 1min, 5min, 15min, 30min, 1hr, 4hr, 8hr, 12hr, 24hr)
 // •	Position Size (For Long, Short and Total)
 // •	Server Time
+// •	Fee History
 use crate::auth::UserInfo;
 use crate::database::OrderStatus;
 use chrono::{prelude::*, Duration};
@@ -280,6 +281,39 @@ pub struct HistoricalPriceArgs {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HistoricalFundingArgs {
+    pub from: DateTime<Utc>,
+    pub to: DateTime<Utc>,
+    pub limit: i64,
+    pub offset: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct FeeHistory {
+    pub order_filled_on_market: f64,
+    pub order_filled_on_limit: f64,
+    pub order_settled_on_market: f64,
+    pub order_settled_on_limit: f64,
+    pub updated_at: DateTime<Utc>,
+}
+// impl FeeHistory {
+//     pub fn new(
+//         order_filled_on_market: f64,
+//         order_filled_on_limit: f64,
+//         order_settled_on_market: f64,
+//         order_settled_on_limit: f64,
+//         updated_at: DateTime<Utc>,
+//     ) -> Self {
+//         Self {
+//             order_filled_on_market,
+//             order_filled_on_limit,
+//             order_settled_on_market,
+//             order_settled_on_limit,
+//             updated_at,
+//         }
+// }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HistoricalFeeArgs {
     pub from: DateTime<Utc>,
     pub to: DateTime<Utc>,
     pub limit: i64,

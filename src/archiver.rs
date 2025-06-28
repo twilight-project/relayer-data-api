@@ -115,6 +115,7 @@ pub struct DatabaseArchiver {
     script_sha: String,
     trader_orders: Vec<InsertTraderOrder>,
     trader_order_funding_updated: Vec<InsertTraderOrderFundingUpdates>,
+    fee_history: Vec<NewFeeHistory>,
     lend_orders: Vec<InsertLendOrder>,
     position_size: Vec<PositionSizeUpdate>,
     tx_hashes: Vec<NewTxHash>,
@@ -142,6 +143,7 @@ impl DatabaseArchiver {
 
         let trader_orders = Vec::with_capacity(BATCH_SIZE);
         let trader_order_funding_updated = Vec::with_capacity(BATCH_SIZE);
+        let fee_history = Vec::with_capacity(BATCH_SIZE);
         let lend_orders = Vec::with_capacity(BATCH_SIZE);
         let position_size = Vec::with_capacity(BATCH_SIZE);
         let tx_hashes = Vec::with_capacity(BATCH_SIZE);
@@ -165,6 +167,7 @@ impl DatabaseArchiver {
             script_sha,
             trader_orders,
             trader_order_funding_updated,
+            fee_history,
             lend_orders,
             position_size,
             tx_hashes,
@@ -645,6 +648,35 @@ impl DatabaseArchiver {
         Ok(())
     }
 
+    /// Add a fee history to the next update batch, if the queue is full, commit and clear the
+    /// queue.
+    fn fee_history(&mut self, fee_history: NewFeeHistory) -> Result<(), ApiError> {
+        debug!("Appending fee history");
+
+        self.fee_history.push(fee_history);
+
+        if self.fee_history.len() == self.fee_history.capacity() {
+            self.commit_fee_history()?;
+        }
+
+        Ok(())
+    }
+
+    /// Commit a batch of fee history to the database. If we're failing to update the database, we
+    /// should exit.
+    fn commit_fee_history(&mut self) -> Result<(), ApiError> {
+        debug!("Committing fee history");
+
+        let mut conn = self.get_conn()?;
+
+        let mut fee_history = Vec::with_capacity(self.fee_history.capacity());
+        std::mem::swap(&mut fee_history, &mut self.fee_history);
+
+        FeeHistory::append(&mut conn, fee_history)?;
+
+        Ok(())
+    }
+
     /// Commit any pending orders of any type, regardless of batch size.
     fn commit_orders(&mut self) -> Result<(), ApiError> {
         if self.trader_orders.len() > 0 {
@@ -677,12 +709,24 @@ impl DatabaseArchiver {
         if self.lend_pool_commands.len() > 0 {
             self.commit_lend_pool_commands()?;
         }
+        if self.fee_history.len() > 0 {
+            self.commit_fee_history()?;
+        }
 
         Ok(())
     }
 
     fn process_msg(&mut self, event: Event) -> Result<(), ApiError> {
         match event {
+            Event::FeeUpdate(cmd, event_time) => match cmd {
+                relayer::RelayerCommand::UpdateFees(f_on_m, f_on_l, s_on_m, s_on_l) => {
+                    info!("Fee update: {:?}, {:?}", cmd, event_time);
+                    let fee_history =
+                        NewFeeHistory::new(f_on_m, f_on_l, s_on_m, s_on_l, event_time);
+                    self.fee_history(fee_history)?;
+                }
+                _ => {}
+            },
             Event::TraderOrder(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into())?;
             }

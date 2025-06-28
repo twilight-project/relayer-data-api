@@ -69,7 +69,7 @@ tower-http = { version = "0.4", features = [
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 uuid = { version = "1.3.3", features = ["serde", "v4", "v7"] }
 verify-keplr-sign = "0.1.0"
-twilight-relayer-rust = { git = "ssh://git@github.com/twilight-project/twilight-relayer.git", branch = "develop" }
+twilight-relayer-rust = { git = "ssh://git@github.com/twilight-project/twilight-relayer.git", branch = "develop-fee" }
 redis = { version = "0.25.4", features = ["r2d2"] }
 
 [dependencies.zkos-relayer-wallet]
