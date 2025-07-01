@@ -42,7 +42,7 @@ SELECT  r.id,
         r.settlement_price,
         r.entry_nonce,
         r.exit_nonce,
-        r.entry_sequence
+        r.entry_sequence,
         r.fee_filled,
         r.fee_settled
 FROM   ranked r
