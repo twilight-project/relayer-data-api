@@ -75,5 +75,23 @@
         end
         redis.call('ZADD', side, price_cents, new_size)
     end
+
+    -- if order gets canncelled
+    if status == "CANCELLED" then
+        local old_price = tonumber(redis.call('HGET', 'orders', id))
+        redis.call('HDEL', 'orders', id)
+        local old_position_size = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
+        if old_position_size ==0 then
+            return
+        end
+        local new_size = old_position_size - size
+        redis.call('ZREM', side, old_position_size)
+        if new_size > 0
+        then
+            redis.call('ZADD', side, old_price, new_size)
+        end
+        return
+    end
+
     -- TODO: clean out <recent_orders> expired > 24h...
     redis.call('ZREMRANGEBYSCORE', 'recent_orders', 0, exp_time)

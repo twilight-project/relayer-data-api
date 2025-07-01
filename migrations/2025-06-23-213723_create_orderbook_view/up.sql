@@ -43,6 +43,8 @@ SELECT  r.id,
         r.entry_nonce,
         r.exit_nonce,
         r.entry_sequence
+        r.fee_filled,
+        r.fee_settled
 FROM   ranked r
 WHERE  r.rn = 1
   AND  r.order_type = 'LIMIT'
@@ -76,7 +78,9 @@ SELECT  r.id,
         r.settlement_price,
         r.entry_nonce,
         r.exit_nonce,
-        r.entry_sequence
+        r.entry_sequence,
+        r.fee_filled,
+        r.fee_settled
 FROM       ranked            r
 JOIN       sc_latest         ls ON ls.uuid = r.uuid
 JOIN       sorted_set_command sc ON sc.id   = ls.max_sc_id
