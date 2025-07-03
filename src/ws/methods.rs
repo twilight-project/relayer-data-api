@@ -1,4 +1,3 @@
-#![allow(warnings)]
 use crate::{
     database::{Ask, Bid, BtcUsdPrice, OrderBook, TraderOrder},
     error::ApiError,

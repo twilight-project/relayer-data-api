@@ -1,4 +1,3 @@
-#![allow(warnings)]
 use crate::database::{
     schema::{
         address_customer_id, btc_usd_price, current_nonce, customer_account,
