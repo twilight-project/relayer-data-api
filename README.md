@@ -10,7 +10,7 @@ This API layer is optimized for querying:
 
 It is designed to operate independently from the order submission system (`relayer-order-api`), ensuring uninterrupted access to trading data even under high load. This separation supports scalable data consumption by external clients such as trading dashboards, explorers, analytics engines, and monitoring tools.
 
-> ⚠️ This API does not support transaction submission or state changes. For placing or canceling orders, use the [Relayer Order API](../relayer-order-api).
+> ⚠️ This API does not support transaction submission or state changes. For placing or canceling orders, use the [Relayer Order API](https://github.com/twilight-project/relayer-order-api).
 
 For subscriptions and rpcs, see [here](./docs/API.md)
 
