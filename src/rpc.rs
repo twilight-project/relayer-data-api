@@ -160,6 +160,16 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
         "pool_share_value",
         Box::new(public_methods::pool_share_value),
     );
+    register_method(
+        &mut module,
+        "historical_trader_order_info",
+        Box::new(public_methods::historical_trader_order_info),
+    );
+    register_method(
+        &mut module,
+        "historical_lend_order_info",
+        Box::new(public_methods::historical_lend_order_info),
+    );
     module
 }
 
@@ -258,6 +268,7 @@ pub fn init_private_methods(database_url: &str, redis_url: &str) -> RpcModule<Re
         "lend_order_info",
         Box::new(private_methods::lend_order_info),
     );
+
     // TODO:
     //register_method(
     //    &mut module,
