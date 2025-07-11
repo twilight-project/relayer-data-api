@@ -1,9 +1,15 @@
 [package]
-name = "twilight-relayerAPI"
+name = "relayer-data-api"
 version = "0.1.0"
 edition = "2021"
+authors = ["Twilight Project"]
+description = "A high-throughput data archiving and retrieval API service for the Twilight Relayer Core"
+license = "Apache-2.0"
+repository = "https://github.com/twilight-project/relayer-data-api"
+readme = "README.md"
+keywords = ["relayer", "data-api", "archiver", "twilight", "postgres"]
+categories = ["web-programming", "api-bindings", "database"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[bin]]
 name = "archiver"
