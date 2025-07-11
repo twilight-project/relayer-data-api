@@ -3,12 +3,12 @@ use crate::database::*;
 use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
 use kafka::producer::Record;
-use relayerwalletlib::verify_client_message::{
+use twilight_client_sdk::relayer_rpcclient::method::RequestResponse;
+use twilight_relayer_rust::relayer;
+use twilight_relayer_sdk::verify_client_message::{
     verify_client_create_trader_order, verify_query_order, verify_settle_requests,
     verify_trade_lend_order,
 };
-use twilight_relayer_rust::relayer;
-use zkoswalletlib::relayer_rpcclient::method::RequestResponse;
 
 pub(super) fn btc_usd_price(
     _: Params<'_>,
@@ -604,5 +604,28 @@ pub(super) fn pool_share_value(
             ))),
         },
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use relayer::QueryTraderOrderZkos;
+
+    #[test]
+    fn test_decode_trader_order_data() {
+        let hex_data = "8a00000000000000306334303934663238303432653433336538373338343039303162666432626464336639613361626264656565633030633835313665363336646533313738313739386337626636333635623164616436393239623537626462336533666564376439623435356330396137623833663964623936666233306166643636393831623939373363306239050000008a00000000000000306334303934663238303432653433336538373338343039303162666432626464336639613361626264656565633030633835313665363336646533313738313739386337626636333635623164616436393239623537626462336533666564376439623435356330396137623833663964623936666233306166643636393831623939373363306239400000000000000048e6f21f906aa638efcfb5a60b6ccea44b849d6dc6500d4c43a0c4dc945ce83808d260ae4c7054f17b68421efc49e57df2126c57108fc3c5e28a9be4acb1e00c";
+
+        // Test hex decode
+        let bytes = hex::decode(hex_data).expect("Should decode hex");
+
+        // Test bincode deserialize
+        let tx: QueryTraderOrderZkos = bincode::deserialize(&bytes).expect("Should deserialize");
+        println!("tx: {:?}", tx);
+        // Test verify_query_order
+        let verify_result = verify_query_order(
+            tx.msg.clone(),
+            &bincode::serialize(&tx.query_trader_order).unwrap(),
+        );
+        assert!(verify_result.is_ok());
     }
 }

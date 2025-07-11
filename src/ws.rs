@@ -9,7 +9,6 @@ use diesel::r2d2::ConnectionManager;
 use jsonrpsee::RpcModule;
 use log::{error, info, trace};
 use redis::Client;
-use relayerwalletlib::zkoswalletlib::relayer_types::{OrderStatus, OrderType};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -22,6 +21,7 @@ use tokio::{
 };
 use twilight_relayer_rust::db::Event;
 use twilight_relayer_rust::relayer::PositionType;
+use twilight_relayer_sdk::twilight_client_sdk::relayer_types::{OrderStatus, OrderType};
 
 mod methods;
 

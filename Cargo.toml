@@ -69,12 +69,16 @@ tower-http = { version = "0.4", features = [
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 uuid = { version = "1.3.3", features = ["serde", "v4", "v7"] }
 verify-keplr-sign = "0.1.0"
-twilight-relayer-rust = { git = "ssh://git@github.com/twilight-project/relayer-core.git", branch = "develop-fee" }
 redis = { version = "0.25.4", features = ["r2d2"] }
 
-[dependencies.zkos-relayer-wallet]
-git = "ssh://git@github.com/twilight-project/zkos-relayer-wallet.git"
+[dependencies.twilight-relayer-sdk]
+git = "https://git@github.com/twilight-project/twilight-relayer-sdk.git"
 branch = "develop"
-[dependencies.zkos-client-wallet]
-git = "ssh://git@github.com/twilight-project/zkos-client-wallet.git"
+[dependencies.twilight-client-sdk]
+git = "https://git@github.com/twilight-project/twilight-client-sdk.git"
 branch = "develop"
+
+[dependencies.twilight-relayer-rust]
+git = "https://git@github.com/twilight-project/relayer-core.git"
+branch = "develop"
+# path = "../relayer-core"
