@@ -12,7 +12,7 @@ use diesel::{
     pg::Pg,
     serialize::{self, IsNull, Output, ToSql},
 };
-use twilight_relayer_sdk::twilight_client_sdk::relayer_types;
+use relayer_core::twilight_relayer_sdk::twilight_client_sdk::relayer_types;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 

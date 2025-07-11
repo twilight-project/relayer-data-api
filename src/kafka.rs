@@ -1,8 +1,8 @@
 use crossbeam_channel::{unbounded, Sender};
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 use log::{error, info};
+use relayer_core::db::Event;
 use std::thread::{self, JoinHandle};
-use twilight_relayer_rust::db::Event;
 
 pub type Completion = (i32, i64);
 

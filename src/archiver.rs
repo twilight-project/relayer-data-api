@@ -8,14 +8,14 @@ use diesel::r2d2::ConnectionManager;
 use log::{debug, error, info, trace};
 use r2d2::PooledConnection;
 use redis::Client;
+use relayer_core::{
+    db::{self as relayer_db, Event},
+    relayer,
+};
 use serde_json::json;
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
-};
-use twilight_relayer_rust::{
-    db::{self as relayer_db, Event},
-    relayer,
 };
 
 const BATCH_INTERVAL: u64 = 100;
@@ -757,7 +757,7 @@ impl DatabaseArchiver {
             // added for limit order update for settlement order
             Event::TraderOrderLimitUpdate(trader_order, cmd, _seq) => {
                 let settlement_price = match cmd {
-                    twilight_relayer_rust::relayer::RpcCommand::ExecuteTraderOrder(
+                    relayer_core::relayer::RpcCommand::ExecuteTraderOrder(
                         execute_trader_order,
                         _meta,
                         _zkos_hex_string,

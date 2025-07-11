@@ -9,6 +9,11 @@ use diesel::r2d2::ConnectionManager;
 use jsonrpsee::RpcModule;
 use log::{error, info, trace};
 use redis::Client;
+use relayer_core::db::Event;
+use relayer_core::relayer::PositionType;
+use relayer_core::twilight_relayer_sdk::twilight_client_sdk::relayer_types::{
+    OrderStatus, OrderType,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -19,9 +24,6 @@ use tokio::{
     sync::broadcast::{channel, Sender},
     task::JoinHandle,
 };
-use twilight_relayer_rust::db::Event;
-use twilight_relayer_rust::relayer::PositionType;
-use twilight_relayer_sdk::twilight_client_sdk::relayer_types::{OrderStatus, OrderType};
 
 mod methods;
 
@@ -82,7 +84,7 @@ impl WsContext {
                         for msg in msgs {
                             match msg {
                                 Event::FeeUpdate(cmd, event_time) => match cmd {
-                                    twilight_relayer_rust::relayer::RelayerCommand::UpdateFees(
+                                    relayer_core::relayer::RelayerCommand::UpdateFees(
                                         order_filled_on_market,
                                         order_filled_on_limit,
                                         order_settled_on_limit,
@@ -130,9 +132,12 @@ impl WsContext {
                                 // added for limit order update for settlement order
                                 Event::TraderOrderLimitUpdate(to, cmd, _seq) => {
                                     let settlement_price = match cmd {
-                                        twilight_relayer_rust::relayer::RpcCommand::ExecuteTraderOrder(execute_trader_order, _meta, _zkos_hex_string, _request_id) => {
-                                            execute_trader_order.execution_price
-                                        }
+                                        relayer_core::relayer::RpcCommand::ExecuteTraderOrder(
+                                            execute_trader_order,
+                                            _meta,
+                                            _zkos_hex_string,
+                                            _request_id,
+                                        ) => execute_trader_order.execution_price,
                                         _ => 0.0, // Default value for other command types
                                     };
 

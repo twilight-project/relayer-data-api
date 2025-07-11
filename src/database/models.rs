@@ -18,7 +18,7 @@ use chrono::{prelude::*, DurationRound};
 use diesel::prelude::*;
 use itertools::join;
 use serde::{Deserialize, Serialize};
-use twilight_relayer_rust::{db as relayer_db, relayer};
+use relayer_core::{db as relayer_db, relayer};
 use uuid::Uuid;
 
 pub type PositionSizeUpdate = (relayer::PositionSizeLogCommand, relayer_db::PositionSizeLog);
