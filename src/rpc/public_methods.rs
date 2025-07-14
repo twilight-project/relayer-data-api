@@ -606,6 +606,22 @@ pub(super) fn pool_share_value(
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
 }
+
+pub(super) fn lend_pool_info(
+    _params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    match ctx.pool.get() {
+        Ok(mut conn) => match LendPool::get(&mut conn) {
+            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+            Err(e) => Err(Error::Custom(format!(
+                "Error fetching lend pool info: {:?}",
+                e
+            ))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
