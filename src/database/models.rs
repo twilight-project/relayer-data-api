@@ -17,8 +17,8 @@ use chrono::{prelude::*, DurationRound};
 // use diesel::pg::Pg;
 use diesel::prelude::*;
 use itertools::join;
-use serde::{Deserialize, Serialize};
 use relayer_core::{db as relayer_db, relayer};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub type PositionSizeUpdate = (relayer::PositionSizeLogCommand, relayer_db::PositionSizeLog);
@@ -518,7 +518,7 @@ impl LendPool {
     pub fn get_pool_share_value(&self) -> f64 {
         let tps = self.total_pool_share.to_f64().unwrap_or(1.0);
         let tlv = self.total_locked_value.to_f64().unwrap_or(0.0);
-        tlv / tps * 100.0
+        tlv / tps
     }
 
     pub fn insert(
