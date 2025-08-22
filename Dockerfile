@@ -16,7 +16,7 @@ RUN git config --global url."ssh://git@github.com/".insteadOf ssh://github.com/
 RUN eval `ssh-agent -s` && ssh-add /root/.ssh/id_ed25519 && \
     git config --global url."ssh://git@github.com/".insteadOf https://github.com/ && \
     git config --global url."ssh://git@github.com/".insteadOf ssh://github.com/ && \
-    git config --global url."ssh://git@github.com/twilight-project/zkos-relayer-wallet.git".insteadOf https://github.com/twilight-project/zkos-relayer-wallet.git && \
+    git config --global url."ssh://git@github.com/twilight-project/twilight-relayer-sdk.git".insteadOf https://github.com/twilight-project/twilight-relayer-sdk.git && \
     cargo --config "net.git-fetch-with-cli = true" b --release --bins
 
 FROM debian:10-slim

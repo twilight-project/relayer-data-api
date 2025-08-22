@@ -160,6 +160,21 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
         "pool_share_value",
         Box::new(public_methods::pool_share_value),
     );
+    register_method(
+        &mut module,
+        "historical_trader_order_info",
+        Box::new(public_methods::historical_trader_order_info),
+    );
+    register_method(
+        &mut module,
+        "historical_lend_order_info",
+        Box::new(public_methods::historical_lend_order_info),
+    );
+    register_method(
+        &mut module,
+        "lend_pool_info",
+        Box::new(public_methods::lend_pool_info),
+    );
     module
 }
 
@@ -258,6 +273,7 @@ pub fn init_private_methods(database_url: &str, redis_url: &str) -> RpcModule<Re
         "lend_order_info",
         Box::new(private_methods::lend_order_info),
     );
+
     // TODO:
     //register_method(
     //    &mut module,
@@ -266,42 +282,4 @@ pub fn init_private_methods(database_url: &str, redis_url: &str) -> RpcModule<Re
     //);
 
     module
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::ws::init_methods;
-
-    use super::*;
-    use jsonrpsee::{
-        core::{
-            client::ClientT,
-            params::{ArrayParams, ObjectParams},
-        },
-        http_client::HttpClientBuilder,
-        server::ServerBuilder,
-    };
-
-    // #[tokio::test]
-    // async fn test_hello() {
-    //     let mut server = ServerBuilder::new()
-    //         .build("0.0.0.0:8979")
-    //         .await
-    //         .expect("Builder failed");
-
-    //     let handle = server
-    //         .start(init_methods())
-    //         .expect("Server failed to start");
-
-    //     let client = HttpClientBuilder::default()
-    //         .build("http://127.0.0.1:8979")
-    //         .expect("Client builder failed");
-
-    //     let response: String = client
-    //         .request("hello_method", ObjectParams::new())
-    //         .await
-    //         .expect("Client call failed");
-
-    //     assert_eq!("Hello, world!".to_string(), response);
-    // }
 }

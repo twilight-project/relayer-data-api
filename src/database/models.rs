@@ -17,8 +17,8 @@ use chrono::{prelude::*, DurationRound};
 // use diesel::pg::Pg;
 use diesel::prelude::*;
 use itertools::join;
+use relayer_core::{db as relayer_db, relayer};
 use serde::{Deserialize, Serialize};
-use twilight_relayer_rust::{db as relayer_db, relayer};
 use uuid::Uuid;
 
 pub type PositionSizeUpdate = (relayer::PositionSizeLogCommand, relayer_db::PositionSizeLog);
@@ -518,7 +518,7 @@ impl LendPool {
     pub fn get_pool_share_value(&self) -> f64 {
         let tps = self.total_pool_share.to_f64().unwrap_or(1.0);
         let tlv = self.total_locked_value.to_f64().unwrap_or(0.0);
-        tlv / tps * 100.0
+        tlv / tps
     }
 
     pub fn insert(
@@ -1474,6 +1474,16 @@ impl TraderOrder {
             .order(timestamp.desc())
             .first(conn)
     }
+    pub fn historical_get_by_signature(
+        conn: &mut PgConnection,
+        accountid: String,
+    ) -> QueryResult<Vec<TraderOrder>> {
+        use crate::database::schema::trader_order::dsl::*;
+        trader_order
+            .filter(account_id.eq(accountid))
+            .order(timestamp.desc())
+            .load(conn)
+    }
     pub fn get_by_uuid(conn: &mut PgConnection, order_id: String) -> QueryResult<TraderOrder> {
         // use crate::database::schema::address_customer_id::dsl as addr_dsl;
         use crate::database::schema::trader_order::dsl::*;
@@ -2069,6 +2079,18 @@ impl LendOrder {
             .order(timestamp.desc())
             .first(conn)
     }
+
+    pub fn historical_get_by_signature(
+        conn: &mut PgConnection,
+        accountid: String,
+    ) -> QueryResult<Vec<LendOrder>> {
+        use crate::database::schema::lend_order::dsl::*;
+        lend_order
+            .filter(account_id.eq(accountid))
+            .order(timestamp.desc())
+            .load(conn)
+    }
+
     pub fn get_by_uuid(conn: &mut PgConnection, order_id: String) -> QueryResult<LendOrder> {
         use crate::database::schema::lend_order::dsl::*;
 
