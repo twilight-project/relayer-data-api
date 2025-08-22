@@ -1,4 +1,16 @@
-# Twilight relayer API
+# Twilight Relayer Data API
+
+The **Relayer Data API** is a read-only JSON-RPC service that provides structured access to real-time and historical data from the Twilight Relayer.
+
+This API layer is optimized for querying:
+- Open and historical orders
+- Account balances and margin state
+- Price feeds and funding rates
+- Realized and unrealized PnL
+
+It is designed to operate independently from the order submission system (`relayer-order-api`), ensuring uninterrupted access to trading data even under high load. This separation supports scalable data consumption by external clients such as trading dashboards, explorers, analytics engines, and monitoring tools.
+
+> ⚠️ This API does not support transaction submission or state changes. For placing or canceling orders, use the [Relayer Order API](https://github.com/twilight-project/relayer-order-api).
 
 For subscriptions and rpcs, see [here](./docs/API.md)
 
