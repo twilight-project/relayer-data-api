@@ -1,5 +1,4 @@
 #![allow(non_camel_case_types)]
-#![allow(warnings)]
 use crate::database::schema::sql_types::{
     LendPoolCommandType as LendPoolCommandTypeSql, OrderStatus as OrderStatusSql,
     OrderType as OrderTypeSql, PositionSizeCommand as PositionSizeCommandSql,
