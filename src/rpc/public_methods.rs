@@ -658,7 +658,8 @@ pub(super) fn apy_chart(
             let sql = r#"
                 SELECT bucket_ts, apy
                 FROM apy_series($1::interval, $2::interval, $3::interval)
-                ORDER BY bucket_ts
+                WHERE apy IS NOT NULL
+                ORDER BY bucket_ts;
             "#;
             let rows: Vec<ApyPoint> = diesel::sql_query(sql)
                 .bind::<diesel::sql_types::Text, _>(window)
