@@ -2488,8 +2488,9 @@ impl PoolAnalytics {
     ) -> QueryResult<Vec<ApyPoint>> {
         let sql = r#"
             SELECT bucket_ts, apy
-            FROM apy_series($1::interval, $2::interval, '24 hours'::interval)
-            ORDER BY bucket_ts
+            FROM apy_series($1::interval, $2::interval, $3::interval)
+            WHERE apy IS NOT NULL
+            ORDER BY bucket_ts;
         "#;
 
         diesel::sql_query(sql)
