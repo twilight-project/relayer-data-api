@@ -1,35 +1,27 @@
-FROM rust:1.87 as builder
+FROM rust:1.87.0 as builder
+RUN USER=root apt-get update && \
+    apt-get -y upgrade && \
+    apt-get -y install git curl g++ build-essential libssl-dev pkg-config && \
+    apt-get -y install software-properties-common protobuf-compiler && \
+    apt-get update 
 
-ARG SSH_KEY
-RUN apt-get update && apt-get install -y openssh-client git libssl-dev build-essential libpq-dev pkg-config
-RUN mkdir /root/.ssh
-RUN echo "${SSH_KEY}" > /root/.ssh/id_ed25519 && \
-    touch /root/.ssh/known_hosts && \
-    ssh-keyscan github.com >> /root/.ssh/known_hosts && \
-    chmod 0600 /root/.ssh/id_ed25519
-COPY . ./twilight-relayerAPI
-WORKDIR /twilight-relayerAPI
+# RUN git clone -b v0.1.0 https://github.com/twilight-project/relayer-data-api.git
+COPY . /relayer-data-api
+WORKDIR /relayer-data-api
+RUN cargo build --release --bins    
 
-RUN git config --global url."ssh://git@github.com/".insteadOf https://github.com/
-RUN git config --global url."ssh://git@github.com/".insteadOf ssh://github.com/
-
-RUN eval `ssh-agent -s` && ssh-add /root/.ssh/id_ed25519 && \
-    git config --global url."ssh://git@github.com/".insteadOf https://github.com/ && \
-    git config --global url."ssh://git@github.com/".insteadOf ssh://github.com/ && \
-    git config --global url."ssh://git@github.com/twilight-project/twilight-relayer-sdk.git".insteadOf https://github.com/twilight-project/twilight-relayer-sdk.git && \
-    cargo --config "net.git-fetch-with-cli = true" b --release --bins
-
-FROM debian:10-slim
-RUN apt-get update && apt-get install -y ca-certificates curl libpq-dev libssl-dev
+FROM rust
+RUN apt-get update && apt-get install -y ca-certificates curl libpq-dev libssl-dev postgresql-client redis-tools netcat-openbsd procps
+EXPOSE 5000
+EXPOSE 8989
+EXPOSE 8990
+EXPOSE 8987
 
 WORKDIR /app
-COPY --from=builder ./twilight-relayerAPI/target/release/api ./
-COPY --from=builder ./twilight-relayerAPI/target/release/archiver ./
-COPY --from=builder ./twilight-relayerAPI/target/release/auth ./
-COPY ./scripts/run.sh ./
-COPY ./.env ./.env
 
-
-ENTRYPOINT ["/app/run.sh"]
-
-CMD ["archiver"]
+ARG BINARY
+COPY --from=builder ./relayer-data-api/target/release/${BINARY} ./main
+COPY --from=builder ./relayer-data-api/target/release/${BINARY}.d ./main.d
+# COPY ./healthcheck.sh /usr/local/bin/healthcheck.sh
+# RUN chmod +x /usr/local/bin/healthcheck.sh
+ENTRYPOINT ["/app/main"]

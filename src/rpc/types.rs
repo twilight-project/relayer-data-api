@@ -319,3 +319,98 @@ pub struct HistoricalFeeArgs {
     pub limit: i64,
     pub offset: i64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApySeriesArgs {
+    // Range of the chart. Supported: "1d" | "7d" | "30d" | explicit like "24 hours", "7 days", "30 days"
+    pub range: String,
+    // Optional step override. Examples: "1m","5m","15m","30m","1h","2h","4h","12h"
+    #[serde(default)]
+    pub step: Option<String>,
+    // Optional lookback window for trailing APY. Default "24 hours".
+    #[serde(default)]
+    pub lookback: Option<String>,
+}
+
+impl ApySeriesArgs {
+    /// Map friendly tokens to Postgres interval strings.
+    fn normalize_interval(s: &str) -> Option<&'static str> {
+        match s.trim().to_lowercase().as_str() {
+            // ranges
+            "1d" | "1day" | "24h" => Some("24 hours"),
+            "7d" | "1w" | "7days" => Some("7 days"),
+            "30d" | "1m" | "30days" => Some("30 days"),
+            // steps (minutes)
+            "1m" => Some("1 minute"),
+            "5m" => Some("5 minutes"),
+            "15m" => Some("15 minutes"),
+            "30m" => Some("30 minutes"),
+            // steps (hours)
+            "1h" => Some("1 hour"),
+            "2h" => Some("2 hours"),
+            "4h" => Some("4 hours"),
+            "12h" => Some("12 hours"),
+            // lookbacks
+            "24hours" => Some("24 hours"),
+            "7days" => Some("7 days"),
+            "30days" => Some("30 days"),
+            _ => None,
+        }
+    }
+
+    /// Resolve (window, step, lookback) to Postgres interval strings.
+    pub fn resolve(&self) -> Result<(&'static str, &'static str, &'static str), String> {
+        // window
+        let window = Self::normalize_interval(&self.range)
+            .or_else(|| {
+                // allow explicit "24 hours" style input
+                let s = self.range.trim().to_lowercase();
+                match s.as_str() {
+                    "24 hours" | "7 days" | "30 days" => Some(Box::leak(s.into_boxed_str())),
+                    _ => None,
+                }
+            })
+            .ok_or_else(|| format!("Unsupported range: {}", self.range))?;
+
+        // default step per window if none provided
+        let default_step = match window {
+            "24 hours" => "1 minute",
+            "7 days" => "5 minutes",
+            "30 days" => "1 hour",
+            _ => "1 minute",
+        };
+
+        // step
+        let step = if let Some(ref s) = self.step {
+            Self::normalize_interval(s)
+                .or_else(|| {
+                    let s = s.trim().to_lowercase();
+                    match s.as_str() {
+                        "1 minute" | "5 minutes" | "15 minutes" | "30 minutes" | "1 hour"
+                        | "2 hours" | "4 hours" | "12 hours" => Some(Box::leak(s.into_boxed_str())),
+                        _ => None,
+                    }
+                })
+                .ok_or_else(|| format!("Unsupported step: {}", s))?
+        } else {
+            default_step
+        };
+
+        // lookback
+        let lookback = if let Some(ref lb) = self.lookback {
+            Self::normalize_interval(lb)
+                .or_else(|| {
+                    let s = lb.trim().to_lowercase();
+                    match s.as_str() {
+                        "24 hours" | "7 days" | "30 days" => Some(Box::leak(s.into_boxed_str())),
+                        _ => None,
+                    }
+                })
+                .ok_or_else(|| format!("Unsupported lookback: {}", lb))?
+        } else {
+            "24 hours"
+        };
+
+        Ok((window, step, lookback))
+    }
+}

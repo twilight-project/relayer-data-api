@@ -6,7 +6,6 @@ pub(crate) mod migrations;
 pub mod rpc;
 pub mod ws;
 pub extern crate relayer_core;
-
 pub use archiver::DatabaseArchiver;
 
 pub mod auth {

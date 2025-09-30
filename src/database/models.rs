@@ -2402,6 +2402,143 @@ impl From<relayer::LendOrder> for InsertLendOrder {
     }
 }
 
+// --- add near your top imports ---
+use diesel::sql_types::{Numeric, Text, Timestamptz};
+
+// ==========================
+// Price & APY chart helpers
+// ==========================
+
+#[derive(Debug, Clone, QueryableByName, Serialize, Deserialize, PartialEq)]
+pub struct PricePoint {
+    #[diesel(sql_type = Timestamptz)]
+    pub bucket_ts: DateTime<Utc>,
+    #[diesel(sql_type = Numeric)]
+    pub price: BigDecimal,
+}
+
+#[derive(Debug, Clone, QueryableByName, Serialize, Deserialize, PartialEq)]
+pub struct ApyPoint {
+    #[diesel(sql_type = Timestamptz)]
+    pub bucket_ts: DateTime<Utc>,
+    #[diesel(sql_type = Numeric)]
+    pub apy: BigDecimal,
+}
+
+#[derive(Debug, Clone, QueryableByName)]
+struct LastDayApyRow {
+    #[diesel(sql_type = Numeric)]
+    pub last_day_apy_now: BigDecimal,
+}
+
+pub struct PoolAnalytics;
+
+impl PoolAnalytics {
+    /// Latest minute snapshot from lend_pool_price_minute
+    pub fn latest_price(conn: &mut PgConnection) -> QueryResult<Option<PricePoint>> {
+        let sql = r#"
+            SELECT bucket_ts, share_price AS price
+            FROM lend_pool_price_minute
+            ORDER BY bucket_ts DESC
+            LIMIT 1
+        "#;
+
+        let mut rows: Vec<PricePoint> = diesel::sql_query(sql).load(conn)?;
+        Ok(rows.pop())
+    }
+
+    /// Regular-grid price series using "latest-on-or-before" lookup (robust with sparse data).
+    /// window: e.g. "24 hours" | "7 days" | "30 days"
+    /// step:   e.g. "1 minute" | "5 minutes" | "1 hour"
+    pub fn price_series(
+        conn: &mut PgConnection,
+        window: &str,
+        step: &str,
+    ) -> QueryResult<Vec<PricePoint>> {
+        let sql = r#"
+            WITH t_end AS (SELECT now() AT TIME ZONE 'utc' AS t),
+            grid AS (
+              SELECT gs AS bucket_ts
+              FROM t_end, LATERAL generate_series(t_end.t - $1::interval, t_end.t, $2::interval) gs
+            )
+            SELECT
+              g.bucket_ts,
+              (
+                SELECT share_price
+                FROM lend_pool_price_minute p
+                WHERE p.bucket_ts <= g.bucket_ts
+                ORDER BY p.bucket_ts DESC
+                LIMIT 1
+              ) AS price
+            FROM grid g
+            ORDER BY g.bucket_ts;
+        "#;
+
+        diesel::sql_query(sql)
+            .bind::<Text, _>(window)
+            .bind::<Text, _>(step)
+            .load(conn)
+    }
+
+    /// APY time series via the SQL function `apy_series(window, step, lookback='24 hours')`
+    pub fn apy_series(
+        conn: &mut PgConnection,
+        window: &str,
+        step: &str,
+    ) -> QueryResult<Vec<ApyPoint>> {
+        let sql = r#"
+            SELECT bucket_ts, apy
+            FROM apy_series($1::interval, $2::interval, '24 hours'::interval)
+            ORDER BY bucket_ts
+        "#;
+
+        diesel::sql_query(sql)
+            .bind::<Text, _>(window)
+            .bind::<Text, _>(step)
+            .load(conn)
+    }
+
+    /// Convenience: last-day APY at "now()" using the helper function `last_day_apy_now()`.
+    /// Returns None if not enough history yet.
+    pub fn last_day_apy_now(conn: &mut PgConnection) -> QueryResult<Option<BigDecimal>> {
+        let sql = r#"SELECT last_day_apy_now()"#;
+        let mut rows: Vec<LastDayApyRow> = diesel::sql_query(sql).load(conn)?;
+        Ok(rows.pop().map(|r| r.last_day_apy_now))
+    }
+
+    // ---------- ready-to-use presets for your frontend ----------
+
+    /// 1-day price series (1-minute step)
+    pub fn price_1d(conn: &mut PgConnection) -> QueryResult<Vec<PricePoint>> {
+        Self::price_series(conn, "24 hours", "1 minute")
+    }
+
+    /// 1-week price series (5-minute step)
+    pub fn price_1w(conn: &mut PgConnection) -> QueryResult<Vec<PricePoint>> {
+        Self::price_series(conn, "7 days", "5 minutes")
+    }
+
+    /// 1-month price series (1-hour step)
+    pub fn price_1m(conn: &mut PgConnection) -> QueryResult<Vec<PricePoint>> {
+        Self::price_series(conn, "30 days", "1 hour")
+    }
+
+    /// 1-day APY series (1-minute step)
+    pub fn apy_1d(conn: &mut PgConnection) -> QueryResult<Vec<ApyPoint>> {
+        Self::apy_series(conn, "24 hours", "1 minute")
+    }
+
+    /// 1-week APY series (5-minute step)
+    pub fn apy_1w(conn: &mut PgConnection) -> QueryResult<Vec<ApyPoint>> {
+        Self::apy_series(conn, "7 days", "5 minutes")
+    }
+
+    /// 1-month APY series (1-hour step)
+    pub fn apy_1m(conn: &mut PgConnection) -> QueryResult<Vec<ApyPoint>> {
+        Self::apy_series(conn, "30 days", "1 hour")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

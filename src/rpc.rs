@@ -175,6 +175,16 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
         "lend_pool_info",
         Box::new(public_methods::lend_pool_info),
     );
+    register_method(
+        &mut module,
+        "last_day_apy",
+        Box::new(public_methods::last_day_apy),
+    );
+    register_method(
+        &mut module,
+        "apy_chart",
+        Box::new(public_methods::apy_chart),
+    );
     module
 }
 

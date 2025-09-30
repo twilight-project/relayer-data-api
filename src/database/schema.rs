@@ -209,6 +209,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    lend_pool_price_minute (bucket_ts) {
+        bucket_ts -> Timestamptz,
+        share_price -> Numeric,
+        total_locked_value -> Numeric,
+        total_pool_share -> Numeric,
+        samples -> Int4,
+        source -> Text,
+    }
+}
+
+diesel::table! {
     use diesel::sql_types::*;
     use super::sql_types::PositionSizeCommand;
     use super::sql_types::PositionType;
@@ -345,6 +356,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     lend_order,
     lend_pool,
     lend_pool_command,
+    lend_pool_price_minute,
     position_size_log,
     sorted_set_command,
     trader_order,

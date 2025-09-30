@@ -622,6 +622,57 @@ pub(super) fn lend_pool_info(
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
 }
+
+pub(super) fn last_day_apy(
+    _params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    match ctx.pool.get() {
+        Ok(mut conn) => match PoolAnalytics::last_day_apy_now(&mut conn) {
+            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+            Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+pub(super) fn apy_chart(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    // use diesel::QueryableByName;
+    use diesel::RunQueryDsl; // just the trait you need for .load()
+                             // use crate::database::models::PoolAnalytics; // adjust path if needed
+    let args: crate::rpc::types::ApySeriesArgs = params
+        .parse()
+        .map_err(|e| Error::Custom(format!("Invalid argument: {:?}", e)))?;
+
+    let (window, step, lookback) = match args.resolve() {
+        Ok(t) => t,
+        Err(msg) => return Err(Error::Custom(msg)),
+    };
+
+    match ctx.pool.get() {
+        Ok(mut conn) => {
+            // We exposed `apy_series(window, step, lookback)` via SQL. Our Rust helper took a fixed '24 hours',
+            // so we’ll call the SQL directly here to honor custom lookback as well.
+            let sql = r#"
+                SELECT bucket_ts, apy
+                FROM apy_series($1::interval, $2::interval, $3::interval)
+                ORDER BY bucket_ts
+            "#;
+            let rows: Vec<ApyPoint> = diesel::sql_query(sql)
+                .bind::<diesel::sql_types::Text, _>(window)
+                .bind::<diesel::sql_types::Text, _>(step)
+                .bind::<diesel::sql_types::Text, _>(lookback)
+                .load(&mut conn)
+                .map_err(|e| Error::Custom(format!("Database error: {:?}", e)))?;
+
+            Ok(serde_json::to_value(rows).expect("Error converting response"))
+        }
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
