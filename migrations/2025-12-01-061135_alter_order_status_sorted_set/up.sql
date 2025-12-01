@@ -1,0 +1,14 @@
+-- Your SQL goes here
+
+
+ALTER TYPE order_status ADD VALUE 'CancelledStopLoss';
+ALTER TYPE order_status ADD VALUE 'CancelledTakeProfit';
+
+ALTER TYPE sorted_set_command_type ADD VALUE 'ADD_STOP_LOSS_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type ADD VALUE 'ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type ADD VALUE 'REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type ADD VALUE 'REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type ADD VALUE 'UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type ADD VALUE 'UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type ADD VALUE 'BULK_SEARCH_REMOVE_SLTP_CLOSE_LIMIT_PRICE';
+ALTER TYPE order_type ADD VALUE 'SLTP';

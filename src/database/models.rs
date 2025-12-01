@@ -808,6 +808,73 @@ impl SortedSetCommand {
                             typ,
                         )
                     }
+                    relayer::SortedSetCommand::AddStopLossCloseLIMITPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::ADD_STOP_LOSS_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::AddTakeProfitCloseLIMITPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::RemoveStopLossCloseLIMITPrice(i, typ) => {
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            None,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::RemoveTakeProfitCloseLIMITPrice(i, typ) => {
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            None,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::UpdateStopLossCloseLIMITPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::UpdateTakeProfitCloseLIMITPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::BulkSearchRemoveSLTPCloseLIMITPrice(amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        (
+                            SortedSetCommandType::BULK_SEARCH_REMOVE_SLTP_CLOSE_LIMIT_PRICE,
+                            None,
+                            amt,
+                            typ,
+                        )
+                    }
                 };
 
                 SortedSetCommandUpdate {

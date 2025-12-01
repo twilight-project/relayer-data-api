@@ -1,0 +1,15 @@
+-- This file should undo anything in `up.sql`
+
+
+ALTER TYPE order_status DROP VALUE 'CancelledStopLoss';
+ALTER TYPE order_status DROP VALUE 'CancelledTakeProfit';
+
+ALTER TYPE sorted_set_command_type DROP VALUE 'ADD_STOP_LOSS_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type DROP VALUE 'ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type DROP VALUE 'REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type DROP VALUE 'REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type DROP VALUE 'UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type DROP VALUE 'UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE';
+ALTER TYPE sorted_set_command_type DROP VALUE 'BULK_SEARCH_REMOVE_SLTP_CLOSE_LIMIT_PRICE';
+
+ALTER TYPE order_type DROP VALUE 'SLTP';
