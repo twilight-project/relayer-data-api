@@ -46,9 +46,12 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
     let client = Client::open(redis_url).expect("Could not establish redis connection");
 
-    let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
-    let broker = vec![broker_host.to_owned()];
-    let kafka = Producer::from_hosts(broker)
+    let broker: Vec<String> = std::env::var("BROKER")
+        .unwrap_or_else(|_| "localhost:9092".to_string())
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+    let kafka = Producer::from_hosts(broker.clone())
         .with_ack_timeout(Duration::from_secs(1))
         .with_required_acks(RequiredAcks::One)
         .create()
@@ -193,9 +196,12 @@ pub fn init_private_methods(database_url: &str, redis_url: &str) -> RpcModule<Re
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
     let client = Client::open(redis_url).expect("Could not establish redis connection");
 
-    let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
-    let broker = vec![broker_host.to_owned()];
-    let kafka = Producer::from_hosts(broker)
+    let broker: Vec<String> = std::env::var("BROKER")
+        .unwrap_or_else(|_| "localhost:9092".to_string())
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+    let kafka = Producer::from_hosts(broker.clone())
         .with_ack_timeout(Duration::from_secs(1))
         .with_required_acks(RequiredAcks::One)
         .create()
