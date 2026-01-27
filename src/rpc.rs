@@ -188,6 +188,11 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
         "apy_chart",
         Box::new(public_methods::apy_chart),
     );
+    register_method(
+        &mut module,
+        "open_interest",
+        Box::new(public_methods::open_interest),
+    );
     module
 }
 

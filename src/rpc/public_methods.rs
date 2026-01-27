@@ -674,6 +674,19 @@ pub(super) fn apy_chart(
     }
 }
 
+pub(super) fn open_interest(
+    _params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    match ctx.pool.get() {
+        Ok(mut conn) => match get_open_interest(&mut conn) {
+            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+            Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

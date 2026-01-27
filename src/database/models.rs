@@ -2470,7 +2470,7 @@ impl From<relayer::LendOrder> for InsertLendOrder {
 }
 
 // --- add near your top imports ---
-use diesel::sql_types::{Numeric, Text, Timestamptz};
+use diesel::sql_types::{Nullable, Numeric, Text, Timestamptz};
 
 // ==========================
 // Price & APY chart helpers
@@ -2605,6 +2605,29 @@ impl PoolAnalytics {
     pub fn apy_1m(conn: &mut PgConnection) -> QueryResult<Vec<ApyPoint>> {
         Self::apy_series(conn, "30 days", "1 hour")
     }
+}
+
+// use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
+
+#[derive(Debug, QueryableByName, Serialize, Deserialize)]
+pub struct OpenInterest {
+    #[diesel(sql_type = Numeric)]
+    pub long_exposure: BigDecimal,
+
+    #[diesel(sql_type = Numeric)]
+    pub short_exposure: BigDecimal,
+
+    #[diesel(sql_type = Nullable<Timestamptz>)]
+    pub last_order_timestamp: Option<DateTime<Utc>>,
+}
+use diesel::{PgConnection, QueryResult, RunQueryDsl};
+
+pub fn get_open_interest(conn: &mut PgConnection) -> QueryResult<OpenInterest> {
+    let mut rows: Vec<OpenInterest> = diesel::sql_query(
+        "SELECT long_exposure, short_exposure, last_order_timestamp FROM get_active_filled_margin_x_leverage_sum()"
+    ).get_results(conn)?;
+    rows.pop().ok_or_else(|| diesel::result::Error::NotFound)
 }
 
 #[cfg(test)]
