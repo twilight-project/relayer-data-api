@@ -481,8 +481,14 @@ impl AccountSummaryByTAddressArgs {
                     );
                 }
 
-                let normalized_to = if to_ts > now { now } else { to_ts };
-
+                let normalized_to = if to_ts > min_allowed {
+                    min_allowed
+                } else {
+                    to_ts
+                };
+                if normalized_to < from_ts {
+                    return Err("`to` must be greater than or equal to `from`.".to_string());
+                }
                 Ok((t_address, from_ts, normalized_to))
             }
 
