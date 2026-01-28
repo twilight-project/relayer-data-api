@@ -691,7 +691,7 @@ pub(super) fn account_summary_by_twilight_address(
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: crate::rpc::types::AccountSummaryByTAddressArgs = params.parse()?;
-    let (t_address, from, to) = args.unpack();
+    let (t_address, from, to) = args.normalize().map_err(Error::Custom)?;
     match ctx.pool.get() {
         Ok(mut conn) => {
             match account_summary_by_twilight_address_fn(&mut conn, &t_address, from, to) {

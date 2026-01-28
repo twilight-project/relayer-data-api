@@ -418,16 +418,87 @@ impl ApySeriesArgs {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AccountSummaryByTAddressArgs {
     pub t_address: String,
-    pub from: DateTime<Utc>,
-    pub to: DateTime<Utc>,
+
+    #[serde(default)]
+    pub from: Option<DateTime<Utc>>,
+
+    #[serde(default)]
+    pub to: Option<DateTime<Utc>>,
+
+    #[serde(default)]
+    pub since: Option<DateTime<Utc>>,
 }
 impl AccountSummaryByTAddressArgs {
-    pub fn unpack(self) -> (String, DateTime<Utc>, DateTime<Utc>) {
+    pub fn unpack(
+        self,
+    ) -> (
+        String,
+        Option<DateTime<Utc>>,
+        Option<DateTime<Utc>>,
+        Option<DateTime<Utc>>,
+    ) {
         let AccountSummaryByTAddressArgs {
             t_address,
             from,
             to,
+            since,
         } = self;
-        (t_address, from, to)
+        (t_address, from, to, since)
+    }
+
+    pub fn normalize(self) -> Result<(String, DateTime<Utc>, DateTime<Utc>), String> {
+        let now = Utc::now();
+        let min_allowed = now - Duration::days(7);
+
+        let AccountSummaryByTAddressArgs {
+            t_address,
+            from,
+            to,
+            since,
+        } = self;
+
+        // -------------------------------
+        // Case 1: since is provided
+        // -------------------------------
+        if let Some(since_ts) = since {
+            if since_ts > min_allowed {
+                return Err(
+                    "`since` must be at least 7 days older than the current time.".to_string(),
+                );
+            }
+
+            return Ok((t_address, since_ts, min_allowed));
+        }
+
+        // -------------------------------
+        // Case 2: from / to logic
+        // -------------------------------
+        match (from, to) {
+            (Some(from_ts), Some(to_ts)) => {
+                if from_ts > min_allowed {
+                    return Err(
+                        "`from` must be at least 7 days older than the current time.".to_string(),
+                    );
+                }
+
+                let normalized_to = if to_ts > now { now } else { to_ts };
+
+                Ok((t_address, from_ts, normalized_to))
+            }
+
+            (Some(from_ts), None) => {
+                if from_ts > min_allowed {
+                    return Err(
+                        "`from` must be at least 7 days older than the current time.".to_string(),
+                    );
+                }
+
+                Ok((t_address, from_ts, min_allowed))
+            }
+
+            (None, Some(_)) => Err("`to` cannot be provided without `from`".to_string()),
+
+            (None, None) => Err("Either `since` or `from` must be provided".to_string()),
+        }
     }
 }
