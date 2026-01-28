@@ -448,7 +448,7 @@ impl AccountSummaryByTAddressArgs {
 
     pub fn normalize(self) -> Result<(String, DateTime<Utc>, DateTime<Utc>), String> {
         let now = Utc::now();
-        let min_allowed = now - Duration::days(7);
+        let min_allowed = now - Duration::days(0);
 
         let AccountSummaryByTAddressArgs {
             t_address,
@@ -507,4 +507,20 @@ impl AccountSummaryByTAddressArgs {
             (None, None) => Err("Either `since` or `from` must be provided".to_string()),
         }
     }
+}
+use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
+
+#[derive(Debug, Serialize)]
+pub struct AccountSummaryByTAddressResponse {
+    pub from: DateTime<Utc>,
+    pub to: DateTime<Utc>,
+
+    pub settled_positionsize: BigDecimal,
+    pub filled_positionsize: BigDecimal,
+    pub liquidated_positionsize: BigDecimal,
+
+    pub settled_count: i64,
+    pub filled_count: i64,
+    pub liquidated_count: i64,
 }

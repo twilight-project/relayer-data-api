@@ -686,18 +686,47 @@ pub(super) fn open_interest(
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
 }
+// pub(super) fn account_summary_by_twilight_address(
+//     params: Params<'_>,
+//     ctx: &RelayerContext,
+// ) -> Result<serde_json::Value, Error> {
+//     let args: crate::rpc::types::AccountSummaryByTAddressArgs = params.parse()?;
+//     let (t_address, from, to) = args.normalize().map_err(Error::Custom)?;
+//     match ctx.pool.get() {
+//         Ok(mut conn) => {
+//             match account_summary_by_twilight_address_fn(&mut conn, &t_address, from, to) {
+//                 Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+//                 Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+//             }
+//         }
+//         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+//     }
+// }
 pub(super) fn account_summary_by_twilight_address(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
     let args: crate::rpc::types::AccountSummaryByTAddressArgs = params.parse()?;
+
     let (t_address, from, to) = args.normalize().map_err(Error::Custom)?;
+
     match ctx.pool.get() {
         Ok(mut conn) => {
-            match account_summary_by_twilight_address_fn(&mut conn, &t_address, from, to) {
-                Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
-                Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
-            }
+            let summary = account_summary_by_twilight_address_fn(&mut conn, &t_address, from, to)
+                .map_err(|e| Error::Custom(format!("Database error: {:?}", e)))?;
+
+            let response = crate::rpc::types::AccountSummaryByTAddressResponse {
+                from,
+                to,
+                settled_positionsize: summary.settled_positionsize,
+                filled_positionsize: summary.filled_positionsize,
+                liquidated_positionsize: summary.liquidated_positionsize,
+                settled_count: summary.settled_count,
+                filled_count: summary.filled_count,
+                liquidated_count: summary.liquidated_count,
+            };
+
+            Ok(serde_json::to_value(response).expect("Error converting response"))
         }
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
