@@ -193,6 +193,11 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
         "open_interest",
         Box::new(public_methods::open_interest),
     );
+    register_method(
+        &mut module,
+        "account_summary_by_twilight_address",
+        Box::new(public_methods::account_summary_by_twilight_address),
+    );
     module
 }
 

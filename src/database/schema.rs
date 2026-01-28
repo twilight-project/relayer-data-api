@@ -363,12 +363,3 @@ diesel::allow_tables_to_appear_in_same_query!(
     trader_order_funding_updated,
     transaction_hash,
 );
-
-diesel::sql_function! {
-    fn get_active_filled_margin_x_leverage_sum()
-        -> diesel::sql_types::Record<(
-            diesel::sql_types::Numeric,
-            diesel::sql_types::Numeric,
-            diesel::sql_types::Timestamptz
-        )>;
-}

@@ -686,6 +686,22 @@ pub(super) fn open_interest(
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
 }
+pub(super) fn account_summary_by_twilight_address(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let args: crate::rpc::types::AccountSummaryByTAddressArgs = params.parse()?;
+    let (t_address, from, to) = args.unpack();
+    match ctx.pool.get() {
+        Ok(mut conn) => {
+            match account_summary_by_twilight_address_fn(&mut conn, &t_address, from, to) {
+                Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+                Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+            }
+        }
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
 
 #[cfg(test)]
 mod tests {

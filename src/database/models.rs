@@ -2630,6 +2630,45 @@ pub fn get_open_interest(conn: &mut PgConnection) -> QueryResult<OpenInterest> {
     rows.pop().ok_or_else(|| diesel::result::Error::NotFound)
 }
 
+use diesel::QueryableByName;
+
+#[derive(Debug, QueryableByName, Serialize, Deserialize)]
+pub struct TraderOrderSummary {
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub settled_positionsize: BigDecimal,
+
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub filled_positionsize: BigDecimal,
+
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub liquidated_positionsize: BigDecimal,
+
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub settled_count: i64,
+
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub filled_count: i64,
+
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub liquidated_count: i64,
+}
+// use chrono::{DateTime, Utc};
+// use diesel::sql_types::{Text, Timestamptz};
+// use diesel::{PgConnection, QueryResult, RunQueryDsl};
+
+pub fn account_summary_by_twilight_address_fn(
+    conn: &mut PgConnection,
+    t_address: &str,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> QueryResult<TraderOrderSummary> {
+    diesel::sql_query("SELECT * FROM get_trader_order_summary_by_t_address($1, $2, $3)")
+        .bind::<Text, _>(t_address)
+        .bind::<Timestamptz, _>(from)
+        .bind::<Timestamptz, _>(to)
+        .get_result::<TraderOrderSummary>(conn)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

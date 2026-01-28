@@ -414,3 +414,20 @@ impl ApySeriesArgs {
         Ok((window, step, lookback))
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AccountSummaryByTAddressArgs {
+    pub t_address: String,
+    pub from: DateTime<Utc>,
+    pub to: DateTime<Utc>,
+}
+impl AccountSummaryByTAddressArgs {
+    pub fn unpack(self) -> (String, DateTime<Utc>, DateTime<Utc>) {
+        let AccountSummaryByTAddressArgs {
+            t_address,
+            from,
+            to,
+        } = self;
+        (t_address, from, to)
+    }
+}
