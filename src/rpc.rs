@@ -17,7 +17,7 @@ pub use types::{
     Interval, Order, OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs,
     TransactionHashArgs,
 };
-pub use util::{order_book, recent_orders};
+pub use util::{compute_market_risk_stats, order_book, recent_orders};
 
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
@@ -197,6 +197,11 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
         &mut module,
         "account_summary_by_twilight_address",
         Box::new(public_methods::account_summary_by_twilight_address),
+    );
+    register_method(
+        &mut module,
+        "get_market_stats",
+        Box::new(public_methods::get_market_stats),
     );
     module
 }

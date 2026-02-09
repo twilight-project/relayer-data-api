@@ -524,3 +524,65 @@ pub struct AccountSummaryByTAddressResponse {
     pub filled_count: i64,
     pub liquidated_count: i64,
 }
+
+// --- Market Risk Stats (moved from relayer-core) ---
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct RiskParams {
+    pub max_oi_mult: f64,
+    pub max_net_mult: f64,
+    pub max_position_pct: f64,
+    pub min_position_btc: f64,
+    pub max_leverage: f64,
+}
+
+impl RiskParams {
+    pub fn from_env() -> Self {
+        RiskParams {
+            max_oi_mult: std::env::var("RISK_MAX_OI_MULT")
+                .unwrap_or("4.0".to_string())
+                .parse::<f64>()
+                .unwrap_or(4.0),
+            max_net_mult: std::env::var("RISK_MAX_NET_MULT")
+                .unwrap_or("0.8".to_string())
+                .parse::<f64>()
+                .unwrap_or(0.8),
+            max_position_pct: std::env::var("RISK_MAX_POSITION_PCT")
+                .unwrap_or("0.02".to_string())
+                .parse::<f64>()
+                .unwrap_or(0.02),
+            min_position_btc: std::env::var("RISK_MIN_POSITION_BTC")
+                .unwrap_or("0.0".to_string())
+                .parse::<f64>()
+                .unwrap_or(0.0),
+            max_leverage: std::env::var("RISK_MAX_LEVERAGE")
+                .unwrap_or("50.0".to_string())
+                .parse::<f64>()
+                .unwrap_or(50.0),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum MarketStatus {
+    HEALTHY,
+    CLOSE_ONLY,
+    HALT,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct MarketRiskStatsResponse {
+    pub pool_equity_btc: f64,
+    pub total_long_btc: f64,
+    pub total_short_btc: f64,
+    pub open_interest_btc: f64,
+    pub net_exposure_btc: f64,
+    pub long_pct: f64,
+    pub short_pct: f64,
+    pub utilization: f64,
+    pub max_long_btc: f64,
+    pub max_short_btc: f64,
+    pub status: MarketStatus,
+    pub status_reason: Option<String>,
+    pub params: RiskParams,
+}

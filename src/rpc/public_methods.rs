@@ -4,6 +4,7 @@ use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
 use kafka::producer::Record;
 use relayer_core::relayer;
+use relayer_core::relayer::RiskState;
 use relayer_core::twilight_relayer_sdk::twilight_client_sdk::relayer_rpcclient::method::RequestResponse;
 use relayer_core::twilight_relayer_sdk::verify_client_message::{
     verify_client_create_trader_order, verify_query_order, verify_settle_requests,
@@ -730,6 +731,43 @@ pub(super) fn account_summary_by_twilight_address(
         }
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
+}
+
+pub(super) fn get_market_stats(
+    _: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    // 1. Read latest RiskState from Redis
+    let mut redis_conn = ctx
+        .client
+        .get_connection()
+        .map_err(|e| Error::Custom(format!("Redis connection error: {:?}", e)))?;
+
+    let state_json: Option<String> = redis::cmd("GET")
+        .arg("risk_state")
+        .query(&mut redis_conn)
+        .unwrap_or(None);
+
+    let risk_state: RiskState = match state_json {
+        Some(json) => serde_json::from_str(&json).unwrap_or_else(|_| RiskState::new()),
+        None => RiskState::new(),
+    };
+
+    // 2. Get pool equity from lend_pool table
+    let mut db_conn = ctx
+        .pool
+        .get()
+        .map_err(|e| Error::Custom(format!("Database error: {:?}", e)))?;
+
+    let pool_equity_btc = match LendPool::get(&mut db_conn) {
+        Ok(pool) => pool.get_total_locked_value(),
+        Err(_) => 0.0,
+    };
+
+    // 3. Compute and return market risk stats
+    let stats = util::compute_market_risk_stats(&risk_state, pool_equity_btc);
+
+    Ok(serde_json::to_value(stats).expect("Error converting response"))
 }
 
 #[cfg(test)]

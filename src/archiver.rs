@@ -140,6 +140,7 @@ pub struct DatabaseArchiver {
     sorted_set: Vec<relayer::SortedSetCommand>,
     lend_pool: Vec<relayer_db::LendPool>,
     lend_pool_commands: Vec<relayer_db::LendPoolCommand>,
+    risk_engine_updates: Vec<NewRiskEngineUpdate>,
     completions: Sender<Completion>,
     nonce: Nonce,
 }
@@ -168,6 +169,7 @@ impl DatabaseArchiver {
         let sorted_set = Vec::with_capacity(BATCH_SIZE);
         let lend_pool = Vec::with_capacity(BATCH_SIZE);
         let lend_pool_commands = Vec::with_capacity(BATCH_SIZE);
+        let risk_engine_updates = Vec::with_capacity(BATCH_SIZE);
         let nonce = Nonce::get(&mut conn).expect("Failed to query for current nonce");
 
         Self::load_cache(pool.clone(), redis.clone());
@@ -192,6 +194,7 @@ impl DatabaseArchiver {
             sorted_set,
             lend_pool,
             lend_pool_commands,
+            risk_engine_updates,
             completions,
             nonce,
         }
@@ -695,6 +698,30 @@ impl DatabaseArchiver {
         Ok(())
     }
 
+    fn risk_engine_update(&mut self, record: NewRiskEngineUpdate) -> Result<(), ApiError> {
+        debug!("Appending risk engine update");
+        self.risk_engine_updates.push(record);
+
+        if self.risk_engine_updates.len() == self.risk_engine_updates.capacity() {
+            self.commit_risk_engine_updates()?;
+        }
+
+        Ok(())
+    }
+
+    fn commit_risk_engine_updates(&mut self) -> Result<(), ApiError> {
+        debug!("Committing risk engine updates");
+
+        let mut conn = self.get_conn()?;
+
+        let mut updates = Vec::with_capacity(self.risk_engine_updates.capacity());
+        std::mem::swap(&mut updates, &mut self.risk_engine_updates);
+
+        RiskEngineUpdateRow::insert(&mut conn, updates)?;
+
+        Ok(())
+    }
+
     /// Commit any pending orders of any type, regardless of batch size.
     fn commit_orders(&mut self) -> Result<(), ApiError> {
         if self.trader_orders.len() > 0 {
@@ -729,6 +756,10 @@ impl DatabaseArchiver {
         }
         if self.fee_history.len() > 0 {
             self.commit_fee_history()?;
+        }
+
+        if self.risk_engine_updates.len() > 0 {
+            self.commit_risk_engine_updates()?;
         }
 
         Ok(())
@@ -840,6 +871,46 @@ impl DatabaseArchiver {
                 self.tx_hash(hash)?;
             }
             Event::AdvanceStateQueue(_, _) => {}
+            Event::RiskEngineUpdate(cmd, risk_state) => {
+                info!("Risk engine update: {:?}", cmd);
+
+                let (command_str, position_type, amount) = match &cmd {
+                    relayer::RiskEngineCommand::AddExposure(pt, amt) => {
+                        ("AddExposure".to_string(), Some(pt.clone().into()), Some(*amt))
+                    }
+                    relayer::RiskEngineCommand::RemoveExposure(pt, amt) => {
+                        ("RemoveExposure".to_string(), Some(pt.clone().into()), Some(*amt))
+                    }
+                    relayer::RiskEngineCommand::SetManualHalt(_) => {
+                        ("SetManualHalt".to_string(), None, None)
+                    }
+                    relayer::RiskEngineCommand::SetManualCloseOnly(_) => {
+                        ("SetManualCloseOnly".to_string(), None, None)
+                    }
+                };
+
+                let record = NewRiskEngineUpdate {
+                    command: command_str,
+                    position_type,
+                    amount,
+                    total_long_btc: risk_state.total_long_btc,
+                    total_short_btc: risk_state.total_short_btc,
+                    manual_halt: risk_state.manual_halt,
+                    manual_close_only: risk_state.manual_close_only,
+                    timestamp: Utc::now(),
+                };
+                self.risk_engine_update(record)?;
+
+                // Cache latest risk state in Redis for the API to read
+                if let Ok(state_json) = serde_json::to_string(&risk_state) {
+                    if let Ok(mut redis_conn) = self.redis.get_connection() {
+                        let _: Result<(), _> = redis::cmd("SET")
+                            .arg("risk_state")
+                            .arg(state_json)
+                            .query(&mut redis_conn);
+                    }
+                }
+            }
         }
 
         Ok(())

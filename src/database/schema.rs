@@ -221,6 +221,23 @@ diesel::table! {
 
 diesel::table! {
     use diesel::sql_types::*;
+    use super::sql_types::PositionType;
+
+    risk_engine_update (id) {
+        id -> Int8,
+        command -> Varchar,
+        position_type -> Nullable<PositionType>,
+        amount -> Nullable<Float8>,
+        total_long_btc -> Float8,
+        total_short_btc -> Float8,
+        manual_halt -> Bool,
+        manual_close_only -> Bool,
+        timestamp -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    use diesel::sql_types::*;
     use super::sql_types::PositionSizeCommand;
     use super::sql_types::PositionType;
 
@@ -358,6 +375,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     lend_pool_command,
     lend_pool_price_minute,
     position_size_log,
+    risk_engine_update,
     sorted_set_command,
     trader_order,
     trader_order_funding_updated,

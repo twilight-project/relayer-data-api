@@ -177,6 +177,7 @@ impl WsContext {
                                 Event::TxHash(..) => {}
                                 Event::TxHashUpdate(..) => {}
                                 Event::AdvanceStateQueue(..) => {}
+                                Event::RiskEngineUpdate(..) => {}
                             }
                         }
                         if let Err(e) = notify.send(completion) {

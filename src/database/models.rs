@@ -3,8 +3,8 @@ use crate::database::{
     schema::{
         address_customer_id, btc_usd_price, current_nonce, customer_account,
         customer_apikey_linking, customer_order_linking, fee_history, funding_rate, lend_order,
-        lend_pool, lend_pool_command, position_size_log, sorted_set_command, trader_order,
-        trader_order_funding_updated, transaction_hash,
+        lend_pool, lend_pool_command, position_size_log, risk_engine_update, sorted_set_command,
+        trader_order, trader_order_funding_updated, transaction_hash,
     },
     sql_types::*,
 };
@@ -519,6 +519,10 @@ impl LendPool {
         let tps = self.total_pool_share.to_f64().unwrap_or(1.0);
         let tlv = self.total_locked_value.to_f64().unwrap_or(0.0);
         tlv / tps
+    }
+
+    pub fn get_total_locked_value(&self) -> f64 {
+        self.total_locked_value.to_f64().unwrap_or(0.0)
     }
 
     pub fn insert(
@@ -2667,6 +2671,55 @@ pub fn account_summary_by_twilight_address_fn(
         .bind::<Timestamptz, _>(from)
         .bind::<Timestamptz, _>(to)
         .get_result::<TraderOrderSummary>(conn)
+}
+
+// --- Risk Engine Update ---
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName)]
+#[diesel(table_name = risk_engine_update)]
+pub struct RiskEngineUpdateRow {
+    pub id: i64,
+    pub command: String,
+    #[diesel(sql_type = crate::database::schema::sql_types::PositionType)]
+    pub position_type: Option<PositionType>,
+    pub amount: Option<f64>,
+    pub total_long_btc: f64,
+    pub total_short_btc: f64,
+    pub manual_halt: bool,
+    pub manual_close_only: bool,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = risk_engine_update)]
+pub struct NewRiskEngineUpdate {
+    pub command: String,
+    pub position_type: Option<PositionType>,
+    pub amount: Option<f64>,
+    pub total_long_btc: f64,
+    pub total_short_btc: f64,
+    pub manual_halt: bool,
+    pub manual_close_only: bool,
+    pub timestamp: DateTime<Utc>,
+}
+
+impl RiskEngineUpdateRow {
+    pub fn insert(
+        conn: &mut PgConnection,
+        records: Vec<NewRiskEngineUpdate>,
+    ) -> QueryResult<usize> {
+        use crate::database::schema::risk_engine_update::dsl::*;
+        diesel::insert_into(risk_engine_update)
+            .values(&records)
+            .execute(conn)
+    }
+
+    pub fn get_latest(conn: &mut PgConnection) -> QueryResult<RiskEngineUpdateRow> {
+        use crate::database::schema::risk_engine_update::dsl::*;
+        risk_engine_update
+            .order(timestamp.desc())
+            .first::<RiskEngineUpdateRow>(conn)
+    }
 }
 
 #[cfg(test)]
