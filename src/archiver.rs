@@ -725,41 +725,81 @@ impl DatabaseArchiver {
     /// Commit any pending orders of any type, regardless of batch size.
     fn commit_orders(&mut self) -> Result<(), ApiError> {
         if self.trader_orders.len() > 0 {
-            self.commit_trader_orders()?;
+            info!("Committing {} trader_orders", self.trader_orders.len());
+            if let Err(e) = self.commit_trader_orders() {
+                error!("Failed to commit trader_orders: {:?}", e);
+                return Err(e);
+            }
         }
         if self.trader_order_funding_updated.len() > 0 {
-            self.commit_trader_order_funding_updated()?;
+            info!("Committing {} trader_order_funding_updated", self.trader_order_funding_updated.len());
+            if let Err(e) = self.commit_trader_order_funding_updated() {
+                error!("Failed to commit trader_order_funding_updated: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.lend_orders.len() > 0 {
-            self.commit_lend_orders()?;
+            info!("Committing {} lend_orders", self.lend_orders.len());
+            if let Err(e) = self.commit_lend_orders() {
+                error!("Failed to commit lend_orders: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.position_size.len() > 0 {
-            self.commit_position_sizes()?;
+            info!("Committing {} position_sizes", self.position_size.len());
+            if let Err(e) = self.commit_position_sizes() {
+                error!("Failed to commit position_sizes: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.tx_hashes.len() > 0 {
-            self.commit_tx_hash()?;
+            info!("Committing {} tx_hashes", self.tx_hashes.len());
+            if let Err(e) = self.commit_tx_hash() {
+                error!("Failed to commit tx_hashes: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.sorted_set.len() > 0 {
-            self.commit_sorted_set_updates()?;
+            info!("Committing {} sorted_set_updates", self.sorted_set.len());
+            if let Err(e) = self.commit_sorted_set_updates() {
+                error!("Failed to commit sorted_set_updates: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.lend_pool.len() > 0 {
-            self.commit_lend_pool()?;
+            info!("Committing {} lend_pool", self.lend_pool.len());
+            if let Err(e) = self.commit_lend_pool() {
+                error!("Failed to commit lend_pool: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.lend_pool_commands.len() > 0 {
-            self.commit_lend_pool_commands()?;
+            info!("Committing {} lend_pool_commands", self.lend_pool_commands.len());
+            if let Err(e) = self.commit_lend_pool_commands() {
+                error!("Failed to commit lend_pool_commands: {:?}", e);
+                return Err(e);
+            }
         }
         if self.fee_history.len() > 0 {
-            self.commit_fee_history()?;
+            info!("Committing {} fee_history", self.fee_history.len());
+            if let Err(e) = self.commit_fee_history() {
+                error!("Failed to commit fee_history: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.risk_engine_updates.len() > 0 {
-            self.commit_risk_engine_updates()?;
+            info!("Committing {} risk_engine_updates", self.risk_engine_updates.len());
+            if let Err(e) = self.commit_risk_engine_updates() {
+                error!("Failed to commit risk_engine_updates: {:?}", e);
+                return Err(e);
+            }
         }
 
         Ok(())
@@ -806,13 +846,19 @@ impl DatabaseArchiver {
                 let ts = DateTime::parse_from_rfc3339(&system_time)
                     .expect("Bad datetime format")
                     .into();
-                FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, btc_price, ts)?;
+                if let Err(e) = FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, btc_price, ts) {
+                    error!("Failed direct insert FundingRateUpdate: {:?}", e);
+                    return Err(e.into());
+                }
             }
             Event::CurrentPriceUpdate(current_price, system_time) => {
                 let ts = DateTime::parse_from_rfc3339(&system_time)
                     .expect("Bad datetime format")
                     .into();
-                CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts)?;
+                if let Err(e) = CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts) {
+                    error!("Failed direct insert CurrentPriceUpdate: {:?}", e);
+                    return Err(e.into());
+                }
             }
             Event::PoolUpdate(lend_pool_command, lend_pool, ..) => {
                 self.lend_pool_updates(lend_pool)?;
@@ -924,7 +970,10 @@ impl DatabaseArchiver {
             match rx.recv_deadline(deadline) {
                 Ok((completion, msgs)) => {
                     for msg in msgs {
-                        self.process_msg(msg)?;
+                        if let Err(e) = self.process_msg(msg) {
+                            error!("process_msg failed: {:?}", e);
+                            return Err(e);
+                        }
                     }
 
                     self.completions
@@ -934,7 +983,10 @@ impl DatabaseArchiver {
                 Err(e) => {
                     if e.is_timeout() {
                         trace!("Timeout reached, committing current orders");
-                        self.commit_orders()?;
+                        if let Err(e) = self.commit_orders() {
+                            error!("commit_orders failed: {:?}", e);
+                            return Err(e);
+                        }
 
                         deadline = Instant::now() + Duration::from_millis(BATCH_INTERVAL);
                         trace!("New deadline: {:?}", deadline);
