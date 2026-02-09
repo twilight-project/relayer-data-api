@@ -979,6 +979,17 @@ impl DatabaseArchiver {
                     self.completions
                         .send(completion)
                         .map_err(|e| ApiError::CrossbeamChannel(format!("{:?}", e)))?;
+
+                    // Commit batches if deadline has passed, even while
+                    // the channel still has messages (e.g. Kafka backlog)
+                    if Instant::now() >= deadline {
+                        trace!("Deadline reached during recv, committing current orders");
+                        if let Err(e) = self.commit_orders() {
+                            error!("commit_orders failed: {:?}", e);
+                            return Err(e);
+                        }
+                        deadline = Instant::now() + Duration::from_millis(BATCH_INTERVAL);
+                    }
                 }
                 Err(e) => {
                     if e.is_timeout() {
