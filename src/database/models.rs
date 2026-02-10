@@ -1096,10 +1096,10 @@ impl BtcUsdPrice {
             r#"
             with t as (
                 select * from
-                generate_series('{}', '{}', {}) timestamp
+                generate_series('{}'::timestamptz, '{}'::timestamptz, {}::interval) timestamp
             ), c as (
                 select * from {}
-                where start_time between '{}' and '{}'
+                where start_time between '{}'::timestamptz and '{}'::timestamptz
             )
             select
                t.timestamp as bucket,
