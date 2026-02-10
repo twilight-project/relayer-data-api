@@ -1053,6 +1053,7 @@ impl BtcUsdPrice {
     ) -> QueryResult<Vec<CandleData>> {
         let start: DateTime<Utc>;
         let table: String;
+        let candle_duration = interval.duration();
         // temp for 24 hour candle change
         // need to create new api for 24hour candle change data
         match interval {
@@ -1081,14 +1082,24 @@ impl BtcUsdPrice {
         }
         let interval = interval.interval_sql();
 
+        // Limit the scan range to only the data we need (offset + limit candles).
+        // Without this, generate_series(since, now()) for a 1-year-old `since` with
+        // 1-minute candles creates ~525K rows, all processed before LIMIT applies.
+        let effective_limit = limit.unwrap_or(60);
+        let effective_offset = offset.unwrap_or(0);
+        let total_candles = effective_offset + effective_limit;
+        let query_end = start
+            + chrono::Duration::seconds(candle_duration.num_seconds() * total_candles);
+        let query_end = query_end.min(Utc::now());
+
         let subquery = format!(
             r#"
             with t as (
                 select * from
-                generate_series('{}', now(), {}) timestamp
+                generate_series('{}', '{}', {}) timestamp
             ), c as (
                 select * from {}
-                where start_time between '{}' and now()
+                where start_time between '{}' and '{}'
             )
             select
                t.timestamp as bucket,
@@ -1104,7 +1115,7 @@ impl BtcUsdPrice {
             inner join c
             on c.start_time >= t.timestamp AND c.start_time < t.timestamp + interval {} order by c.start_time
             "#,
-            start, interval, table, start, interval
+            start, query_end, interval, table, start, query_end, interval
         );
 
         let query = format!(

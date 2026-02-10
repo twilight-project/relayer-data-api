@@ -4,8 +4,8 @@
 --    last_value(price) was labeled 'open'. With ORDER BY timestamp ASC, first_value is
 --    the earliest price (= open) and last_value is the latest (= close).
 --
--- 2. SELECT DISTINCT + window functions instead of GROUP BY: fragile, non-deterministic
---    pattern. Replaced with proper GROUP BY + aggregate functions.
+-- 2. SELECT DISTINCT + window functions instead of GROUP BY: replaced with
+--    window functions in subquery + GROUP BY in outer query (deterministic).
 --
 -- 3. date_trunc() cannot produce arbitrary-interval buckets (e.g. 4 hours).
 --    Replaced with epoch-based floor division that works for any interval.
@@ -23,7 +23,11 @@ DROP FUNCTION IF EXISTS get_volume_interval(interval, text, timestamptz);
 DROP FUNCTION IF EXISTS get_ohlc_interval(interval, text, timestamptz);
 
 
--- OHLC price aggregation: GROUP BY with array_agg for first/last price
+-- OHLC price aggregation:
+-- Inner subquery uses window functions (O(n) single pass, O(1) memory per row)
+-- to compute open/close. Outer query uses GROUP BY to collapse to one row per bucket.
+-- This avoids array_agg which would build+sort a full array per bucket (expensive
+-- for large buckets like 1-day with ~350K rows from 250ms price stream).
 CREATE FUNCTION get_ohlc_interval(intvl interval, since timestamptz)
 RETURNS TABLE(start_time timestamptz, end_time timestamptz, high numeric, low numeric, open numeric, close numeric)
 AS $$
@@ -32,26 +36,35 @@ AS $$
         bucket + intvl          as end_time,
         max(price)              as high,
         min(price)              as low,
-        (array_agg(price ORDER BY timestamp ASC ))[1] as open,
-        (array_agg(price ORDER BY timestamp DESC))[1] as close
+        min(open_price)         as open,
+        min(close_price)        as close
     FROM (
         SELECT
-            to_timestamp(
-                floor(extract(epoch from timestamp) / extract(epoch from intvl))
-                * extract(epoch from intvl)
-            ) as bucket,
+            bucket,
             price,
-            timestamp
-        FROM btc_usd_price
-        WHERE timestamp >= since AND timestamp <= now()
-    ) t
+            first_value(price) OVER w as open_price,
+            last_value(price)  OVER w as close_price
+        FROM (
+            SELECT
+                to_timestamp(
+                    floor(extract(epoch from timestamp) / extract(epoch from intvl))
+                    * extract(epoch from intvl)
+                ) as bucket,
+                price,
+                timestamp
+            FROM btc_usd_price
+            WHERE timestamp >= since AND timestamp <= now()
+        ) t
+        WINDOW w AS (PARTITION BY bucket ORDER BY timestamp ASC
+                     ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+    ) t2
     GROUP BY bucket
     ORDER BY bucket
 $$
 LANGUAGE SQL;
 
 
--- Volume aggregation: GROUP BY instead of DISTINCT + window
+-- Volume aggregation: GROUP BY with standard aggregates
 CREATE FUNCTION get_volume_interval(intvl interval, since timestamptz)
 RETURNS TABLE(start_time timestamptz, end_time timestamptz, usd_volume numeric, btc_volume numeric, trades integer)
 AS $$
