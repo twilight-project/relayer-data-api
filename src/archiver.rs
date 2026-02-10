@@ -141,6 +141,7 @@ pub struct DatabaseArchiver {
     lend_pool: Vec<relayer_db::LendPool>,
     lend_pool_commands: Vec<relayer_db::LendPoolCommand>,
     risk_engine_updates: Vec<NewRiskEngineUpdate>,
+    risk_params_updates: Vec<NewRiskParamsUpdate>,
     completions: Sender<Completion>,
     nonce: Nonce,
 }
@@ -170,6 +171,7 @@ impl DatabaseArchiver {
         let lend_pool = Vec::with_capacity(BATCH_SIZE);
         let lend_pool_commands = Vec::with_capacity(BATCH_SIZE);
         let risk_engine_updates = Vec::with_capacity(BATCH_SIZE);
+        let risk_params_updates = Vec::with_capacity(BATCH_SIZE);
         let nonce = Nonce::get(&mut conn).expect("Failed to query for current nonce");
 
         Self::load_cache(pool.clone(), redis.clone());
@@ -195,6 +197,7 @@ impl DatabaseArchiver {
             lend_pool,
             lend_pool_commands,
             risk_engine_updates,
+            risk_params_updates,
             completions,
             nonce,
         }
@@ -722,6 +725,24 @@ impl DatabaseArchiver {
         Ok(())
     }
 
+    fn risk_params_update(&mut self, record: NewRiskParamsUpdate) -> Result<(), ApiError> {
+        debug!("Appending risk params update");
+        self.risk_params_updates.push(record);
+        if self.risk_params_updates.len() == self.risk_params_updates.capacity() {
+            self.commit_risk_params_updates()?;
+        }
+        Ok(())
+    }
+
+    fn commit_risk_params_updates(&mut self) -> Result<(), ApiError> {
+        debug!("Committing risk params updates");
+        let mut conn = self.get_conn()?;
+        let mut updates = Vec::with_capacity(self.risk_params_updates.capacity());
+        std::mem::swap(&mut updates, &mut self.risk_params_updates);
+        RiskParamsUpdateRow::insert(&mut conn, updates)?;
+        Ok(())
+    }
+
     /// Commit any pending orders of any type, regardless of batch size.
     fn commit_orders(&mut self) -> Result<(), ApiError> {
         if self.trader_orders.len() > 0 {
@@ -798,6 +819,14 @@ impl DatabaseArchiver {
             info!("Committing {} risk_engine_updates", self.risk_engine_updates.len());
             if let Err(e) = self.commit_risk_engine_updates() {
                 error!("Failed to commit risk_engine_updates: {:?}", e);
+                return Err(e);
+            }
+        }
+
+        if self.risk_params_updates.len() > 0 {
+            info!("Committing {} risk_params_updates", self.risk_params_updates.len());
+            if let Err(e) = self.commit_risk_params_updates() {
+                error!("Failed to commit risk_params_updates: {:?}", e);
                 return Err(e);
             }
         }
@@ -953,6 +982,28 @@ impl DatabaseArchiver {
                         let _: Result<(), _> = redis::cmd("SET")
                             .arg("risk_state")
                             .arg(state_json)
+                            .query(&mut redis_conn);
+                    }
+                }
+            }
+            Event::RiskParamsUpdate(params) => {
+                info!("Risk params update: {:?}", params);
+                let record = NewRiskParamsUpdate {
+                    max_oi_mult: params.max_oi_mult,
+                    max_net_mult: params.max_net_mult,
+                    max_position_pct: params.max_position_pct,
+                    min_position_btc: params.min_position_btc,
+                    max_leverage: params.max_leverage,
+                    timestamp: Utc::now(),
+                };
+                self.risk_params_update(record)?;
+
+                // Cache latest risk params in Redis for the API
+                if let Ok(params_json) = serde_json::to_string(&params) {
+                    if let Ok(mut redis_conn) = self.redis.get_connection() {
+                        let _: Result<(), _> = redis::cmd("SET")
+                            .arg("risk_params")
+                            .arg(params_json)
                             .query(&mut redis_conn);
                     }
                 }

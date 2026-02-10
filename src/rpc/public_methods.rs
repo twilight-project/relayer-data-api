@@ -1,4 +1,5 @@
 use super::*;
+use super::types::RiskParams;
 use crate::database::*;
 use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
@@ -753,6 +754,17 @@ pub(super) fn get_market_stats(
         None => RiskState::new(),
     };
 
+    // 1b. Read latest RiskParams from Redis
+    let params_json: Option<String> = redis::cmd("GET")
+        .arg("risk_params")
+        .query(&mut redis_conn)
+        .unwrap_or(None);
+
+    let risk_params: RiskParams = match params_json {
+        Some(json) => serde_json::from_str(&json).unwrap_or_else(|_| RiskParams::from_env()),
+        None => RiskParams::from_env(),
+    };
+
     // 2. Get pool equity from lend_pool table
     let mut db_conn = ctx
         .pool
@@ -765,7 +777,7 @@ pub(super) fn get_market_stats(
     };
 
     // 3. Compute and return market risk stats
-    let stats = util::compute_market_risk_stats(&risk_state, pool_equity_btc);
+    let stats = util::compute_market_risk_stats(&risk_state, pool_equity_btc, risk_params);
 
     Ok(serde_json::to_value(stats).expect("Error converting response"))
 }

@@ -81,8 +81,8 @@ pub fn recent_orders(conn: &mut redis::Connection) -> Vec<RecentOrder> {
 pub fn compute_market_risk_stats(
     risk_state: &RiskState,
     pool_equity_btc: f64,
+    params: RiskParams,
 ) -> MarketRiskStatsResponse {
-    let params = RiskParams::from_env();
 
     // Compute market status
     let (status, status_reason) = if risk_state.manual_halt {

@@ -237,6 +237,18 @@ diesel::table! {
 }
 
 diesel::table! {
+    risk_params_update (id) {
+        id -> Int8,
+        max_oi_mult -> Float8,
+        max_net_mult -> Float8,
+        max_position_pct -> Float8,
+        min_position_btc -> Float8,
+        max_leverage -> Float8,
+        timestamp -> Timestamptz,
+    }
+}
+
+diesel::table! {
     use diesel::sql_types::*;
     use super::sql_types::PositionSizeCommand;
     use super::sql_types::PositionType;
@@ -376,6 +388,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     lend_pool_price_minute,
     position_size_log,
     risk_engine_update,
+    risk_params_update,
     sorted_set_command,
     trader_order,
     trader_order_funding_updated,

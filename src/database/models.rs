@@ -3,8 +3,8 @@ use crate::database::{
     schema::{
         address_customer_id, btc_usd_price, current_nonce, customer_account,
         customer_apikey_linking, customer_order_linking, fee_history, funding_rate, lend_order,
-        lend_pool, lend_pool_command, position_size_log, risk_engine_update, sorted_set_command,
-        trader_order, trader_order_funding_updated, transaction_hash,
+        lend_pool, lend_pool_command, position_size_log, risk_engine_update, risk_params_update,
+        sorted_set_command, trader_order, trader_order_funding_updated, transaction_hash,
     },
     sql_types::*,
 };
@@ -2730,6 +2730,48 @@ impl RiskEngineUpdateRow {
         risk_engine_update
             .order(timestamp.desc())
             .first::<RiskEngineUpdateRow>(conn)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
+#[diesel(table_name = risk_params_update)]
+pub struct RiskParamsUpdateRow {
+    pub id: i64,
+    pub max_oi_mult: f64,
+    pub max_net_mult: f64,
+    pub max_position_pct: f64,
+    pub min_position_btc: f64,
+    pub max_leverage: f64,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = risk_params_update)]
+pub struct NewRiskParamsUpdate {
+    pub max_oi_mult: f64,
+    pub max_net_mult: f64,
+    pub max_position_pct: f64,
+    pub min_position_btc: f64,
+    pub max_leverage: f64,
+    pub timestamp: DateTime<Utc>,
+}
+
+impl RiskParamsUpdateRow {
+    pub fn insert(
+        conn: &mut PgConnection,
+        records: Vec<NewRiskParamsUpdate>,
+    ) -> QueryResult<usize> {
+        use crate::database::schema::risk_params_update::dsl::*;
+        diesel::insert_into(risk_params_update)
+            .values(&records)
+            .execute(conn)
+    }
+
+    pub fn get_latest(conn: &mut PgConnection) -> QueryResult<RiskParamsUpdateRow> {
+        use crate::database::schema::risk_params_update::dsl::*;
+        risk_params_update
+            .order(timestamp.desc())
+            .first::<RiskParamsUpdateRow>(conn)
     }
 }
 
