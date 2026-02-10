@@ -1,8 +1,7 @@
 -- Fix candle aggregation bugs:
 --
 -- 1. Open/Close SWAPPED in get_ohlc_interval: first_value(price) was labeled 'close',
---    last_value(price) was labeled 'open'. With ORDER BY timestamp ASC, first_value is
---    the earliest price (= open) and last_value is the latest (= close).
+--    last_value(price) was labeled 'open'. Fixed labels.
 --
 -- 2. SELECT DISTINCT + window functions instead of GROUP BY: replaced with
 --    window functions in subquery + GROUP BY in outer query (deterministic).
@@ -12,22 +11,32 @@
 --
 -- 4. Column alias typo in get_candles_interval: end_time was aliased as 'start_time'.
 --
--- 5. get_volume_interval had same DISTINCT + window anti-pattern.
+-- 5. Volume calculations wrong:
+--    - usd_volume was sum(entryprice) — just sums raw prices, not notional volume.
+--      Fixed to sum(positionsize) = actual USD notional traded.
+--    - btc_volume was sum(positionsize) — raw position sizes, not BTC amount.
+--      Fixed to sum(positionsize / entryprice) = BTC equivalent volume.
+--
+-- 6. update_candles_1hour/1day used a 10-minute lookback (max(start_time) - 10 min).
+--    For hourly candles this reaches into the PREVIOUS hour and OVERWRITES it with
+--    only 10 minutes of data, losing the real open and high/low from earlier.
+--    Fixed to use max(start_time) — only recompute current + prior bucket on rollover.
 
 -- Drop old functions (order matters: dependents first)
 DROP FUNCTION IF EXISTS update_candles_1day();
 DROP FUNCTION IF EXISTS update_candles_1hour();
 DROP FUNCTION IF EXISTS update_candles_1min();
 DROP FUNCTION IF EXISTS get_candles_interval(interval, text, timestamptz);
+DROP FUNCTION IF EXISTS get_candles_interval(interval, timestamptz);
 DROP FUNCTION IF EXISTS get_volume_interval(interval, text, timestamptz);
+DROP FUNCTION IF EXISTS get_volume_interval(interval, timestamptz);
 DROP FUNCTION IF EXISTS get_ohlc_interval(interval, text, timestamptz);
+DROP FUNCTION IF EXISTS get_ohlc_interval(interval, timestamptz);
 
 
--- OHLC price aggregation:
--- Inner subquery uses window functions (O(n) single pass, O(1) memory per row)
--- to compute open/close. Outer query uses GROUP BY to collapse to one row per bucket.
--- This avoids array_agg which would build+sort a full array per bucket (expensive
--- for large buckets like 1-day with ~350K rows from 250ms price stream).
+-- OHLC price aggregation from btc_usd_price:
+-- Window functions compute open/close per row (O(n) single pass, O(1) memory).
+-- GROUP BY collapses to one row per bucket.
 CREATE FUNCTION get_ohlc_interval(intvl interval, since timestamptz)
 RETURNS TABLE(start_time timestamptz, end_time timestamptz, high numeric, low numeric, open numeric, close numeric)
 AS $$
@@ -64,16 +73,19 @@ $$
 LANGUAGE SQL;
 
 
--- Volume aggregation: GROUP BY with standard aggregates
+-- Volume aggregation from trader_order:
+--   usd_volume = sum(positionsize)                   -- USD notional traded
+--   btc_volume = sum(positionsize / entryprice)       -- BTC equivalent
+--   trades     = count of orders
 CREATE FUNCTION get_volume_interval(intvl interval, since timestamptz)
 RETURNS TABLE(start_time timestamptz, end_time timestamptz, usd_volume numeric, btc_volume numeric, trades integer)
 AS $$
     SELECT
-        bucket                              as start_time,
-        bucket + intvl                      as end_time,
-        coalesce(sum(entryprice), 0)        as usd_volume,
-        coalesce(sum(positionsize), 0)      as btc_volume,
-        count(*)::integer                   as trades
+        bucket                                                                  as start_time,
+        bucket + intvl                                                          as end_time,
+        coalesce(sum(positionsize), 0) / 100000000                              as usd_volume,
+        coalesce(sum(positionsize / nullif(entryprice, 0)), 0) / 100000000      as btc_volume,
+        count(*)::integer                                                       as trades
     FROM (
         SELECT
             to_timestamp(
@@ -92,7 +104,6 @@ LANGUAGE SQL;
 
 
 -- Combined candle function: FULL OUTER JOIN of OHLC + Volume
--- Fixed: end_time alias was incorrectly 'start_time'
 CREATE FUNCTION get_candles_interval(intvl interval, since timestamptz)
 RETURNS TABLE(
     start_time timestamptz,
@@ -127,7 +138,14 @@ $$
 LANGUAGE SQL;
 
 
--- Materialization functions (updated to 2-param signatures)
+-- Materialization functions
+--
+-- Lookback: max(start_time) — start from the latest existing candle.
+-- On each trigger call this recomputes the CURRENT bucket only.
+-- When a new interval begins (e.g. new hour), max(start_time) still points to
+-- the previous bucket, so that bucket gets its FINAL update and the new bucket
+-- is created in the same call. After that, max(start_time) advances and the
+-- previous bucket is never touched again.
 
 CREATE FUNCTION update_candles_1min()
 RETURNS void
@@ -136,8 +154,8 @@ AS $$ INSERT INTO candles_1min (
 )
 SELECT * FROM get_candles_interval(
     '1 minute'::interval,
-    (SELECT coalesce(max(start_time) - interval '10 minute',
-                     '1970-01-01 00:00:00.0000+00'::timestamptz) FROM candles_1min)
+    (SELECT coalesce(max(start_time),
+                     '1970-01-01 00:00:00+00'::timestamptz) FROM candles_1min)
 )
     ON CONFLICT(start_time)
     DO UPDATE SET
@@ -161,8 +179,8 @@ AS $$ INSERT INTO candles_1hour (
 )
 SELECT * FROM get_candles_interval(
     '1 hour'::interval,
-    (SELECT coalesce(max(start_time) - interval '10 minute',
-                     '1970-01-01 00:00:00.0000+00'::timestamptz) FROM candles_1hour)
+    (SELECT coalesce(max(start_time),
+                     '1970-01-01 00:00:00+00'::timestamptz) FROM candles_1hour)
 )
     ON CONFLICT(start_time)
     DO UPDATE SET
@@ -186,8 +204,8 @@ AS $$ INSERT INTO candles_1day (
 )
 SELECT * FROM get_candles_interval(
     '1 day'::interval,
-    (SELECT coalesce(max(start_time) - interval '10 minute',
-                     '1970-01-01 00:00:00.0000+00'::timestamptz) FROM candles_1day)
+    (SELECT coalesce(max(start_time),
+                     '1970-01-01 00:00:00+00'::timestamptz) FROM candles_1day)
 )
     ON CONFLICT(start_time)
     DO UPDATE SET
