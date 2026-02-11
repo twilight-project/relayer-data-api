@@ -1,5 +1,4 @@
 use crossbeam_channel::unbounded;
-use log::warn;
 use relayerarchiverlib::kafka;
 use relayerarchiverlib::DatabaseArchiver;
 
@@ -7,15 +6,15 @@ use relayerarchiverlib::DatabaseArchiver;
 // const ARCHIVER_GROUP: &str = "Archiver_Redis";
 
 fn main() {
+    if let Err(_) = dotenv::dotenv() {
+        eprintln!("DOTENV file not found");
+    }
+
     tracing_subscriber::fmt::Subscriber::builder()
         .with_env_filter(tracing_subscriber::filter::EnvFilter::from_default_env())
         .with_level(true)
         .with_line_number(true)
         .init();
-
-    if let Err(_) = dotenv::dotenv() {
-        warn!("DOTENV file not found");
-    }
 
     let database_url = std::env::var("DATABASE_URL").expect("No database url found!");
     let redis_url = std::env::var("ORDERBOOK_REDIS").expect("No redis url found!");
