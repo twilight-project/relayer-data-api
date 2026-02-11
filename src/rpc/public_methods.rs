@@ -330,7 +330,7 @@ pub(super) fn submit_trade_order(
     };
 
     let mut order = tx.create_trader_order.clone();
-    let meta = relayer::Meta::default();
+    let meta = super::headers::meta_from_headers();
     let public_key = order.account_id.clone();
     order.available_margin = order.initial_margin;
     let response = RequestResponse::new(
@@ -380,7 +380,7 @@ pub(super) fn submit_lend_order(
 
     let mut order = tx.create_lend_order.clone();
     let public_key = order.account_id.clone();
-    let meta = relayer::Meta::default();
+    let meta = super::headers::meta_from_headers();
     order.balance = order.deposit;
     let response = RequestResponse::new(
         "Order request submitted successfully".to_string(),
@@ -447,7 +447,7 @@ pub(super) fn settle_trade_order(
         return Ok(format!("Order closed").into());
     }
 
-    let meta = relayer::Meta::default();
+    let meta = super::headers::meta_from_headers();
 
     let order = relayer::RpcCommand::ExecuteTraderOrder(
         order.clone(),
@@ -507,7 +507,7 @@ pub(super) fn settle_lend_order(
         return Ok(format!("Order closed").into());
     }
 
-    let meta = relayer::Meta::default();
+    let meta = super::headers::meta_from_headers();
 
     let order = relayer::RpcCommand::ExecuteLendOrder(
         order.clone(),
@@ -570,7 +570,7 @@ pub(super) fn cancel_trader_order(
         return Ok(format!("Order not cancelable").into());
     }
 
-    let meta = relayer::Meta::default();
+    let meta = super::headers::meta_from_headers();
 
     let order = relayer::RpcCommand::CancelTraderOrder(
         order.clone(),

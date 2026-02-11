@@ -7,6 +7,7 @@ use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
 
+pub mod headers;
 mod private_methods;
 mod public_methods;
 mod types;

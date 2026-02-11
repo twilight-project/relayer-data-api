@@ -55,7 +55,9 @@ async fn main() {
     // .allow_headers([hyper::header::CONTENT_TYPE]);
 
     // TODO: env var
-    let middleware = ServiceBuilder::new().layer(cors);
+    let middleware = ServiceBuilder::new()
+        .layer(cors)
+        .layer(relayerarchiverlib::rpc::headers::HeaderExtractLayer);
     let ping_interval = Duration::from_secs(300);
 
     info!("Starting public RPC server on {:?}", opts.public_rpc);
