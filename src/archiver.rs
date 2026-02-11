@@ -753,7 +753,10 @@ impl DatabaseArchiver {
             }
         }
         if self.trader_order_funding_updated.len() > 0 {
-            info!("Committing {} trader_order_funding_updated", self.trader_order_funding_updated.len());
+            info!(
+                "Committing {} trader_order_funding_updated",
+                self.trader_order_funding_updated.len()
+            );
             if let Err(e) = self.commit_trader_order_funding_updated() {
                 error!("Failed to commit trader_order_funding_updated: {:?}", e);
                 return Err(e);
@@ -801,7 +804,10 @@ impl DatabaseArchiver {
         }
 
         if self.lend_pool_commands.len() > 0 {
-            info!("Committing {} lend_pool_commands", self.lend_pool_commands.len());
+            info!(
+                "Committing {} lend_pool_commands",
+                self.lend_pool_commands.len()
+            );
             if let Err(e) = self.commit_lend_pool_commands() {
                 error!("Failed to commit lend_pool_commands: {:?}", e);
                 return Err(e);
@@ -816,7 +822,10 @@ impl DatabaseArchiver {
         }
 
         if self.risk_engine_updates.len() > 0 {
-            info!("Committing {} risk_engine_updates", self.risk_engine_updates.len());
+            info!(
+                "Committing {} risk_engine_updates",
+                self.risk_engine_updates.len()
+            );
             if let Err(e) = self.commit_risk_engine_updates() {
                 error!("Failed to commit risk_engine_updates: {:?}", e);
                 return Err(e);
@@ -824,7 +833,10 @@ impl DatabaseArchiver {
         }
 
         if self.risk_params_updates.len() > 0 {
-            info!("Committing {} risk_params_updates", self.risk_params_updates.len());
+            info!(
+                "Committing {} risk_params_updates",
+                self.risk_params_updates.len()
+            );
             if let Err(e) = self.commit_risk_params_updates() {
                 error!("Failed to commit risk_params_updates: {:?}", e);
                 return Err(e);
@@ -845,7 +857,30 @@ impl DatabaseArchiver {
                 }
                 _ => {}
             },
-            Event::TraderOrder(trader_order, _cmd, _seq) => {
+            Event::TraderOrder(trader_order, cmd, _seq) => {
+                match cmd {
+                    relayer_core::relayer::RpcCommand::CreateTraderOrder(
+                        _create_trader_order,
+                        meta,
+                        _zkos_hex_string,
+                        _request_id,
+                    ) => {
+                        if let Some(Some(address)) = meta.metadata.get("Twilight-Address") {
+                            let record = NewTwilightQqAccountLink {
+                                twilight_address: address.clone(),
+                                account_address: trader_order.account_id.clone(),
+                                order_id: trader_order.uuid.to_string(),
+                            };
+                            if let Err(e) = NewTwilightQqAccountLink::insert(
+                                &mut *self.get_conn()?,
+                                record,
+                            ) {
+                                error!("Failed to insert TwilightQqAccountLink: {:?}", e);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
                 self.trader_order(trader_order.into())?;
             }
             Event::TraderOrderUpdate(trader_order, _cmd, _seq) => {
@@ -870,12 +905,37 @@ impl DatabaseArchiver {
             Event::TraderOrderLiquidation(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into())?;
             }
-            Event::LendOrder(lend_order, _cmd, _seq) => self.lend_order(lend_order.into())?,
+            Event::LendOrder(lend_order, cmd, _seq) => {
+                if let relayer::RpcCommand::CreateLendOrder(
+                    _create_lend_order,
+                    meta,
+                    _zkos_hex_string,
+                    _request_id,
+                ) = &cmd
+                {
+                    if let Some(Some(address)) = meta.metadata.get("Twilight-Address") {
+                        let record = NewTwilightQqAccountLink {
+                            twilight_address: address.clone(),
+                            account_address: lend_order.account_id.clone(),
+                            order_id: lend_order.uuid.to_string(),
+                        };
+                        if let Err(e) = NewTwilightQqAccountLink::insert(
+                            &mut *self.get_conn()?,
+                            record,
+                        ) {
+                            error!("Failed to insert TwilightQqAccountLink: {:?}", e);
+                        }
+                    }
+                }
+                self.lend_order(lend_order.into())?;
+            }
             Event::FundingRateUpdate(funding_rate, btc_price, system_time) => {
                 let ts = DateTime::parse_from_rfc3339(&system_time)
                     .expect("Bad datetime format")
                     .into();
-                if let Err(e) = FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, btc_price, ts) {
+                if let Err(e) =
+                    FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, btc_price, ts)
+                {
                     error!("Failed direct insert FundingRateUpdate: {:?}", e);
                     return Err(e.into());
                 }
@@ -884,7 +944,9 @@ impl DatabaseArchiver {
                 let ts = DateTime::parse_from_rfc3339(&system_time)
                     .expect("Bad datetime format")
                     .into();
-                if let Err(e) = CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts) {
+                if let Err(e) =
+                    CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts)
+                {
                     error!("Failed direct insert CurrentPriceUpdate: {:?}", e);
                     return Err(e.into());
                 }
@@ -950,12 +1012,16 @@ impl DatabaseArchiver {
                 info!("Risk engine update: {:?}", cmd);
 
                 let (command_str, position_type, amount) = match &cmd {
-                    relayer::RiskEngineCommand::AddExposure(pt, amt) => {
-                        ("AddExposure".to_string(), Some(pt.clone().into()), Some(*amt))
-                    }
-                    relayer::RiskEngineCommand::RemoveExposure(pt, amt) => {
-                        ("RemoveExposure".to_string(), Some(pt.clone().into()), Some(*amt))
-                    }
+                    relayer::RiskEngineCommand::AddExposure(pt, amt) => (
+                        "AddExposure".to_string(),
+                        Some(pt.clone().into()),
+                        Some(*amt),
+                    ),
+                    relayer::RiskEngineCommand::RemoveExposure(pt, amt) => (
+                        "RemoveExposure".to_string(),
+                        Some(pt.clone().into()),
+                        Some(*amt),
+                    ),
                     relayer::RiskEngineCommand::SetManualHalt(_) => {
                         ("SetManualHalt".to_string(), None, None)
                     }

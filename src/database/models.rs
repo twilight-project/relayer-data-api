@@ -5,6 +5,7 @@ use crate::database::{
         customer_apikey_linking, customer_order_linking, fee_history, funding_rate, lend_order,
         lend_pool, lend_pool_command, position_size_log, risk_engine_update, risk_params_update,
         sorted_set_command, trader_order, trader_order_funding_updated, transaction_hash,
+        twilight_qq_account_link,
     },
     sql_types::*,
 };
@@ -2772,6 +2773,33 @@ impl RiskParamsUpdateRow {
         risk_params_update
             .order(timestamp.desc())
             .first::<RiskParamsUpdateRow>(conn)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
+#[diesel(table_name = twilight_qq_account_link)]
+pub struct TwilightQqAccountLinkRow {
+    pub id: i64,
+    pub twilight_address: String,
+    pub account_address: String,
+    pub order_id: String,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = twilight_qq_account_link)]
+pub struct NewTwilightQqAccountLink {
+    pub twilight_address: String,
+    pub account_address: String,
+    pub order_id: String,
+}
+
+impl NewTwilightQqAccountLink {
+    pub fn insert(conn: &mut PgConnection, record: NewTwilightQqAccountLink) -> QueryResult<usize> {
+        use crate::database::schema::twilight_qq_account_link::dsl::*;
+        diesel::insert_into(twilight_qq_account_link)
+            .values(&record)
+            .execute(conn)
     }
 }
 

@@ -349,6 +349,16 @@ diesel::table! {
 }
 
 diesel::table! {
+    twilight_qq_account_link (id) {
+        id -> Int8,
+        twilight_address -> Varchar,
+        account_address -> Varchar,
+        order_id -> Varchar,
+        timestamp -> Timestamptz,
+    }
+}
+
+diesel::table! {
     use diesel::sql_types::*;
     use super::sql_types::OrderType;
     use super::sql_types::OrderStatus;
@@ -393,4 +403,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     trader_order,
     trader_order_funding_updated,
     transaction_hash,
+    twilight_qq_account_link,
 );
