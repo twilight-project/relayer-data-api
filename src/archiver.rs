@@ -455,7 +455,7 @@ impl DatabaseArchiver {
     }
 
     fn tx_hash(&mut self, hash: NewTxHash) -> Result<(), ApiError> {
-        debug!("Appending position size update");
+        debug!("Appending tx hash");
         self.tx_hashes.push(hash);
 
         if self.tx_hashes.len() == self.tx_hashes.capacity() {
@@ -871,10 +871,9 @@ impl DatabaseArchiver {
                                 account_address: trader_order.account_id.clone(),
                                 order_id: trader_order.uuid.to_string(),
                             };
-                            if let Err(e) = NewTwilightQqAccountLink::insert(
-                                &mut *self.get_conn()?,
-                                record,
-                            ) {
+                            if let Err(e) =
+                                NewTwilightQqAccountLink::insert(&mut *self.get_conn()?, record)
+                            {
                                 error!("Failed to insert TwilightQqAccountLink: {:?}", e);
                             }
                         }
@@ -919,10 +918,9 @@ impl DatabaseArchiver {
                             account_address: lend_order.account_id.clone(),
                             order_id: lend_order.uuid.to_string(),
                         };
-                        if let Err(e) = NewTwilightQqAccountLink::insert(
-                            &mut *self.get_conn()?,
-                            record,
-                        ) {
+                        if let Err(e) =
+                            NewTwilightQqAccountLink::insert(&mut *self.get_conn()?, record)
+                        {
                             error!("Failed to insert TwilightQqAccountLink: {:?}", e);
                         }
                     }
