@@ -74,9 +74,16 @@ SELECT
 FROM latest_orders;
 $$;
 
--- Index for the new lookup path
+-- Indexes for trader_order lookups
+CREATE INDEX IF NOT EXISTS idx_trader_order_account_timestamp
+ON trader_order (account_id, timestamp);
+
+CREATE INDEX IF NOT EXISTS idx_trader_order_uuid_timestamp
+ON trader_order (uuid, timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_trader_order_status
+ON trader_order (order_status);
+
+-- Index for the qq_link lookup path
 CREATE INDEX IF NOT EXISTS idx_qq_link_twilight_address
 ON twilight_qq_account_link (twilight_address);
-
--- Drop the old index on chain_indexer.addr_mappings (no longer needed)
-DROP INDEX IF EXISTS idx_addr_mappings_t_address;
