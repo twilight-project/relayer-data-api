@@ -216,6 +216,49 @@ pub(super) fn trader_order_info(
     }
 }
 
+#[derive(Serialize)]
+struct TraderOrderInfoV1 {
+    #[serde(flatten)]
+    order: TraderOrder,
+    settle_limit: Option<SettleLimitDetails>,
+}
+
+pub(super) fn trader_order_info_v1(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let Order { data } = params.parse()?;
+    let Ok(bytes) = hex::decode(&data) else {
+        return Ok(format!("Invalid hex data").into());
+    };
+    let Ok(tx) = bincode::deserialize::<relayer::QueryTraderOrderZkos>(&bytes) else {
+        return Ok(format!("Invalid bincode").into());
+    };
+    if let Err(arg) = verify_query_order(
+        tx.msg.clone(),
+        &bincode::serialize(&tx.query_trader_order).unwrap(),
+    ) {
+        return Ok(format!("Invalid order params:{:?}", arg).into());
+    }
+    match ctx.pool.get() {
+        Ok(mut conn) => {
+            match TraderOrder::get_by_signature(&mut conn, tx.query_trader_order.account_id) {
+                Ok(order) => {
+                    let settle_limit = match order.order_status {
+                        OrderStatus::SETTLED | OrderStatus::LIQUIDATE => None,
+                        _ => SortedSetCommand::get_latest_close_limit(&mut conn, &order.uuid)
+                            .unwrap_or(None),
+                    };
+                    let response = TraderOrderInfoV1 { order, settle_limit };
+                    Ok(serde_json::to_value(response).expect("Error converting response"))
+                }
+                Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
+            }
+        }
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
 pub(super) fn lend_order_info(
     params: Params<'_>,
     ctx: &RelayerContext,

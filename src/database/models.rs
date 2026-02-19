@@ -895,6 +895,38 @@ impl SortedSetCommand {
             .values(items)
             .execute(conn)
     }
+
+    pub fn get_latest_close_limit(
+        conn: &mut PgConnection,
+        order_uuid: &str,
+    ) -> QueryResult<Option<SettleLimitDetails>> {
+        use crate::database::schema::sorted_set_command::dsl::*;
+
+        let result = sorted_set_command
+            .filter(uuid.eq(order_uuid))
+            .filter(command.eq_any(vec![
+                SortedSetCommandType::ADD_CLOSE_LIMIT_PRICE,
+                SortedSetCommandType::UPDATE_CLOSE_LIMIT_PRICE,
+            ]))
+            .order(id.desc())
+            .first::<SortedSetCommand>(conn)
+            .optional()?;
+
+        Ok(result.and_then(|r| {
+            r.amount.map(|price| SettleLimitDetails {
+                uuid: r.uuid.unwrap_or_default(),
+                position_type: r.position_type,
+                price,
+            })
+        }))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SettleLimitDetails {
+    pub uuid: String,
+    pub position_type: PositionType,
+    pub price: BigDecimal,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
