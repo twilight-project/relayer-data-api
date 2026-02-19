@@ -1,6 +1,6 @@
 [package]
 name = "relayer-data-api"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Twilight Project"]
 description = "A high-throughput data archiving and retrieval API service for the Twilight Relayer Core"
