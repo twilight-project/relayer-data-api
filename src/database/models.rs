@@ -2555,8 +2555,8 @@ pub struct ApyPoint {
 
 #[derive(Debug, Clone, QueryableByName)]
 struct LastDayApyRow {
-    #[diesel(sql_type = Numeric)]
-    pub last_day_apy_now: BigDecimal,
+    #[diesel(sql_type = Nullable<Numeric>)]
+    pub last_day_apy_now: Option<BigDecimal>,
 }
 
 pub struct PoolAnalytics;
@@ -2613,6 +2613,7 @@ impl PoolAnalytics {
         conn: &mut PgConnection,
         window: &str,
         step: &str,
+        lookback: &str,
     ) -> QueryResult<Vec<ApyPoint>> {
         let sql = r#"
             SELECT bucket_ts, apy
@@ -2624,6 +2625,7 @@ impl PoolAnalytics {
         diesel::sql_query(sql)
             .bind::<Text, _>(window)
             .bind::<Text, _>(step)
+            .bind::<Text, _>(lookback)
             .load(conn)
     }
 
@@ -2632,7 +2634,7 @@ impl PoolAnalytics {
     pub fn last_day_apy_now(conn: &mut PgConnection) -> QueryResult<Option<BigDecimal>> {
         let sql = r#"SELECT last_day_apy_now()"#;
         let mut rows: Vec<LastDayApyRow> = diesel::sql_query(sql).load(conn)?;
-        Ok(rows.pop().map(|r| r.last_day_apy_now))
+        Ok(rows.pop().and_then(|r| r.last_day_apy_now))
     }
 
     // ---------- ready-to-use presets for your frontend ----------
@@ -2654,17 +2656,17 @@ impl PoolAnalytics {
 
     /// 1-day APY series (1-minute step)
     pub fn apy_1d(conn: &mut PgConnection) -> QueryResult<Vec<ApyPoint>> {
-        Self::apy_series(conn, "24 hours", "1 minute")
+        Self::apy_series(conn, "24 hours", "1 minute", "24 hours")
     }
 
     /// 1-week APY series (5-minute step)
     pub fn apy_1w(conn: &mut PgConnection) -> QueryResult<Vec<ApyPoint>> {
-        Self::apy_series(conn, "7 days", "5 minutes")
+        Self::apy_series(conn, "7 days", "5 minutes", "24 hours")
     }
 
     /// 1-month APY series (1-hour step)
     pub fn apy_1m(conn: &mut PgConnection) -> QueryResult<Vec<ApyPoint>> {
-        Self::apy_series(conn, "30 days", "1 hour")
+        Self::apy_series(conn, "30 days", "1 hour", "24 hours")
     }
 }
 

@@ -339,7 +339,7 @@ impl ApySeriesArgs {
             // ranges
             "1d" | "1day" | "24h" => Some("24 hours"),
             "7d" | "1w" | "7days" => Some("7 days"),
-            "30d" | "1m" | "30days" => Some("30 days"),
+            "30d" | "30days" => Some("30 days"),
             // steps (minutes)
             "1m" => Some("1 minute"),
             "5m" => Some("5 minutes"),
@@ -350,10 +350,8 @@ impl ApySeriesArgs {
             "2h" => Some("2 hours"),
             "4h" => Some("4 hours"),
             "12h" => Some("12 hours"),
-            // lookbacks
+            // explicit long-form (no-space variant)
             "24hours" => Some("24 hours"),
-            "7days" => Some("7 days"),
-            "30days" => Some("30 days"),
             _ => None,
         }
     }
@@ -364,9 +362,10 @@ impl ApySeriesArgs {
         let window = Self::normalize_interval(&self.range)
             .or_else(|| {
                 // allow explicit "24 hours" style input
-                let s = self.range.trim().to_lowercase();
-                match s.as_str() {
-                    "24 hours" | "7 days" | "30 days" => Some(Box::leak(s.into_boxed_str())),
+                match self.range.trim().to_lowercase().as_str() {
+                    "24 hours" => Some("24 hours"),
+                    "7 days" => Some("7 days"),
+                    "30 days" => Some("30 days"),
                     _ => None,
                 }
             })
@@ -384,10 +383,15 @@ impl ApySeriesArgs {
         let step = if let Some(ref s) = self.step {
             Self::normalize_interval(s)
                 .or_else(|| {
-                    let s = s.trim().to_lowercase();
-                    match s.as_str() {
-                        "1 minute" | "5 minutes" | "15 minutes" | "30 minutes" | "1 hour"
-                        | "2 hours" | "4 hours" | "12 hours" => Some(Box::leak(s.into_boxed_str())),
+                    match s.trim().to_lowercase().as_str() {
+                        "1 minute" => Some("1 minute"),
+                        "5 minutes" => Some("5 minutes"),
+                        "15 minutes" => Some("15 minutes"),
+                        "30 minutes" => Some("30 minutes"),
+                        "1 hour" => Some("1 hour"),
+                        "2 hours" => Some("2 hours"),
+                        "4 hours" => Some("4 hours"),
+                        "12 hours" => Some("12 hours"),
                         _ => None,
                     }
                 })
@@ -400,9 +404,10 @@ impl ApySeriesArgs {
         let lookback = if let Some(ref lb) = self.lookback {
             Self::normalize_interval(lb)
                 .or_else(|| {
-                    let s = lb.trim().to_lowercase();
-                    match s.as_str() {
-                        "24 hours" | "7 days" | "30 days" => Some(Box::leak(s.into_boxed_str())),
+                    match lb.trim().to_lowercase().as_str() {
+                        "24 hours" => Some("24 hours"),
+                        "7 days" => Some("7 days"),
+                        "30 days" => Some("30 days"),
                         _ => None,
                     }
                 })
