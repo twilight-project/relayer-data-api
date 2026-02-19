@@ -28,8 +28,12 @@ lazy_static! {
     ));
     pub static ref KAFKA_PRODUCER_EVENT: Mutex<Producer> = {
         dotenv::dotenv().expect("Failed loading dotenv");
-        let broker = std::env::var("BROKER").expect("missing environment variable BROKER");
-        let producer = Producer::from_hosts(vec![broker.to_owned()])
+        let broker: Vec<String> = std::env::var("BROKER")
+            .unwrap_or_else(|_| "localhost:9092".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect();
+        let producer = Producer::from_hosts(broker)
             .with_ack_timeout(Duration::from_secs(1))
             .with_required_acks(RequiredAcks::None)
             .create()
@@ -99,10 +103,12 @@ impl Event {
         let (sender, receiver) = mpsc::channel();
         let _topic_clone = topic.clone();
         thread::spawn(move || {
-            let broker = vec![std::env::var("BROKER")
-                .expect("missing environment variable BROKER")
-                .to_owned()];
-            let mut con = Consumer::from_hosts(broker)
+            let broker: Vec<String> = std::env::var("BROKER")
+                .unwrap_or_else(|_| "localhost:9092".to_string())
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect();
+            let mut con = Consumer::from_hosts(broker.clone())
                 // .with_topic(topic)
                 .with_group(group)
                 .with_topic_partitions(topic, &[0])
@@ -157,10 +163,12 @@ impl Event {
         let (sender, receiver) = mpsc::channel();
         let _topic_clone = topic.clone();
         thread::spawn(move || {
-            let broker = vec![std::env::var("BROKER")
-                .expect("missing environment variable BROKER")
-                .to_owned()];
-            let mut con = Consumer::from_hosts(broker)
+            let broker: Vec<String> = std::env::var("BROKER")
+                .unwrap_or_else(|_| "localhost:9092".to_string())
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .collect();
+            let mut con = Consumer::from_hosts(broker.clone())
                 // .with_topic(topic)
                 .with_group(group)
                 .with_topic_partitions(topic, &[0])

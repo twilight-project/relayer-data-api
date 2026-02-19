@@ -1,6 +1,8 @@
 use crate::database::{Ask, Bid, OrderBook, RecentOrder};
+use super::types::{MarketRiskStatsResponse, MarketStatus, RiskParams};
 use chrono::{TimeDelta, Utc};
 use itertools::Itertools;
+use relayer_core::relayer::RiskState;
 
 const BOOK_LIMIT: usize = 10;
 const RECENT_ORDER_LIMIT: usize = 25;
@@ -74,4 +76,72 @@ pub fn recent_orders(conn: &mut redis::Connection) -> Vec<RecentOrder> {
         .take(RECENT_ORDER_LIMIT)
         .map(|order| serde_json::from_str(&order).expect("Invalid recent order!"))
         .collect()
+}
+
+pub fn compute_market_risk_stats(
+    risk_state: &RiskState,
+    pool_equity_btc: f64,
+    params: RiskParams,
+) -> MarketRiskStatsResponse {
+
+    // Compute market status
+    let (status, status_reason) = if risk_state.manual_halt {
+        (MarketStatus::HALT, Some("MANUAL_HALT".to_string()))
+    } else if risk_state.manual_close_only {
+        (MarketStatus::CLOSE_ONLY, Some("MANUAL_CLOSE_ONLY".to_string()))
+    } else if pool_equity_btc <= 0.0 {
+        (MarketStatus::HALT, Some("POOL_EQUITY_INVALID".to_string()))
+    } else {
+        (MarketStatus::HEALTHY, None)
+    };
+
+    let total_long = risk_state.total_long_btc;
+    let total_short = risk_state.total_short_btc;
+    let oi_btc = total_long + total_short;
+    let net_btc = total_long - total_short;
+
+    let (long_pct, short_pct) = if oi_btc > 0.0 {
+        (total_long / oi_btc, total_short / oi_btc)
+    } else {
+        (0.0, 0.0)
+    };
+
+    let utilization = if pool_equity_btc > 0.0 {
+        oi_btc / pool_equity_btc
+    } else {
+        0.0
+    };
+
+    // Compute limits (matching relayer-core compute_limits)
+    let oi_max_btc = params.max_oi_mult * pool_equity_btc;
+    let net_max_btc = params.max_net_mult * pool_equity_btc;
+    let pos_max_btc = params.max_position_pct * pool_equity_btc;
+
+    let x_oi = (oi_max_btc - oi_btc).max(0.0);
+    let x_net_long = (net_max_btc - net_btc).max(0.0);
+    let x_net_short = (net_max_btc + net_btc).max(0.0);
+
+    let (max_long_btc, max_short_btc) = if status != MarketStatus::HEALTHY {
+        (0.0, 0.0)
+    } else {
+        let max_long = x_oi.min(x_net_long).min(pos_max_btc);
+        let max_short = x_oi.min(x_net_short).min(pos_max_btc);
+        (max_long, max_short)
+    };
+
+    MarketRiskStatsResponse {
+        pool_equity_btc,
+        total_long_btc: total_long,
+        total_short_btc: total_short,
+        open_interest_btc: oi_btc,
+        net_exposure_btc: net_btc,
+        long_pct,
+        short_pct,
+        utilization,
+        max_long_btc,
+        max_short_btc,
+        status,
+        status_reason,
+        params,
+    }
 }

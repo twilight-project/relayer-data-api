@@ -1,9 +1,12 @@
 use super::*;
+use super::types::RiskParams;
+use bigdecimal::BigDecimal;
 use crate::database::*;
 use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
 use kafka::producer::Record;
 use relayer_core::relayer;
+use relayer_core::relayer::RiskState;
 use relayer_core::twilight_relayer_sdk::twilight_client_sdk::relayer_rpcclient::method::RequestResponse;
 use relayer_core::twilight_relayer_sdk::verify_client_message::{
     verify_client_create_trader_order, verify_query_order, verify_settle_requests,
@@ -214,6 +217,56 @@ pub(super) fn trader_order_info(
     }
 }
 
+#[derive(Serialize)]
+struct TraderOrderInfoV1 {
+    #[serde(flatten)]
+    order: TraderOrder,
+    settle_limit: Option<SettleLimitDetails>,
+    funding_applied: Option<BigDecimal>,
+}
+
+pub(super) fn trader_order_info_v1(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let Order { data } = params.parse()?;
+    let Ok(bytes) = hex::decode(&data) else {
+        return Ok(format!("Invalid hex data").into());
+    };
+    let Ok(tx) = bincode::deserialize::<relayer::QueryTraderOrderZkos>(&bytes) else {
+        return Ok(format!("Invalid bincode").into());
+    };
+    if let Err(arg) = verify_query_order(
+        tx.msg.clone(),
+        &bincode::serialize(&tx.query_trader_order).unwrap(),
+    ) {
+        return Ok(format!("Invalid order params:{:?}", arg).into());
+    }
+    match ctx.pool.get() {
+        Ok(mut conn) => {
+            match TraderOrder::get_by_signature(&mut conn, tx.query_trader_order.account_id) {
+                Ok(order) => {
+                    let settle_limit = match order.order_status {
+                        OrderStatus::SETTLED | OrderStatus::LIQUIDATE => None,
+                        _ => SortedSetCommand::get_latest_close_limit(&mut conn, &order.uuid)
+                            .unwrap_or(None),
+                    };
+                    let funding_applied = TraderOrderFundingUpdates::get_latest_by_uuid(
+                        &mut conn,
+                        &order.uuid,
+                    )
+                    .unwrap_or(None)
+                    .map(|f| f.initial_margin - f.available_margin - f.fee_filled);
+                    let response = TraderOrderInfoV1 { order, settle_limit, funding_applied };
+                    Ok(serde_json::to_value(response).expect("Error converting response"))
+                }
+                Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
+            }
+        }
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
 pub(super) fn lend_order_info(
     params: Params<'_>,
     ctx: &RelayerContext,
@@ -328,7 +381,7 @@ pub(super) fn submit_trade_order(
     };
 
     let mut order = tx.create_trader_order.clone();
-    let meta = relayer::Meta::default();
+    let meta = super::headers::meta_from_headers();
     let public_key = order.account_id.clone();
     order.available_margin = order.initial_margin;
     let response = RequestResponse::new(
@@ -378,7 +431,7 @@ pub(super) fn submit_lend_order(
 
     let mut order = tx.create_lend_order.clone();
     let public_key = order.account_id.clone();
-    let meta = relayer::Meta::default();
+    let meta = super::headers::meta_from_headers();
     order.balance = order.deposit;
     let response = RequestResponse::new(
         "Order request submitted successfully".to_string(),
@@ -445,7 +498,7 @@ pub(super) fn settle_trade_order(
         return Ok(format!("Order closed").into());
     }
 
-    let meta = relayer::Meta::default();
+    let meta = super::headers::meta_from_headers();
 
     let order = relayer::RpcCommand::ExecuteTraderOrder(
         order.clone(),
@@ -505,7 +558,7 @@ pub(super) fn settle_lend_order(
         return Ok(format!("Order closed").into());
     }
 
-    let meta = relayer::Meta::default();
+    let meta = super::headers::meta_from_headers();
 
     let order = relayer::RpcCommand::ExecuteLendOrder(
         order.clone(),
@@ -568,7 +621,7 @@ pub(super) fn cancel_trader_order(
         return Ok(format!("Order not cancelable").into());
     }
 
-    let meta = relayer::Meta::default();
+    let meta = super::headers::meta_from_headers();
 
     let order = relayer::RpcCommand::CancelTraderOrder(
         order.clone(),
@@ -622,6 +675,164 @@ pub(super) fn lend_pool_info(
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
 }
+
+pub(super) fn last_day_apy(
+    _params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    match ctx.pool.get() {
+        Ok(mut conn) => match PoolAnalytics::last_day_apy_now(&mut conn) {
+            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+            Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+pub(super) fn apy_chart(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    // use diesel::QueryableByName;
+    use diesel::RunQueryDsl; // just the trait you need for .load()
+                             // use crate::database::models::PoolAnalytics; // adjust path if needed
+    let args: crate::rpc::types::ApySeriesArgs = params
+        .parse()
+        .map_err(|e| Error::Custom(format!("Invalid argument: {:?}", e)))?;
+
+    let (window, step, lookback) = match args.resolve() {
+        Ok(t) => t,
+        Err(msg) => return Err(Error::Custom(msg)),
+    };
+
+    match ctx.pool.get() {
+        Ok(mut conn) => {
+            // We exposed `apy_series(window, step, lookback)` via SQL. Our Rust helper took a fixed '24 hours',
+            // so we’ll call the SQL directly here to honor custom lookback as well.
+            let sql = r#"
+                SELECT bucket_ts, apy
+                FROM apy_series($1::interval, $2::interval, $3::interval)
+                WHERE apy IS NOT NULL
+                ORDER BY bucket_ts;
+            "#;
+            let rows: Vec<ApyPoint> = diesel::sql_query(sql)
+                .bind::<diesel::sql_types::Text, _>(window)
+                .bind::<diesel::sql_types::Text, _>(step)
+                .bind::<diesel::sql_types::Text, _>(lookback)
+                .load(&mut conn)
+                .map_err(|e| Error::Custom(format!("Database error: {:?}", e)))?;
+
+            Ok(serde_json::to_value(rows).expect("Error converting response"))
+        }
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
+pub(super) fn open_interest(
+    _params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    match ctx.pool.get() {
+        Ok(mut conn) => match get_open_interest(&mut conn) {
+            Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+            Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+        },
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+// pub(super) fn account_summary_by_twilight_address(
+//     params: Params<'_>,
+//     ctx: &RelayerContext,
+// ) -> Result<serde_json::Value, Error> {
+//     let args: crate::rpc::types::AccountSummaryByTAddressArgs = params.parse()?;
+//     let (t_address, from, to) = args.normalize().map_err(Error::Custom)?;
+//     match ctx.pool.get() {
+//         Ok(mut conn) => {
+//             match account_summary_by_twilight_address_fn(&mut conn, &t_address, from, to) {
+//                 Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
+//                 Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+//             }
+//         }
+//         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+//     }
+// }
+pub(super) fn account_summary_by_twilight_address(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let args: crate::rpc::types::AccountSummaryByTAddressArgs = params.parse()?;
+
+    let (t_address, from, to) = args.normalize().map_err(Error::Custom)?;
+
+    match ctx.pool.get() {
+        Ok(mut conn) => {
+            let summary = account_summary_by_twilight_address_fn(&mut conn, &t_address, from, to)
+                .map_err(|e| Error::Custom(format!("Database error: {:?}", e)))?;
+
+            let response = crate::rpc::types::AccountSummaryByTAddressResponse {
+                from,
+                to,
+                settled_positionsize: summary.settled_positionsize,
+                filled_positionsize: summary.filled_positionsize,
+                liquidated_positionsize: summary.liquidated_positionsize,
+                settled_count: summary.settled_count,
+                filled_count: summary.filled_count,
+                liquidated_count: summary.liquidated_count,
+            };
+
+            Ok(serde_json::to_value(response).expect("Error converting response"))
+        }
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
+pub(super) fn get_market_stats(
+    _: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    // 1. Read latest RiskState from Redis
+    let mut redis_conn = ctx
+        .client
+        .get_connection()
+        .map_err(|e| Error::Custom(format!("Redis connection error: {:?}", e)))?;
+
+    let state_json: Option<String> = redis::cmd("GET")
+        .arg("risk_state")
+        .query(&mut redis_conn)
+        .unwrap_or(None);
+
+    let risk_state: RiskState = match state_json {
+        Some(json) => serde_json::from_str(&json).unwrap_or_else(|_| RiskState::new()),
+        None => RiskState::new(),
+    };
+
+    // 1b. Read latest RiskParams from Redis
+    let params_json: Option<String> = redis::cmd("GET")
+        .arg("risk_params")
+        .query(&mut redis_conn)
+        .unwrap_or(None);
+
+    let risk_params: RiskParams = match params_json {
+        Some(json) => serde_json::from_str(&json).unwrap_or_else(|_| RiskParams::from_env()),
+        None => RiskParams::from_env(),
+    };
+
+    // 2. Get pool equity from lend_pool table
+    let mut db_conn = ctx
+        .pool
+        .get()
+        .map_err(|e| Error::Custom(format!("Database error: {:?}", e)))?;
+
+    let pool_equity_btc = match LendPool::get(&mut db_conn) {
+        Ok(pool) => pool.get_total_locked_value(),
+        Err(_) => 0.0,
+    };
+
+    // 3. Compute and return market risk stats
+    let stats = util::compute_market_risk_stats(&risk_state, pool_equity_btc, risk_params);
+
+    Ok(serde_json::to_value(stats).expect("Error converting response"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

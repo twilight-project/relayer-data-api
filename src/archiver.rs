@@ -140,6 +140,8 @@ pub struct DatabaseArchiver {
     sorted_set: Vec<relayer::SortedSetCommand>,
     lend_pool: Vec<relayer_db::LendPool>,
     lend_pool_commands: Vec<relayer_db::LendPoolCommand>,
+    risk_engine_updates: Vec<NewRiskEngineUpdate>,
+    risk_params_updates: Vec<NewRiskParamsUpdate>,
     completions: Sender<Completion>,
     nonce: Nonce,
 }
@@ -168,6 +170,8 @@ impl DatabaseArchiver {
         let sorted_set = Vec::with_capacity(BATCH_SIZE);
         let lend_pool = Vec::with_capacity(BATCH_SIZE);
         let lend_pool_commands = Vec::with_capacity(BATCH_SIZE);
+        let risk_engine_updates = Vec::with_capacity(BATCH_SIZE);
+        let risk_params_updates = Vec::with_capacity(BATCH_SIZE);
         let nonce = Nonce::get(&mut conn).expect("Failed to query for current nonce");
 
         Self::load_cache(pool.clone(), redis.clone());
@@ -192,6 +196,8 @@ impl DatabaseArchiver {
             sorted_set,
             lend_pool,
             lend_pool_commands,
+            risk_engine_updates,
+            risk_params_updates,
             completions,
             nonce,
         }
@@ -449,7 +455,7 @@ impl DatabaseArchiver {
     }
 
     fn tx_hash(&mut self, hash: NewTxHash) -> Result<(), ApiError> {
-        debug!("Appending position size update");
+        debug!("Appending tx hash");
         self.tx_hashes.push(hash);
 
         if self.tx_hashes.len() == self.tx_hashes.capacity() {
@@ -695,40 +701,146 @@ impl DatabaseArchiver {
         Ok(())
     }
 
+    fn risk_engine_update(&mut self, record: NewRiskEngineUpdate) -> Result<(), ApiError> {
+        debug!("Appending risk engine update");
+        self.risk_engine_updates.push(record);
+
+        if self.risk_engine_updates.len() == self.risk_engine_updates.capacity() {
+            self.commit_risk_engine_updates()?;
+        }
+
+        Ok(())
+    }
+
+    fn commit_risk_engine_updates(&mut self) -> Result<(), ApiError> {
+        debug!("Committing risk engine updates");
+
+        let mut conn = self.get_conn()?;
+
+        let mut updates = Vec::with_capacity(self.risk_engine_updates.capacity());
+        std::mem::swap(&mut updates, &mut self.risk_engine_updates);
+
+        RiskEngineUpdateRow::insert(&mut conn, updates)?;
+
+        Ok(())
+    }
+
+    fn risk_params_update(&mut self, record: NewRiskParamsUpdate) -> Result<(), ApiError> {
+        debug!("Appending risk params update");
+        self.risk_params_updates.push(record);
+        if self.risk_params_updates.len() == self.risk_params_updates.capacity() {
+            self.commit_risk_params_updates()?;
+        }
+        Ok(())
+    }
+
+    fn commit_risk_params_updates(&mut self) -> Result<(), ApiError> {
+        debug!("Committing risk params updates");
+        let mut conn = self.get_conn()?;
+        let mut updates = Vec::with_capacity(self.risk_params_updates.capacity());
+        std::mem::swap(&mut updates, &mut self.risk_params_updates);
+        RiskParamsUpdateRow::insert(&mut conn, updates)?;
+        Ok(())
+    }
+
     /// Commit any pending orders of any type, regardless of batch size.
     fn commit_orders(&mut self) -> Result<(), ApiError> {
         if self.trader_orders.len() > 0 {
-            self.commit_trader_orders()?;
+            info!("Committing {} trader_orders", self.trader_orders.len());
+            if let Err(e) = self.commit_trader_orders() {
+                error!("Failed to commit trader_orders: {:?}", e);
+                return Err(e);
+            }
         }
         if self.trader_order_funding_updated.len() > 0 {
-            self.commit_trader_order_funding_updated()?;
+            info!(
+                "Committing {} trader_order_funding_updated",
+                self.trader_order_funding_updated.len()
+            );
+            if let Err(e) = self.commit_trader_order_funding_updated() {
+                error!("Failed to commit trader_order_funding_updated: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.lend_orders.len() > 0 {
-            self.commit_lend_orders()?;
+            info!("Committing {} lend_orders", self.lend_orders.len());
+            if let Err(e) = self.commit_lend_orders() {
+                error!("Failed to commit lend_orders: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.position_size.len() > 0 {
-            self.commit_position_sizes()?;
+            info!("Committing {} position_sizes", self.position_size.len());
+            if let Err(e) = self.commit_position_sizes() {
+                error!("Failed to commit position_sizes: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.tx_hashes.len() > 0 {
-            self.commit_tx_hash()?;
+            info!("Committing {} tx_hashes", self.tx_hashes.len());
+            if let Err(e) = self.commit_tx_hash() {
+                error!("Failed to commit tx_hashes: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.sorted_set.len() > 0 {
-            self.commit_sorted_set_updates()?;
+            info!("Committing {} sorted_set_updates", self.sorted_set.len());
+            if let Err(e) = self.commit_sorted_set_updates() {
+                error!("Failed to commit sorted_set_updates: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.lend_pool.len() > 0 {
-            self.commit_lend_pool()?;
+            info!("Committing {} lend_pool", self.lend_pool.len());
+            if let Err(e) = self.commit_lend_pool() {
+                error!("Failed to commit lend_pool: {:?}", e);
+                return Err(e);
+            }
         }
 
         if self.lend_pool_commands.len() > 0 {
-            self.commit_lend_pool_commands()?;
+            info!(
+                "Committing {} lend_pool_commands",
+                self.lend_pool_commands.len()
+            );
+            if let Err(e) = self.commit_lend_pool_commands() {
+                error!("Failed to commit lend_pool_commands: {:?}", e);
+                return Err(e);
+            }
         }
         if self.fee_history.len() > 0 {
-            self.commit_fee_history()?;
+            info!("Committing {} fee_history", self.fee_history.len());
+            if let Err(e) = self.commit_fee_history() {
+                error!("Failed to commit fee_history: {:?}", e);
+                return Err(e);
+            }
+        }
+
+        if self.risk_engine_updates.len() > 0 {
+            info!(
+                "Committing {} risk_engine_updates",
+                self.risk_engine_updates.len()
+            );
+            if let Err(e) = self.commit_risk_engine_updates() {
+                error!("Failed to commit risk_engine_updates: {:?}", e);
+                return Err(e);
+            }
+        }
+
+        if self.risk_params_updates.len() > 0 {
+            info!(
+                "Committing {} risk_params_updates",
+                self.risk_params_updates.len()
+            );
+            if let Err(e) = self.commit_risk_params_updates() {
+                error!("Failed to commit risk_params_updates: {:?}", e);
+                return Err(e);
+            }
         }
 
         Ok(())
@@ -745,7 +857,29 @@ impl DatabaseArchiver {
                 }
                 _ => {}
             },
-            Event::TraderOrder(trader_order, _cmd, _seq) => {
+            Event::TraderOrder(trader_order, cmd, _seq) => {
+                match cmd {
+                    relayer_core::relayer::RpcCommand::CreateTraderOrder(
+                        _create_trader_order,
+                        meta,
+                        _zkos_hex_string,
+                        _request_id,
+                    ) => {
+                        if let Some(Some(address)) = meta.metadata.get("Twilight-Address") {
+                            let record = NewTwilightQqAccountLink {
+                                twilight_address: address.clone(),
+                                account_address: trader_order.account_id.clone(),
+                                order_id: trader_order.uuid.to_string(),
+                            };
+                            if let Err(e) =
+                                NewTwilightQqAccountLink::insert(&mut *self.get_conn()?, record)
+                            {
+                                error!("Failed to insert TwilightQqAccountLink: {:?}", e);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
                 self.trader_order(trader_order.into())?;
             }
             Event::TraderOrderUpdate(trader_order, _cmd, _seq) => {
@@ -770,18 +904,50 @@ impl DatabaseArchiver {
             Event::TraderOrderLiquidation(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into())?;
             }
-            Event::LendOrder(lend_order, _cmd, _seq) => self.lend_order(lend_order.into())?,
+            Event::LendOrder(lend_order, cmd, _seq) => {
+                if let relayer::RpcCommand::CreateLendOrder(
+                    _create_lend_order,
+                    meta,
+                    _zkos_hex_string,
+                    _request_id,
+                ) = &cmd
+                {
+                    if let Some(Some(address)) = meta.metadata.get("Twilight-Address") {
+                        let record = NewTwilightQqAccountLink {
+                            twilight_address: address.clone(),
+                            account_address: lend_order.account_id.clone(),
+                            order_id: lend_order.uuid.to_string(),
+                        };
+                        if let Err(e) =
+                            NewTwilightQqAccountLink::insert(&mut *self.get_conn()?, record)
+                        {
+                            error!("Failed to insert TwilightQqAccountLink: {:?}", e);
+                        }
+                    }
+                }
+                self.lend_order(lend_order.into())?;
+            }
             Event::FundingRateUpdate(funding_rate, btc_price, system_time) => {
                 let ts = DateTime::parse_from_rfc3339(&system_time)
                     .expect("Bad datetime format")
                     .into();
-                FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, btc_price, ts)?;
+                if let Err(e) =
+                    FundingRateUpdate::insert(&mut *self.get_conn()?, funding_rate, btc_price, ts)
+                {
+                    error!("Failed direct insert FundingRateUpdate: {:?}", e);
+                    return Err(e.into());
+                }
             }
             Event::CurrentPriceUpdate(current_price, system_time) => {
                 let ts = DateTime::parse_from_rfc3339(&system_time)
                     .expect("Bad datetime format")
                     .into();
-                CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts)?;
+                if let Err(e) =
+                    CurrentPriceUpdate::insert(&mut *self.get_conn()?, current_price, ts)
+                {
+                    error!("Failed direct insert CurrentPriceUpdate: {:?}", e);
+                    return Err(e.into());
+                }
             }
             Event::PoolUpdate(lend_pool_command, lend_pool, ..) => {
                 self.lend_pool_updates(lend_pool)?;
@@ -840,6 +1006,80 @@ impl DatabaseArchiver {
                 self.tx_hash(hash)?;
             }
             Event::AdvanceStateQueue(_, _) => {}
+            Event::RiskEngineUpdate(cmd, risk_state) => {
+                info!("Risk engine update: {:?}", cmd);
+
+                let (command_str, position_type, amount) = match &cmd {
+                    relayer::RiskEngineCommand::AddExposure(pt, amt) => (
+                        "AddExposure".to_string(),
+                        Some(pt.clone().into()),
+                        Some(*amt),
+                    ),
+                    relayer::RiskEngineCommand::RemoveExposure(pt, amt) => (
+                        "RemoveExposure".to_string(),
+                        Some(pt.clone().into()),
+                        Some(*amt),
+                    ),
+                    relayer::RiskEngineCommand::SetManualHalt(_) => {
+                        ("SetManualHalt".to_string(), None, None)
+                    }
+                    relayer::RiskEngineCommand::SetManualCloseOnly(_) => {
+                        ("SetManualCloseOnly".to_string(), None, None)
+                    }
+                    relayer::RiskEngineCommand::SetPauseFunding(_) => {
+                        ("SetPauseFunding".to_string(), None, None)
+                    }
+                    relayer::RiskEngineCommand::SetPausePriceFeed(_) => {
+                        ("SetPausePriceFeed".to_string(), None, None)
+                    }
+                };
+
+                let record = NewRiskEngineUpdate {
+                    command: command_str,
+                    position_type,
+                    amount,
+                    total_long_btc: risk_state.total_long_btc,
+                    total_short_btc: risk_state.total_short_btc,
+                    manual_halt: risk_state.manual_halt,
+                    manual_close_only: risk_state.manual_close_only,
+                    pause_funding: risk_state.pause_funding,
+                    pause_price_feed: risk_state.pause_price_feed,
+                    timestamp: Utc::now(),
+                };
+                self.risk_engine_update(record)?;
+
+                // Cache latest risk state in Redis for the API to read
+                if let Ok(state_json) = serde_json::to_string(&risk_state) {
+                    if let Ok(mut redis_conn) = self.redis.get_connection() {
+                        let _: Result<(), _> = redis::cmd("SET")
+                            .arg("risk_state")
+                            .arg(state_json)
+                            .query(&mut redis_conn);
+                    }
+                }
+            }
+            Event::RiskParamsUpdate(params) => {
+                info!("Risk params update: {:?}", params);
+                let record = NewRiskParamsUpdate {
+                    max_oi_mult: params.max_oi_mult,
+                    max_net_mult: params.max_net_mult,
+                    max_position_pct: params.max_position_pct,
+                    min_position_btc: params.min_position_btc,
+                    max_leverage: params.max_leverage,
+                    timestamp: Utc::now(),
+                };
+                self.risk_params_update(record)?;
+
+                // Cache latest risk params in Redis for the API
+                if let Ok(params_json) = serde_json::to_string(&params) {
+                    if let Ok(mut redis_conn) = self.redis.get_connection() {
+                        let _: Result<(), _> = redis::cmd("SET")
+                            .arg("risk_params")
+                            .arg(params_json)
+                            .query(&mut redis_conn);
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -853,17 +1093,34 @@ impl DatabaseArchiver {
             match rx.recv_deadline(deadline) {
                 Ok((completion, msgs)) => {
                     for msg in msgs {
-                        self.process_msg(msg)?;
+                        if let Err(e) = self.process_msg(msg) {
+                            error!("process_msg failed: {:?}", e);
+                            return Err(e);
+                        }
                     }
 
                     self.completions
                         .send(completion)
                         .map_err(|e| ApiError::CrossbeamChannel(format!("{:?}", e)))?;
+
+                    // Commit batches if deadline has passed, even while
+                    // the channel still has messages (e.g. Kafka backlog)
+                    if Instant::now() >= deadline {
+                        trace!("Deadline reached during recv, committing current orders");
+                        if let Err(e) = self.commit_orders() {
+                            error!("commit_orders failed: {:?}", e);
+                            return Err(e);
+                        }
+                        deadline = Instant::now() + Duration::from_millis(BATCH_INTERVAL);
+                    }
                 }
                 Err(e) => {
                     if e.is_timeout() {
                         trace!("Timeout reached, committing current orders");
-                        self.commit_orders()?;
+                        if let Err(e) = self.commit_orders() {
+                            error!("commit_orders failed: {:?}", e);
+                            return Err(e);
+                        }
 
                         deadline = Instant::now() + Duration::from_millis(BATCH_INTERVAL);
                         trace!("New deadline: {:?}", deadline);

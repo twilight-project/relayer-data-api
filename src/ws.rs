@@ -27,8 +27,8 @@ use tokio::{
 
 mod methods;
 
-const SNAPSHOT_TOPIC: &str = "CoreEventLogTopic";
-const WEBSOCKET_GROUP: &str = "Websocket";
+// const SNAPSHOT_TOPIC: &str = "CoreEventLogTopic";
+// const WEBSOCKET_GROUP: &str = "Websocket";
 const WS_UPDATE_INTERVAL: u64 = 250;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 20;
@@ -58,6 +58,11 @@ pub struct WsContext {
 
 impl WsContext {
     pub fn with_pool(pool: ManagedPool, client: Client) -> WsContext {
+        dotenv::dotenv().ok();
+        let snapshot_topic =
+            std::env::var("CORE_EVENT_LOG").unwrap_or("CoreEventLogTopic".to_string());
+        let websocket_group =
+            std::env::var("WEBSOCKET_KAFKA_GROUP").unwrap_or("Websocket".to_string());
         let (price_feed, _) = channel::<(f64, DateTime<Utc>)>(BROADCAST_CHANNEL_CAPACITY);
         let (order_book, _) = channel::<NewOrderBookOrder>(BROADCAST_CHANNEL_CAPACITY);
         let (recent_trades, _) = channel::<RecentOrder>(BROADCAST_CHANNEL_CAPACITY);
@@ -68,8 +73,7 @@ impl WsContext {
 
         let (completions, rx, _kafka_sub) = {
             let (tx, rx) = unbounded();
-            let (completions, h) =
-                start_consumer(WEBSOCKET_GROUP.into(), SNAPSHOT_TOPIC.into(), tx);
+            let (completions, h) = start_consumer(websocket_group, snapshot_topic, tx);
 
             (completions, rx, h)
         };
@@ -173,6 +177,8 @@ impl WsContext {
                                 Event::TxHash(..) => {}
                                 Event::TxHashUpdate(..) => {}
                                 Event::AdvanceStateQueue(..) => {}
+                                Event::RiskEngineUpdate(..) => {}
+                                Event::RiskParamsUpdate(..) => {}
                             }
                         }
                         if let Err(e) = notify.send(completion) {

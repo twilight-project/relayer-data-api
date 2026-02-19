@@ -30,3 +30,4 @@ node_modules
 /Cargo.lock
 .vscode
 .env
+.cargo/config.toml

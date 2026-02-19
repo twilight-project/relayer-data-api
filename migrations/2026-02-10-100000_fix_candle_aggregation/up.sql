@@ -1,0 +1,223 @@
+-- Fix candle aggregation bugs:
+--
+-- 1. Open/Close SWAPPED in get_ohlc_interval: first_value(price) was labeled 'close',
+--    last_value(price) was labeled 'open'. Fixed labels.
+--
+-- 2. SELECT DISTINCT + window functions instead of GROUP BY: replaced with
+--    window functions in subquery + GROUP BY in outer query (deterministic).
+--
+-- 3. date_trunc() cannot produce arbitrary-interval buckets (e.g. 4 hours).
+--    Replaced with epoch-based floor division that works for any interval.
+--
+-- 4. Column alias typo in get_candles_interval: end_time was aliased as 'start_time'.
+--
+-- 5. Volume calculations wrong:
+--    - usd_volume was sum(entryprice) — just sums raw prices, not notional volume.
+--      Fixed to sum(positionsize) = actual USD notional traded.
+--    - btc_volume was sum(positionsize) — raw position sizes, not BTC amount.
+--      Fixed to sum(positionsize / entryprice) = BTC equivalent volume.
+--
+-- 6. update_candles_1hour/1day used a 10-minute lookback (max(start_time) - 10 min).
+--    For hourly candles this reaches into the PREVIOUS hour and OVERWRITES it with
+--    only 10 minutes of data, losing the real open and high/low from earlier.
+--    Fixed to use max(start_time) — only recompute current + prior bucket on rollover.
+
+-- Drop old functions (order matters: dependents first)
+DROP FUNCTION IF EXISTS update_candles_1day();
+DROP FUNCTION IF EXISTS update_candles_1hour();
+DROP FUNCTION IF EXISTS update_candles_1min();
+DROP FUNCTION IF EXISTS get_candles_interval(interval, text, timestamptz);
+DROP FUNCTION IF EXISTS get_candles_interval(interval, timestamptz);
+DROP FUNCTION IF EXISTS get_volume_interval(interval, text, timestamptz);
+DROP FUNCTION IF EXISTS get_volume_interval(interval, timestamptz);
+DROP FUNCTION IF EXISTS get_ohlc_interval(interval, text, timestamptz);
+DROP FUNCTION IF EXISTS get_ohlc_interval(interval, timestamptz);
+
+
+-- OHLC price aggregation from btc_usd_price:
+-- Window functions compute open/close per row (O(n) single pass, O(1) memory).
+-- GROUP BY collapses to one row per bucket.
+CREATE FUNCTION get_ohlc_interval(intvl interval, since timestamptz)
+RETURNS TABLE(start_time timestamptz, end_time timestamptz, high numeric, low numeric, open numeric, close numeric)
+AS $$
+    SELECT
+        bucket                  as start_time,
+        bucket + intvl          as end_time,
+        max(price)              as high,
+        min(price)              as low,
+        min(open_price)         as open,
+        min(close_price)        as close
+    FROM (
+        SELECT
+            bucket,
+            price,
+            first_value(price) OVER w as open_price,
+            last_value(price)  OVER w as close_price
+        FROM (
+            SELECT
+                to_timestamp(
+                    floor(extract(epoch from timestamp) / extract(epoch from intvl))
+                    * extract(epoch from intvl)
+                ) as bucket,
+                price,
+                timestamp
+            FROM btc_usd_price
+            WHERE timestamp >= since AND timestamp <= now()
+        ) t
+        WINDOW w AS (PARTITION BY bucket ORDER BY timestamp ASC
+                     ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+    ) t2
+    GROUP BY bucket
+    ORDER BY bucket
+$$
+LANGUAGE SQL;
+
+
+-- Volume aggregation from trader_order:
+--   usd_volume = sum(positionsize)                   -- USD notional traded
+--   btc_volume = sum(positionsize / entryprice)       -- BTC equivalent
+--   trades     = count of orders
+CREATE FUNCTION get_volume_interval(intvl interval, since timestamptz)
+RETURNS TABLE(start_time timestamptz, end_time timestamptz, usd_volume numeric, btc_volume numeric, trades integer)
+AS $$
+    SELECT
+        bucket                                                                  as start_time,
+        bucket + intvl                                                          as end_time,
+        coalesce(sum(positionsize), 0) / 100000000                              as usd_volume,
+        coalesce(sum(positionsize / nullif(entryprice, 0)), 0) / 100000000      as btc_volume,
+        count(*)::integer                                                       as trades
+    FROM (
+        SELECT
+            to_timestamp(
+                floor(extract(epoch from timestamp) / extract(epoch from intvl))
+                * extract(epoch from intvl)
+            ) as bucket,
+            entryprice,
+            positionsize
+        FROM trader_order
+        WHERE timestamp >= since AND timestamp <= now()
+    ) t
+    GROUP BY bucket
+    ORDER BY bucket
+$$
+LANGUAGE SQL;
+
+
+-- Combined candle function: FULL OUTER JOIN of OHLC + Volume
+CREATE FUNCTION get_candles_interval(intvl interval, since timestamptz)
+RETURNS TABLE(
+    start_time timestamptz,
+    end_time   timestamptz,
+    usd_volume numeric,
+    btc_volume numeric,
+    trades     integer,
+    open       numeric,
+    high       numeric,
+    low        numeric,
+    close      numeric
+)
+AS $$
+WITH t1 AS (
+    SELECT * FROM get_ohlc_interval(intvl, since)
+), t2 AS (
+    SELECT * FROM get_volume_interval(intvl, since)
+) SELECT
+    coalesce(t1.start_time, t2.start_time) as start_time,
+    coalesce(t1.end_time, t2.end_time)     as end_time,
+    coalesce(t2.usd_volume, 0)             as usd_volume,
+    coalesce(t2.btc_volume, 0)             as btc_volume,
+    coalesce(t2.trades, 0)                 as trades,
+    coalesce(t1.open, 0)                   as open,
+    coalesce(t1.high, 0)                   as high,
+    coalesce(t1.low, 0)                    as low,
+    coalesce(t1.close, 0)                  as close
+FROM
+    t1 FULL OUTER JOIN t2
+    ON t1.start_time = t2.start_time
+$$
+LANGUAGE SQL;
+
+
+-- Materialization functions
+--
+-- Lookback: max(start_time) — start from the latest existing candle.
+-- On each trigger call this recomputes the CURRENT bucket only.
+-- When a new interval begins (e.g. new hour), max(start_time) still points to
+-- the previous bucket, so that bucket gets its FINAL update and the new bucket
+-- is created in the same call. After that, max(start_time) advances and the
+-- previous bucket is never touched again.
+
+CREATE FUNCTION update_candles_1min()
+RETURNS void
+AS $$ INSERT INTO candles_1min (
+    start_time, end_time, usd_volume, btc_volume, trades, open, high, low, close
+)
+SELECT * FROM get_candles_interval(
+    '1 minute'::interval,
+    (SELECT coalesce(max(start_time),
+                     '1970-01-01 00:00:00+00'::timestamptz) FROM candles_1min)
+)
+    ON CONFLICT(start_time)
+    DO UPDATE SET
+    start_time = excluded.start_time,
+    end_time   = excluded.end_time,
+    usd_volume = excluded.usd_volume,
+    btc_volume = excluded.btc_volume,
+    trades     = excluded.trades,
+    open       = excluded.open,
+    high       = excluded.high,
+    low        = excluded.low,
+    close      = excluded.close
+    ;
+$$
+LANGUAGE SQL;
+
+CREATE FUNCTION update_candles_1hour()
+RETURNS void
+AS $$ INSERT INTO candles_1hour (
+    start_time, end_time, usd_volume, btc_volume, trades, open, high, low, close
+)
+SELECT * FROM get_candles_interval(
+    '1 hour'::interval,
+    (SELECT coalesce(max(start_time),
+                     '1970-01-01 00:00:00+00'::timestamptz) FROM candles_1hour)
+)
+    ON CONFLICT(start_time)
+    DO UPDATE SET
+    start_time = excluded.start_time,
+    end_time   = excluded.end_time,
+    usd_volume = excluded.usd_volume,
+    btc_volume = excluded.btc_volume,
+    trades     = excluded.trades,
+    open       = excluded.open,
+    high       = excluded.high,
+    low        = excluded.low,
+    close      = excluded.close
+    ;
+$$
+LANGUAGE SQL;
+
+CREATE FUNCTION update_candles_1day()
+RETURNS void
+AS $$ INSERT INTO candles_1day (
+    start_time, end_time, usd_volume, btc_volume, trades, open, high, low, close
+)
+SELECT * FROM get_candles_interval(
+    '1 day'::interval,
+    (SELECT coalesce(max(start_time),
+                     '1970-01-01 00:00:00+00'::timestamptz) FROM candles_1day)
+)
+    ON CONFLICT(start_time)
+    DO UPDATE SET
+    start_time = excluded.start_time,
+    end_time   = excluded.end_time,
+    usd_volume = excluded.usd_volume,
+    btc_volume = excluded.btc_volume,
+    trades     = excluded.trades,
+    open       = excluded.open,
+    high       = excluded.high,
+    low        = excluded.low,
+    close      = excluded.close
+    ;
+$$
+LANGUAGE SQL;

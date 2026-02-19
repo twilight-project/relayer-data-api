@@ -14,12 +14,15 @@ pub fn start_consumer(
     let (tx_consumed, rx_consumed) = unbounded::<Completion>();
 
     let handle = std::thread::spawn(move || {
-        let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
+        let broker: Vec<String> = std::env::var("BROKER")
+            .unwrap_or_else(|_| "localhost:9092".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect();
 
-        info!("Connecting to kafka at host: {}", broker_host);
-        let broker = vec![broker_host.to_owned()];
+        info!("Connecting to kafka at host: {}", broker.join(","));
 
-        let mut con = Consumer::from_hosts(broker)
+        let mut con = Consumer::from_hosts(broker.clone())
             .with_group(group)
             .with_topic(topic.clone())
             .with_fallback_offset(FetchOffset::Earliest)

@@ -50,6 +50,13 @@ pub enum SortedSetCommandType {
     BULK_SEARCH_REMOVE_LIQUIDATION_PRICE,
     BULK_SEARCH_REMOVE_OPEN_LIMIT_PRICE,
     BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE,
+    ADD_STOP_LOSS_CLOSE_LIMIT_PRICE,
+    ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+    REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE,
+    REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+    UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE,
+    UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+    BULK_SEARCH_REMOVE_SLTP_CLOSE_LIMIT_PRICE,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, FromSqlRow, AsExpression)]
@@ -66,6 +73,7 @@ pub enum OrderType {
     MARKET,
     DARK,
     LEND,
+    SLTP,
 }
 
 impl diesel::query_builder::QueryId for OrderTypeSql {
@@ -102,6 +110,8 @@ pub enum OrderStatus {
     OrderNotFound,
     RejectedFromChain,
     FilledUpdated,
+    CancelledStopLoss,
+    CancelledTakeProfit,
 }
 
 impl OrderStatus {
@@ -126,6 +136,8 @@ impl OrderStatus {
             OrderNotFound => "OrderNotFound",
             RejectedFromChain => "RejectedFromChain",
             FilledUpdated => "FilledUpdated",
+            CancelledStopLoss => "CancelledStopLoss",
+            CancelledTakeProfit => "CancelledTakeProfit",
         }
     }
 
@@ -238,6 +250,27 @@ impl ToSql<SortedSetCommandTypeSql, Pg> for SortedSetCommandType {
             SortedSetCommandType::BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE => {
                 out.write_all(b"BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE")?
             }
+            SortedSetCommandType::ADD_STOP_LOSS_CLOSE_LIMIT_PRICE => {
+                out.write_all(b"ADD_STOP_LOSS_CLOSE_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE => {
+                out.write_all(b"ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE => {
+                out.write_all(b"REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE => {
+                out.write_all(b"REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE => {
+                out.write_all(b"UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE => {
+                out.write_all(b"UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE")?
+            }
+            SortedSetCommandType::BULK_SEARCH_REMOVE_SLTP_CLOSE_LIMIT_PRICE => {
+                out.write_all(b"BULK_SEARCH_REMOVE_SLTP_CLOSE_LIMIT_PRICE")?
+            }
         }
         Ok(IsNull::No)
     }
@@ -289,6 +322,8 @@ impl ToSql<OrderStatusSql, Pg> for OrderStatus {
             OrderStatus::OrderNotFound => out.write_all(b"OrderNotFound")?,
             OrderStatus::RejectedFromChain => out.write_all(b"RejectedFromChain")?,
             OrderStatus::FilledUpdated => out.write_all(b"FilledUpdated")?,
+            OrderStatus::CancelledStopLoss => out.write_all(b"CancelledStopLoss")?,
+            OrderStatus::CancelledTakeProfit => out.write_all(b"CancelledTakeProfit")?,
         }
         Ok(IsNull::No)
     }
@@ -346,6 +381,7 @@ impl ToSql<OrderTypeSql, Pg> for OrderType {
             OrderType::MARKET => out.write_all(b"MARKET")?,
             OrderType::DARK => out.write_all(b"DARK")?,
             OrderType::LEND => out.write_all(b"LEND")?,
+            OrderType::SLTP => out.write_all(b"SLTP")?,
         }
         Ok(IsNull::No)
     }
@@ -412,6 +448,8 @@ impl From<relayer_types::OrderStatus> for OrderStatus {
             relayer_types::OrderStatus::OrderNotFound => OrderStatus::OrderNotFound,
             relayer_types::OrderStatus::RejectedFromChain => OrderStatus::RejectedFromChain,
             relayer_types::OrderStatus::FilledUpdated => OrderStatus::FilledUpdated,
+            relayer_types::OrderStatus::CancelledStopLoss => OrderStatus::CancelledStopLoss,
+            relayer_types::OrderStatus::CancelledTakeProfit => OrderStatus::CancelledTakeProfit,
         }
     }
 }
@@ -423,6 +461,7 @@ impl From<relayer_types::OrderType> for OrderType {
             relayer_types::OrderType::MARKET => OrderType::MARKET,
             relayer_types::OrderType::DARK => OrderType::DARK,
             relayer_types::OrderType::LEND => OrderType::LEND,
+            relayer_types::OrderType::SLTP => OrderType::SLTP,
         }
     }
 }

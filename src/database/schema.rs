@@ -209,6 +209,48 @@ diesel::table! {
 }
 
 diesel::table! {
+    lend_pool_price_minute (bucket_ts) {
+        bucket_ts -> Timestamptz,
+        share_price -> Numeric,
+        total_locked_value -> Numeric,
+        total_pool_share -> Numeric,
+        samples -> Int4,
+        source -> Text,
+    }
+}
+
+diesel::table! {
+    use diesel::sql_types::*;
+    use super::sql_types::PositionType;
+
+    risk_engine_update (id) {
+        id -> Int8,
+        command -> Varchar,
+        position_type -> Nullable<PositionType>,
+        amount -> Nullable<Float8>,
+        total_long_btc -> Float8,
+        total_short_btc -> Float8,
+        manual_halt -> Bool,
+        manual_close_only -> Bool,
+        pause_funding -> Bool,
+        pause_price_feed -> Bool,
+        timestamp -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    risk_params_update (id) {
+        id -> Int8,
+        max_oi_mult -> Float8,
+        max_net_mult -> Float8,
+        max_position_pct -> Float8,
+        min_position_btc -> Float8,
+        max_leverage -> Float8,
+        timestamp -> Timestamptz,
+    }
+}
+
+diesel::table! {
     use diesel::sql_types::*;
     use super::sql_types::PositionSizeCommand;
     use super::sql_types::PositionType;
@@ -309,6 +351,16 @@ diesel::table! {
 }
 
 diesel::table! {
+    twilight_qq_account_link (id) {
+        id -> Int8,
+        twilight_address -> Varchar,
+        account_address -> Varchar,
+        order_id -> Varchar,
+        timestamp -> Timestamptz,
+    }
+}
+
+diesel::table! {
     use diesel::sql_types::*;
     use super::sql_types::OrderType;
     use super::sql_types::OrderStatus;
@@ -345,9 +397,13 @@ diesel::allow_tables_to_appear_in_same_query!(
     lend_order,
     lend_pool,
     lend_pool_command,
+    lend_pool_price_minute,
     position_size_log,
+    risk_engine_update,
+    risk_params_update,
     sorted_set_command,
     trader_order,
     trader_order_funding_updated,
     transaction_hash,
+    twilight_qq_account_link,
 );

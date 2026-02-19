@@ -7,6 +7,7 @@ use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
 
+pub mod headers;
 mod private_methods;
 mod public_methods;
 mod types;
@@ -17,7 +18,7 @@ pub use types::{
     Interval, Order, OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs,
     TransactionHashArgs,
 };
-pub use util::{order_book, recent_orders};
+pub use util::{compute_market_risk_stats, order_book, recent_orders};
 
 type ManagedConnection = ConnectionManager<PgConnection>;
 type ManagedPool = r2d2::Pool<ManagedConnection>;
@@ -46,9 +47,12 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
     let client = Client::open(redis_url).expect("Could not establish redis connection");
 
-    let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
-    let broker = vec![broker_host.to_owned()];
-    let kafka = Producer::from_hosts(broker)
+    let broker: Vec<String> = std::env::var("BROKER")
+        .unwrap_or_else(|_| "localhost:9092".to_string())
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+    let kafka = Producer::from_hosts(broker.clone())
         .with_ack_timeout(Duration::from_secs(1))
         .with_required_acks(RequiredAcks::One)
         .create()
@@ -127,6 +131,11 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
     );
     register_method(
         &mut module,
+        "trader_order_info_v1",
+        Box::new(public_methods::trader_order_info_v1),
+    );
+    register_method(
+        &mut module,
         "lend_order_info",
         Box::new(public_methods::lend_order_info),
     );
@@ -175,6 +184,31 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
         "lend_pool_info",
         Box::new(public_methods::lend_pool_info),
     );
+    register_method(
+        &mut module,
+        "last_day_apy",
+        Box::new(public_methods::last_day_apy),
+    );
+    register_method(
+        &mut module,
+        "apy_chart",
+        Box::new(public_methods::apy_chart),
+    );
+    register_method(
+        &mut module,
+        "open_interest",
+        Box::new(public_methods::open_interest),
+    );
+    register_method(
+        &mut module,
+        "account_summary_by_twilight_address",
+        Box::new(public_methods::account_summary_by_twilight_address),
+    );
+    register_method(
+        &mut module,
+        "get_market_stats",
+        Box::new(public_methods::get_market_stats),
+    );
     module
 }
 
@@ -183,9 +217,12 @@ pub fn init_private_methods(database_url: &str, redis_url: &str) -> RpcModule<Re
     let pool = r2d2::Pool::new(manager).expect("Could not instantiate connection pool");
     let client = Client::open(redis_url).expect("Could not establish redis connection");
 
-    let broker_host = std::env::var("BROKER").expect("missing environment variable BROKER");
-    let broker = vec![broker_host.to_owned()];
-    let kafka = Producer::from_hosts(broker)
+    let broker: Vec<String> = std::env::var("BROKER")
+        .unwrap_or_else(|_| "localhost:9092".to_string())
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+    let kafka = Producer::from_hosts(broker.clone())
         .with_ack_timeout(Duration::from_secs(1))
         .with_required_acks(RequiredAcks::One)
         .create()

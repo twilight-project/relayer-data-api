@@ -3,8 +3,9 @@ use crate::database::{
     schema::{
         address_customer_id, btc_usd_price, current_nonce, customer_account,
         customer_apikey_linking, customer_order_linking, fee_history, funding_rate, lend_order,
-        lend_pool, lend_pool_command, position_size_log, sorted_set_command, trader_order,
-        trader_order_funding_updated, transaction_hash,
+        lend_pool, lend_pool_command, position_size_log, risk_engine_update, risk_params_update,
+        sorted_set_command, trader_order, trader_order_funding_updated, transaction_hash,
+        twilight_qq_account_link,
     },
     sql_types::*,
 };
@@ -521,6 +522,10 @@ impl LendPool {
         tlv / tps
     }
 
+    pub fn get_total_locked_value(&self) -> f64 {
+        self.total_locked_value.to_f64().unwrap_or(0.0)
+    }
+
     pub fn insert(
         conn: &mut PgConnection,
         updates: Vec<relayer_db::LendPool>,
@@ -808,6 +813,73 @@ impl SortedSetCommand {
                             typ,
                         )
                     }
+                    relayer::SortedSetCommand::AddStopLossCloseLIMITPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::ADD_STOP_LOSS_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::AddTakeProfitCloseLIMITPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::RemoveStopLossCloseLIMITPrice(i, typ) => {
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            None,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::RemoveTakeProfitCloseLIMITPrice(i, typ) => {
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            None,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::UpdateStopLossCloseLIMITPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::UpdateTakeProfitCloseLIMITPrice(i, amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        let cmd_uuid = Some(Uuid::from_bytes(*i.as_bytes()));
+                        (
+                            SortedSetCommandType::UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+                            cmd_uuid,
+                            amt,
+                            typ,
+                        )
+                    }
+                    relayer::SortedSetCommand::BulkSearchRemoveSLTPCloseLIMITPrice(amt, typ) => {
+                        let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
+                        (
+                            SortedSetCommandType::BULK_SEARCH_REMOVE_SLTP_CLOSE_LIMIT_PRICE,
+                            None,
+                            amt,
+                            typ,
+                        )
+                    }
                 };
 
                 SortedSetCommandUpdate {
@@ -823,6 +895,38 @@ impl SortedSetCommand {
             .values(items)
             .execute(conn)
     }
+
+    pub fn get_latest_close_limit(
+        conn: &mut PgConnection,
+        order_uuid: &str,
+    ) -> QueryResult<Option<SettleLimitDetails>> {
+        use crate::database::schema::sorted_set_command::dsl::*;
+
+        let result = sorted_set_command
+            .filter(uuid.eq(order_uuid))
+            .filter(command.eq_any(vec![
+                SortedSetCommandType::ADD_CLOSE_LIMIT_PRICE,
+                SortedSetCommandType::UPDATE_CLOSE_LIMIT_PRICE,
+            ]))
+            .order(id.desc())
+            .first::<SortedSetCommand>(conn)
+            .optional()?;
+
+        Ok(result.and_then(|r| {
+            r.amount.map(|price| SettleLimitDetails {
+                uuid: r.uuid.unwrap_or_default(),
+                position_type: r.position_type,
+                price,
+            })
+        }))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SettleLimitDetails {
+    pub uuid: String,
+    pub position_type: PositionType,
+    pub price: BigDecimal,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
@@ -982,6 +1086,7 @@ impl BtcUsdPrice {
     ) -> QueryResult<Vec<CandleData>> {
         let start: DateTime<Utc>;
         let table: String;
+        let candle_duration = interval.duration();
         // temp for 24 hour candle change
         // need to create new api for 24hour candle change data
         match interval {
@@ -1010,14 +1115,24 @@ impl BtcUsdPrice {
         }
         let interval = interval.interval_sql();
 
+        // Limit the scan range to only the data we need (offset + limit candles).
+        // Without this, generate_series(since, now()) for a 1-year-old `since` with
+        // 1-minute candles creates ~525K rows, all processed before LIMIT applies.
+        let effective_limit = limit.unwrap_or(60);
+        let effective_offset = offset.unwrap_or(0);
+        let total_candles = effective_offset + effective_limit;
+        let query_end = start
+            + chrono::Duration::seconds(candle_duration.num_seconds() * total_candles);
+        let query_end = query_end.min(Utc::now());
+
         let subquery = format!(
             r#"
             with t as (
                 select * from
-                generate_series('{}', now(), {}) timestamp
+                generate_series('{}'::timestamptz, '{}'::timestamptz, {}::interval) timestamp
             ), c as (
                 select * from {}
-                where start_time between '{}' and now()
+                where start_time between '{}'::timestamptz and '{}'::timestamptz
             )
             select
                t.timestamp as bucket,
@@ -1033,7 +1148,7 @@ impl BtcUsdPrice {
             inner join c
             on c.start_time >= t.timestamp AND c.start_time < t.timestamp + interval {} order by c.start_time
             "#,
-            start, interval, table, start, interval
+            start, query_end, interval, table, start, query_end, interval
         );
 
         let query = format!(
@@ -1944,6 +2059,19 @@ impl TraderOrderFundingUpdates {
 
         query.execute(conn)
     }
+
+    pub fn get_latest_by_uuid(
+        conn: &mut PgConnection,
+        order_uuid: &str,
+    ) -> QueryResult<Option<TraderOrderFundingUpdates>> {
+        use crate::database::schema::trader_order_funding_updated::dsl::*;
+
+        trader_order_funding_updated
+            .filter(uuid.eq(order_uuid))
+            .order(id.desc())
+            .first::<TraderOrderFundingUpdates>(conn)
+            .optional()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -2399,6 +2527,330 @@ impl From<relayer::LendOrder> for InsertLendOrder {
             tps3: BigDecimal::from_f64(tps3).unwrap(),
             entry_sequence: entry_sequence as i64,
         }
+    }
+}
+
+// --- add near your top imports ---
+use diesel::sql_types::{Nullable, Numeric, Text, Timestamptz};
+
+// ==========================
+// Price & APY chart helpers
+// ==========================
+
+#[derive(Debug, Clone, QueryableByName, Serialize, Deserialize, PartialEq)]
+pub struct PricePoint {
+    #[diesel(sql_type = Timestamptz)]
+    pub bucket_ts: DateTime<Utc>,
+    #[diesel(sql_type = Numeric)]
+    pub price: BigDecimal,
+}
+
+#[derive(Debug, Clone, QueryableByName, Serialize, Deserialize, PartialEq)]
+pub struct ApyPoint {
+    #[diesel(sql_type = Timestamptz)]
+    pub bucket_ts: DateTime<Utc>,
+    #[diesel(sql_type = Numeric)]
+    pub apy: BigDecimal,
+}
+
+#[derive(Debug, Clone, QueryableByName)]
+struct LastDayApyRow {
+    #[diesel(sql_type = Nullable<Numeric>)]
+    pub last_day_apy_now: Option<BigDecimal>,
+}
+
+pub struct PoolAnalytics;
+
+impl PoolAnalytics {
+    /// Latest minute snapshot from lend_pool_price_minute
+    pub fn latest_price(conn: &mut PgConnection) -> QueryResult<Option<PricePoint>> {
+        let sql = r#"
+            SELECT bucket_ts, share_price AS price
+            FROM lend_pool_price_minute
+            ORDER BY bucket_ts DESC
+            LIMIT 1
+        "#;
+
+        let mut rows: Vec<PricePoint> = diesel::sql_query(sql).load(conn)?;
+        Ok(rows.pop())
+    }
+
+    /// Regular-grid price series using "latest-on-or-before" lookup (robust with sparse data).
+    /// window: e.g. "24 hours" | "7 days" | "30 days"
+    /// step:   e.g. "1 minute" | "5 minutes" | "1 hour"
+    pub fn price_series(
+        conn: &mut PgConnection,
+        window: &str,
+        step: &str,
+    ) -> QueryResult<Vec<PricePoint>> {
+        let sql = r#"
+            WITH t_end AS (SELECT now() AT TIME ZONE 'utc' AS t),
+            grid AS (
+              SELECT gs AS bucket_ts
+              FROM t_end, LATERAL generate_series(t_end.t - $1::interval, t_end.t, $2::interval) gs
+            )
+            SELECT
+              g.bucket_ts,
+              (
+                SELECT share_price
+                FROM lend_pool_price_minute p
+                WHERE p.bucket_ts <= g.bucket_ts
+                ORDER BY p.bucket_ts DESC
+                LIMIT 1
+              ) AS price
+            FROM grid g
+            ORDER BY g.bucket_ts;
+        "#;
+
+        diesel::sql_query(sql)
+            .bind::<Text, _>(window)
+            .bind::<Text, _>(step)
+            .load(conn)
+    }
+
+    /// APY time series via the SQL function `apy_series(window, step, lookback='24 hours')`
+    pub fn apy_series(
+        conn: &mut PgConnection,
+        window: &str,
+        step: &str,
+        lookback: &str,
+    ) -> QueryResult<Vec<ApyPoint>> {
+        let sql = r#"
+            SELECT bucket_ts, apy
+            FROM apy_series($1::interval, $2::interval, $3::interval)
+            WHERE apy IS NOT NULL
+            ORDER BY bucket_ts;
+        "#;
+
+        diesel::sql_query(sql)
+            .bind::<Text, _>(window)
+            .bind::<Text, _>(step)
+            .bind::<Text, _>(lookback)
+            .load(conn)
+    }
+
+    /// Convenience: last-day APY at "now()" using the helper function `last_day_apy_now()`.
+    /// Returns None if not enough history yet.
+    pub fn last_day_apy_now(conn: &mut PgConnection) -> QueryResult<Option<BigDecimal>> {
+        let sql = r#"SELECT last_day_apy_now()"#;
+        let mut rows: Vec<LastDayApyRow> = diesel::sql_query(sql).load(conn)?;
+        Ok(rows.pop().and_then(|r| r.last_day_apy_now))
+    }
+
+    // ---------- ready-to-use presets for your frontend ----------
+
+    /// 1-day price series (1-minute step)
+    pub fn price_1d(conn: &mut PgConnection) -> QueryResult<Vec<PricePoint>> {
+        Self::price_series(conn, "24 hours", "1 minute")
+    }
+
+    /// 1-week price series (5-minute step)
+    pub fn price_1w(conn: &mut PgConnection) -> QueryResult<Vec<PricePoint>> {
+        Self::price_series(conn, "7 days", "5 minutes")
+    }
+
+    /// 1-month price series (1-hour step)
+    pub fn price_1m(conn: &mut PgConnection) -> QueryResult<Vec<PricePoint>> {
+        Self::price_series(conn, "30 days", "1 hour")
+    }
+
+    /// 1-day APY series (1-minute step)
+    pub fn apy_1d(conn: &mut PgConnection) -> QueryResult<Vec<ApyPoint>> {
+        Self::apy_series(conn, "24 hours", "1 minute", "24 hours")
+    }
+
+    /// 1-week APY series (5-minute step)
+    pub fn apy_1w(conn: &mut PgConnection) -> QueryResult<Vec<ApyPoint>> {
+        Self::apy_series(conn, "7 days", "5 minutes", "24 hours")
+    }
+
+    /// 1-month APY series (1-hour step)
+    pub fn apy_1m(conn: &mut PgConnection) -> QueryResult<Vec<ApyPoint>> {
+        Self::apy_series(conn, "30 days", "1 hour", "24 hours")
+    }
+}
+
+// use bigdecimal::BigDecimal;
+use chrono::{DateTime, Utc};
+
+#[derive(Debug, QueryableByName, Serialize, Deserialize)]
+pub struct OpenInterest {
+    #[diesel(sql_type = Numeric)]
+    pub long_exposure: BigDecimal,
+
+    #[diesel(sql_type = Numeric)]
+    pub short_exposure: BigDecimal,
+
+    #[diesel(sql_type = Nullable<Timestamptz>)]
+    pub last_order_timestamp: Option<DateTime<Utc>>,
+}
+use diesel::{PgConnection, QueryResult, RunQueryDsl};
+
+pub fn get_open_interest(conn: &mut PgConnection) -> QueryResult<OpenInterest> {
+    let mut rows: Vec<OpenInterest> = diesel::sql_query(
+        "SELECT long_exposure, short_exposure, last_order_timestamp FROM get_active_filled_margin_x_leverage_sum()"
+    ).get_results(conn)?;
+    rows.pop().ok_or_else(|| diesel::result::Error::NotFound)
+}
+
+use diesel::QueryableByName;
+
+#[derive(Debug, QueryableByName, Serialize, Deserialize)]
+pub struct TraderOrderSummary {
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub settled_positionsize: BigDecimal,
+
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub filled_positionsize: BigDecimal,
+
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub liquidated_positionsize: BigDecimal,
+
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub settled_count: i64,
+
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub filled_count: i64,
+
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub liquidated_count: i64,
+}
+// use chrono::{DateTime, Utc};
+// use diesel::sql_types::{Text, Timestamptz};
+// use diesel::{PgConnection, QueryResult, RunQueryDsl};
+
+pub fn account_summary_by_twilight_address_fn(
+    conn: &mut PgConnection,
+    t_address: &str,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> QueryResult<TraderOrderSummary> {
+    diesel::sql_query("SELECT * FROM get_trader_order_summary_by_t_address($1, $2, $3)")
+        .bind::<Text, _>(t_address)
+        .bind::<Timestamptz, _>(from)
+        .bind::<Timestamptz, _>(to)
+        .get_result::<TraderOrderSummary>(conn)
+}
+
+// --- Risk Engine Update ---
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName)]
+#[diesel(table_name = risk_engine_update)]
+pub struct RiskEngineUpdateRow {
+    pub id: i64,
+    pub command: String,
+    #[diesel(sql_type = crate::database::schema::sql_types::PositionType)]
+    pub position_type: Option<PositionType>,
+    pub amount: Option<f64>,
+    pub total_long_btc: f64,
+    pub total_short_btc: f64,
+    pub manual_halt: bool,
+    pub manual_close_only: bool,
+    pub pause_funding: bool,
+    pub pause_price_feed: bool,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = risk_engine_update)]
+pub struct NewRiskEngineUpdate {
+    pub command: String,
+    pub position_type: Option<PositionType>,
+    pub amount: Option<f64>,
+    pub total_long_btc: f64,
+    pub total_short_btc: f64,
+    pub manual_halt: bool,
+    pub manual_close_only: bool,
+    pub pause_funding: bool,
+    pub pause_price_feed: bool,
+    pub timestamp: DateTime<Utc>,
+}
+
+impl RiskEngineUpdateRow {
+    pub fn insert(
+        conn: &mut PgConnection,
+        records: Vec<NewRiskEngineUpdate>,
+    ) -> QueryResult<usize> {
+        use crate::database::schema::risk_engine_update::dsl::*;
+        diesel::insert_into(risk_engine_update)
+            .values(&records)
+            .execute(conn)
+    }
+
+    pub fn get_latest(conn: &mut PgConnection) -> QueryResult<RiskEngineUpdateRow> {
+        use crate::database::schema::risk_engine_update::dsl::*;
+        risk_engine_update
+            .order(timestamp.desc())
+            .first::<RiskEngineUpdateRow>(conn)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
+#[diesel(table_name = risk_params_update)]
+pub struct RiskParamsUpdateRow {
+    pub id: i64,
+    pub max_oi_mult: f64,
+    pub max_net_mult: f64,
+    pub max_position_pct: f64,
+    pub min_position_btc: f64,
+    pub max_leverage: f64,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = risk_params_update)]
+pub struct NewRiskParamsUpdate {
+    pub max_oi_mult: f64,
+    pub max_net_mult: f64,
+    pub max_position_pct: f64,
+    pub min_position_btc: f64,
+    pub max_leverage: f64,
+    pub timestamp: DateTime<Utc>,
+}
+
+impl RiskParamsUpdateRow {
+    pub fn insert(
+        conn: &mut PgConnection,
+        records: Vec<NewRiskParamsUpdate>,
+    ) -> QueryResult<usize> {
+        use crate::database::schema::risk_params_update::dsl::*;
+        diesel::insert_into(risk_params_update)
+            .values(&records)
+            .execute(conn)
+    }
+
+    pub fn get_latest(conn: &mut PgConnection) -> QueryResult<RiskParamsUpdateRow> {
+        use crate::database::schema::risk_params_update::dsl::*;
+        risk_params_update
+            .order(timestamp.desc())
+            .first::<RiskParamsUpdateRow>(conn)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
+#[diesel(table_name = twilight_qq_account_link)]
+pub struct TwilightQqAccountLinkRow {
+    pub id: i64,
+    pub twilight_address: String,
+    pub account_address: String,
+    pub order_id: String,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
+#[diesel(table_name = twilight_qq_account_link)]
+pub struct NewTwilightQqAccountLink {
+    pub twilight_address: String,
+    pub account_address: String,
+    pub order_id: String,
+}
+
+impl NewTwilightQqAccountLink {
+    pub fn insert(conn: &mut PgConnection, record: NewTwilightQqAccountLink) -> QueryResult<usize> {
+        use crate::database::schema::twilight_qq_account_link::dsl::*;
+        diesel::insert_into(twilight_qq_account_link)
+            .values(&record)
+            .execute(conn)
     }
 }
 
