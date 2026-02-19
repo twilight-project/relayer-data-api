@@ -2059,6 +2059,19 @@ impl TraderOrderFundingUpdates {
 
         query.execute(conn)
     }
+
+    pub fn get_latest_by_uuid(
+        conn: &mut PgConnection,
+        order_uuid: &str,
+    ) -> QueryResult<Option<TraderOrderFundingUpdates>> {
+        use crate::database::schema::trader_order_funding_updated::dsl::*;
+
+        trader_order_funding_updated
+            .filter(uuid.eq(order_uuid))
+            .order(id.desc())
+            .first::<TraderOrderFundingUpdates>(conn)
+            .optional()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

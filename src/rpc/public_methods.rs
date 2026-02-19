@@ -1,5 +1,6 @@
 use super::*;
 use super::types::RiskParams;
+use bigdecimal::BigDecimal;
 use crate::database::*;
 use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
@@ -221,6 +222,7 @@ struct TraderOrderInfoV1 {
     #[serde(flatten)]
     order: TraderOrder,
     settle_limit: Option<SettleLimitDetails>,
+    funding_applied: Option<BigDecimal>,
 }
 
 pub(super) fn trader_order_info_v1(
@@ -249,7 +251,13 @@ pub(super) fn trader_order_info_v1(
                         _ => SortedSetCommand::get_latest_close_limit(&mut conn, &order.uuid)
                             .unwrap_or(None),
                     };
-                    let response = TraderOrderInfoV1 { order, settle_limit };
+                    let funding_applied = TraderOrderFundingUpdates::get_latest_by_uuid(
+                        &mut conn,
+                        &order.uuid,
+                    )
+                    .unwrap_or(None)
+                    .map(|f| f.initial_margin - f.available_margin - f.fee_filled);
+                    let response = TraderOrderInfoV1 { order, settle_limit, funding_applied };
                     Ok(serde_json::to_value(response).expect("Error converting response"))
                 }
                 Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
