@@ -1026,6 +1026,12 @@ impl DatabaseArchiver {
                     relayer::RiskEngineCommand::SetManualCloseOnly(_) => {
                         ("SetManualCloseOnly".to_string(), None, None)
                     }
+                    relayer::RiskEngineCommand::SetPauseFunding(_) => {
+                        ("SetPauseFunding".to_string(), None, None)
+                    }
+                    relayer::RiskEngineCommand::SetPausePriceFeed(_) => {
+                        ("SetPausePriceFeed".to_string(), None, None)
+                    }
                 };
 
                 let record = NewRiskEngineUpdate {
@@ -1036,6 +1042,8 @@ impl DatabaseArchiver {
                     total_short_btc: risk_state.total_short_btc,
                     manual_halt: risk_state.manual_halt,
                     manual_close_only: risk_state.manual_close_only,
+                    pause_funding: risk_state.pause_funding,
+                    pause_price_feed: risk_state.pause_price_feed,
                     timestamp: Utc::now(),
                 };
                 self.risk_engine_update(record)?;

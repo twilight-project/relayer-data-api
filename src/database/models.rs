@@ -2746,6 +2746,8 @@ pub struct RiskEngineUpdateRow {
     pub total_short_btc: f64,
     pub manual_halt: bool,
     pub manual_close_only: bool,
+    pub pause_funding: bool,
+    pub pause_price_feed: bool,
     pub timestamp: DateTime<Utc>,
 }
 
@@ -2759,6 +2761,8 @@ pub struct NewRiskEngineUpdate {
     pub total_short_btc: f64,
     pub manual_halt: bool,
     pub manual_close_only: bool,
+    pub pause_funding: bool,
+    pub pause_price_feed: bool,
     pub timestamp: DateTime<Utc>,
 }
 

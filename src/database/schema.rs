@@ -232,6 +232,8 @@ diesel::table! {
         total_short_btc -> Float8,
         manual_halt -> Bool,
         manual_close_only -> Bool,
+        pause_funding -> Bool,
+        pause_price_feed -> Bool,
         timestamp -> Timestamptz,
     }
 }
