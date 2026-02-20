@@ -22,16 +22,13 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact: relayer-data-api-linux-amd64
-            binary: target/x86_64-unknown-linux-gnu/release/main
+            artifact: relayer-data-api-linux-amd64.tar.gz
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact: relayer-data-api-macos-arm64
-            binary: target/aarch64-apple-darwin/release/main
+            artifact: relayer-data-api-macos-arm64.tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact: relayer-data-api-windows-amd64.exe
-            binary: target/x86_64-pc-windows-msvc/release/main.exe
+            artifact: relayer-data-api-windows-amd64.zip
 
     runs-on: ${{ matrix.os }}
 
@@ -85,17 +82,22 @@ jobs:
         if: runner.os != 'macOS'
         run: cargo build --release --target ${{ matrix.target }} --verbose
 
-      - name: Prepare binary artifact (Unix)
+      - name: Prepare artifact (Linux / macOS)
         if: runner.os != 'Windows'
         run: |
-          cp ${{ matrix.binary }} ${{ matrix.artifact }}
-          chmod +x ${{ matrix.artifact }}
+          BIN_DIR=target/${{ matrix.target }}/release
+          chmod +x $BIN_DIR/archiver $BIN_DIR/api $BIN_DIR/auth
+          tar -czf ${{ matrix.artifact }} -C $BIN_DIR archiver api auth
 
-      - name: Prepare binary artifact (Windows)
+      - name: Prepare artifact (Windows)
         if: runner.os == 'Windows'
-        run: cp ${{ matrix.binary }} ${{ matrix.artifact }}
+        shell: powershell
+        run: |
+          $binDir = "target/${{ matrix.target }}/release"
+          Compress-Archive -Path "$binDir/archiver.exe","$binDir/api.exe","$binDir/auth.exe" `
+            -DestinationPath "${{ matrix.artifact }}"
 
-      - name: Upload binary to release
+      - name: Upload artifact to release
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.artifact }}

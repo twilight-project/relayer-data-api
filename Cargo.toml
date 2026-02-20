@@ -17,6 +17,9 @@ name = "archiver"
 [[bin]]
 name = "api"
 
+[[bin]]
+name = "auth"
+
 [lib]
 name = "relayerarchiverlib"
 path = "src/lib.rs"
