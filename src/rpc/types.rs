@@ -580,6 +580,8 @@ pub struct MarketRiskStatsResponse {
     pub pool_equity_btc: f64,
     pub total_long_btc: f64,
     pub total_short_btc: f64,
+    pub total_pending_long_btc: f64,
+    pub total_pending_short_btc: f64,
     pub open_interest_btc: f64,
     pub net_exposure_btc: f64,
     pub long_pct: f64,
