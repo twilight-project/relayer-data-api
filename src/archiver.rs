@@ -1081,6 +1081,7 @@ impl DatabaseArchiver {
                     max_position_pct: params.max_position_pct,
                     min_position_btc: params.min_position_btc,
                     max_leverage: params.max_leverage,
+                    mm_ratio: params.mm_ratio,
                     timestamp: Utc::now(),
                 };
                 self.risk_params_update(record)?;

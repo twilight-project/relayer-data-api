@@ -532,6 +532,10 @@ pub struct AccountSummaryByTAddressResponse {
 
 // --- Market Risk Stats (moved from relayer-core) ---
 
+fn default_mm_ratio() -> f64 {
+    0.4
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RiskParams {
     pub max_oi_mult: f64,
@@ -539,6 +543,8 @@ pub struct RiskParams {
     pub max_position_pct: f64,
     pub min_position_btc: f64,
     pub max_leverage: f64,
+    #[serde(default = "default_mm_ratio")]
+    pub mm_ratio: f64,
 }
 
 impl RiskParams {
@@ -564,6 +570,10 @@ impl RiskParams {
                 .unwrap_or("50.0".to_string())
                 .parse::<f64>()
                 .unwrap_or(50.0),
+            mm_ratio: std::env::var("RISK_MM_RATIO")
+                .unwrap_or("0.4".to_string())
+                .parse::<f64>()
+                .unwrap_or(0.4),
         }
     }
 }

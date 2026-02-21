@@ -249,6 +249,7 @@ diesel::table! {
         min_position_btc -> Float8,
         max_leverage -> Float8,
         timestamp -> Timestamptz,
+        mm_ratio -> Float8,
     }
 }
 

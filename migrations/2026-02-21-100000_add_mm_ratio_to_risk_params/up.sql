@@ -1,0 +1,2 @@
+ALTER TABLE risk_params_update
+    ADD COLUMN mm_ratio DOUBLE PRECISION NOT NULL DEFAULT 0.4;
