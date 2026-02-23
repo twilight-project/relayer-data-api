@@ -2732,6 +2732,47 @@ pub fn account_summary_by_twilight_address_fn(
         .get_result::<TraderOrderSummary>(conn)
 }
 
+#[derive(Debug, QueryableByName, Serialize, Deserialize)]
+pub struct TraderOrderSummaryByAddress {
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    pub twilight_address: String,
+
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub settled_positionsize: BigDecimal,
+
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub filled_positionsize: BigDecimal,
+
+    #[diesel(sql_type = diesel::sql_types::Numeric)]
+    pub liquidated_positionsize: BigDecimal,
+
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub settled_count: i64,
+
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub filled_count: i64,
+
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    pub liquidated_count: i64,
+}
+
+pub fn all_account_summaries_fn(
+    conn: &mut PgConnection,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+    limit: i64,
+    offset: i64,
+) -> QueryResult<Vec<TraderOrderSummaryByAddress>> {
+    diesel::sql_query(
+        "SELECT * FROM get_all_trader_order_summaries($1, $2, $3, $4)",
+    )
+    .bind::<Timestamptz, _>(from)
+    .bind::<Timestamptz, _>(to)
+    .bind::<diesel::sql_types::BigInt, _>(limit)
+    .bind::<diesel::sql_types::BigInt, _>(offset)
+    .get_results::<TraderOrderSummaryByAddress>(conn)
+}
+
 // --- Risk Engine Update ---
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable, QueryableByName)]
