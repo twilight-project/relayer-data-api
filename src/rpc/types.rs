@@ -420,6 +420,16 @@ impl ApySeriesArgs {
     }
 }
 
+const MAX_DELAYED_DAYS: i64 = 7;
+
+fn max_delayed_days() -> i64 {
+    std::env::var("MAX_DELAYED_DAYS")
+        .ok()
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(MAX_DELAYED_DAYS)
+        .max(0)
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AccountSummaryByTAddressArgs {
     pub t_address: String,
@@ -453,7 +463,7 @@ impl AccountSummaryByTAddressArgs {
 
     pub fn normalize(self) -> Result<(String, DateTime<Utc>, DateTime<Utc>), String> {
         let now = Utc::now();
-        let min_allowed = now - Duration::days(0);
+        let min_allowed = now - Duration::days(max_delayed_days());
 
         let AccountSummaryByTAddressArgs {
             t_address,
@@ -561,7 +571,7 @@ pub struct AllAccountSummariesArgs {
 impl AllAccountSummariesArgs {
     pub fn normalize(self) -> Result<(DateTime<Utc>, DateTime<Utc>, i64, i64), String> {
         let now = Utc::now();
-        let min_allowed = now - Duration::days(0);
+        let min_allowed = now - Duration::days(max_delayed_days());
 
         let limit = self.limit.clamp(1, 500);
         let offset = self.offset.max(0);
