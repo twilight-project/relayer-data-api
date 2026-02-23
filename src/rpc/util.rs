@@ -133,6 +133,8 @@ pub fn compute_market_risk_stats(
         pool_equity_btc,
         total_long_btc: total_long,
         total_short_btc: total_short,
+        total_pending_long_btc: risk_state.total_pending_long_btc,
+        total_pending_short_btc: risk_state.total_pending_short_btc,
         open_interest_btc: oi_btc,
         net_exposure_btc: net_btc,
         long_pct,

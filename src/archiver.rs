@@ -1032,6 +1032,19 @@ impl DatabaseArchiver {
                     relayer::RiskEngineCommand::SetPausePriceFeed(_) => {
                         ("SetPausePriceFeed".to_string(), None, None)
                     }
+                    relayer::RiskEngineCommand::AddPendingExposure(pt, amt) => (
+                        "AddPendingExposure".to_string(),
+                        Some(pt.clone().into()),
+                        Some(*amt),
+                    ),
+                    relayer::RiskEngineCommand::RemovePendingExposure(pt, amt) => (
+                        "RemovePendingExposure".to_string(),
+                        Some(pt.clone().into()),
+                        Some(*amt),
+                    ),
+                    relayer::RiskEngineCommand::RecalculateExposure => {
+                        ("RecalculateExposure".to_string(), None, None)
+                    }
                 };
 
                 let record = NewRiskEngineUpdate {
@@ -1040,6 +1053,8 @@ impl DatabaseArchiver {
                     amount,
                     total_long_btc: risk_state.total_long_btc,
                     total_short_btc: risk_state.total_short_btc,
+                    total_pending_long_btc: risk_state.total_pending_long_btc,
+                    total_pending_short_btc: risk_state.total_pending_short_btc,
                     manual_halt: risk_state.manual_halt,
                     manual_close_only: risk_state.manual_close_only,
                     pause_funding: risk_state.pause_funding,
@@ -1066,6 +1081,7 @@ impl DatabaseArchiver {
                     max_position_pct: params.max_position_pct,
                     min_position_btc: params.min_position_btc,
                     max_leverage: params.max_leverage,
+                    mm_ratio: params.mm_ratio,
                     timestamp: Utc::now(),
                 };
                 self.risk_params_update(record)?;

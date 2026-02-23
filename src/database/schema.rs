@@ -230,6 +230,8 @@ diesel::table! {
         amount -> Nullable<Float8>,
         total_long_btc -> Float8,
         total_short_btc -> Float8,
+        total_pending_long_btc -> Float8,
+        total_pending_short_btc -> Float8,
         manual_halt -> Bool,
         manual_close_only -> Bool,
         pause_funding -> Bool,
@@ -247,6 +249,7 @@ diesel::table! {
         min_position_btc -> Float8,
         max_leverage -> Float8,
         timestamp -> Timestamptz,
+        mm_ratio -> Float8,
     }
 }
 

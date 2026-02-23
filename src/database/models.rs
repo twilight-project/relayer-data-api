@@ -2744,6 +2744,8 @@ pub struct RiskEngineUpdateRow {
     pub amount: Option<f64>,
     pub total_long_btc: f64,
     pub total_short_btc: f64,
+    pub total_pending_long_btc: f64,
+    pub total_pending_short_btc: f64,
     pub manual_halt: bool,
     pub manual_close_only: bool,
     pub pause_funding: bool,
@@ -2759,6 +2761,8 @@ pub struct NewRiskEngineUpdate {
     pub amount: Option<f64>,
     pub total_long_btc: f64,
     pub total_short_btc: f64,
+    pub total_pending_long_btc: f64,
+    pub total_pending_short_btc: f64,
     pub manual_halt: bool,
     pub manual_close_only: bool,
     pub pause_funding: bool,
@@ -2795,6 +2799,7 @@ pub struct RiskParamsUpdateRow {
     pub min_position_btc: f64,
     pub max_leverage: f64,
     pub timestamp: DateTime<Utc>,
+    pub mm_ratio: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
@@ -2805,6 +2810,7 @@ pub struct NewRiskParamsUpdate {
     pub max_position_pct: f64,
     pub min_position_btc: f64,
     pub max_leverage: f64,
+    pub mm_ratio: f64,
     pub timestamp: DateTime<Utc>,
 }
 
