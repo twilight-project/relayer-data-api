@@ -420,6 +420,16 @@ impl ApySeriesArgs {
     }
 }
 
+const MAX_DELAYED_DAYS: i64 = 7;
+
+fn max_delayed_days() -> i64 {
+    std::env::var("MAX_DELAYED_DAYS")
+        .ok()
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(MAX_DELAYED_DAYS)
+        .max(0)
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AccountSummaryByTAddressArgs {
     pub t_address: String,
@@ -453,7 +463,7 @@ impl AccountSummaryByTAddressArgs {
 
     pub fn normalize(self) -> Result<(String, DateTime<Utc>, DateTime<Utc>), String> {
         let now = Utc::now();
-        let min_allowed = now - Duration::days(0);
+        let min_allowed = now - Duration::days(max_delayed_days());
 
         let AccountSummaryByTAddressArgs {
             t_address,
@@ -525,6 +535,104 @@ pub struct AccountSummaryByTAddressResponse {
     pub filled_positionsize: BigDecimal,
     pub liquidated_positionsize: BigDecimal,
 
+    pub settled_count: i64,
+    pub filled_count: i64,
+    pub liquidated_count: i64,
+}
+
+// --- All Account Summaries ---
+
+fn default_limit() -> i64 {
+    50
+}
+
+fn default_offset() -> i64 {
+    0
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AllAccountSummariesArgs {
+    #[serde(default)]
+    pub from: Option<DateTime<Utc>>,
+
+    #[serde(default)]
+    pub to: Option<DateTime<Utc>>,
+
+    #[serde(default)]
+    pub since: Option<DateTime<Utc>>,
+
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+
+    #[serde(default = "default_offset")]
+    pub offset: i64,
+}
+
+impl AllAccountSummariesArgs {
+    pub fn normalize(self) -> Result<(DateTime<Utc>, DateTime<Utc>, i64, i64), String> {
+        let now = Utc::now();
+        let min_allowed = now - Duration::days(max_delayed_days());
+
+        let limit = self.limit.clamp(1, 500);
+        let offset = self.offset.max(0);
+
+        // Case 1: since is provided
+        if let Some(since_ts) = self.since {
+            if since_ts > min_allowed {
+                return Err(
+                    "`since` must be at least 7 days older than the current time.".to_string(),
+                );
+            }
+            return Ok((since_ts, min_allowed, limit, offset));
+        }
+
+        // Case 2: from / to logic
+        match (self.from, self.to) {
+            (Some(from_ts), Some(to_ts)) => {
+                if from_ts > min_allowed {
+                    return Err(
+                        "`from` must be at least 7 days older than the current time.".to_string(),
+                    );
+                }
+                let normalized_to = if to_ts > min_allowed {
+                    min_allowed
+                } else {
+                    to_ts
+                };
+                if normalized_to < from_ts {
+                    return Err("`to` must be greater than or equal to `from`.".to_string());
+                }
+                Ok((from_ts, normalized_to, limit, offset))
+            }
+            (Some(from_ts), None) => {
+                if from_ts > min_allowed {
+                    return Err(
+                        "`from` must be at least 7 days older than the current time.".to_string(),
+                    );
+                }
+                Ok((from_ts, min_allowed, limit, offset))
+            }
+            (None, Some(_)) => Err("`to` cannot be provided without `from`".to_string()),
+            (None, None) => Err("Either `since` or `from` must be provided".to_string()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct AllAccountSummariesResponse {
+    pub from: DateTime<Utc>,
+    pub to: DateTime<Utc>,
+    pub limit: i64,
+    pub offset: i64,
+    pub summaries: Vec<AddressSummaryItem>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AddressSummaryItem {
+    pub twilight_address: String,
+    pub settled_positionsize: BigDecimal,
+    pub filled_positionsize: BigDecimal,
+    pub liquidated_positionsize: BigDecimal,
     pub settled_count: i64,
     pub filled_count: i64,
     pub liquidated_count: i64,

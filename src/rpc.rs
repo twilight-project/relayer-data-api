@@ -206,6 +206,11 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
     );
     register_method(
         &mut module,
+        "all_account_summaries",
+        Box::new(public_methods::all_account_summaries),
+    );
+    register_method(
+        &mut module,
         "get_market_stats",
         Box::new(public_methods::get_market_stats),
     );

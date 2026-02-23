@@ -785,6 +785,46 @@ pub(super) fn account_summary_by_twilight_address(
     }
 }
 
+pub(super) fn all_account_summaries(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let args: crate::rpc::types::AllAccountSummariesArgs = params.parse()?;
+
+    let (from, to, limit, offset) = args.normalize().map_err(Error::Custom)?;
+
+    match ctx.pool.get() {
+        Ok(mut conn) => {
+            let rows = all_account_summaries_fn(&mut conn, from, to, limit, offset)
+                .map_err(|e| Error::Custom(format!("Database error: {:?}", e)))?;
+
+            let summaries = rows
+                .into_iter()
+                .map(|r| crate::rpc::types::AddressSummaryItem {
+                    twilight_address: r.twilight_address,
+                    settled_positionsize: r.settled_positionsize,
+                    filled_positionsize: r.filled_positionsize,
+                    liquidated_positionsize: r.liquidated_positionsize,
+                    settled_count: r.settled_count,
+                    filled_count: r.filled_count,
+                    liquidated_count: r.liquidated_count,
+                })
+                .collect();
+
+            let response = crate::rpc::types::AllAccountSummariesResponse {
+                from,
+                to,
+                limit,
+                offset,
+                summaries,
+            };
+
+            Ok(serde_json::to_value(response).expect("Error converting response"))
+        }
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
 pub(super) fn get_market_stats(
     _: Params<'_>,
     ctx: &RelayerContext,
