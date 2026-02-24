@@ -146,6 +146,7 @@ impl OrderStatus {
 
         match self {
             PENDING => true,
+            FILLED => true,
             _ => false,
         }
     }
