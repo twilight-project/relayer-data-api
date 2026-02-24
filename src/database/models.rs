@@ -907,12 +907,16 @@ impl SortedSetCommand {
             .filter(command.eq_any(vec![
                 SortedSetCommandType::ADD_CLOSE_LIMIT_PRICE,
                 SortedSetCommandType::UPDATE_CLOSE_LIMIT_PRICE,
+                SortedSetCommandType::REMOVE_CLOSE_LIMIT_PRICE,
             ]))
             .order(id.desc())
             .first::<SortedSetCommand>(conn)
             .optional()?;
 
         Ok(result.and_then(|r| {
+            if r.command == SortedSetCommandType::REMOVE_CLOSE_LIMIT_PRICE {
+                return None;
+            }
             r.amount.map(|price| SettleLimitDetails {
                 uuid: r.uuid.unwrap_or_default(),
                 position_type: r.position_type,
