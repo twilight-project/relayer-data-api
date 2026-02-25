@@ -2684,6 +2684,88 @@ Get historical lend order information by account ID
 
 Returns an array of lend order objects. Each object has the same fields as the `lend_order_info` response.
 
+### Order Funding History
+
+```javascript
+var myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+  jsonrpc: "2.0",
+  method: "order_funding_history",
+  id: 123,
+  params: {
+    data: "hex_encoded_data_string",
+  },
+});
+
+var requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow",
+};
+
+fetch("API_ENDPOINT/api", requestOptions)
+  .then((response) => response.text())
+  .then((result) => console.log(result))
+  .catch((error) => console.log("error", error));
+```
+
+> The result from the above endpoint looks like this:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "time": "2024-01-31T17:35:14.662529Z",
+      "position_side": "LONG",
+      "payment": "0.0042",
+      "funding_rate": "0.0001",
+      "order_id": "3374714d-8a95-4096-855f-7e2675fe0dc8"
+    }
+  ],
+  "id": 123
+}
+```
+
+**Description:** Retrieves the funding payment history for a trader order using encrypted account data (hex-encoded `QueryTraderOrderZkos`). The request is verified via `verify_query_order` before querying the database. For each funding update on the order, the endpoint returns the cumulative payment delta and the corresponding funding rate.
+
+**Use Cases:**
+
+- Tracking funding payments accrued on an open position over time
+- Reconciling funding costs for PnL calculations
+- Auditing historical funding rate exposure per order
+
+Get order funding history by account ID
+
+### HTTP Method
+
+`POST`
+
+### RPC Method
+
+`order_funding_history`
+
+### Message Parameters
+
+| Params | Data_Type | Values                                  |
+| ------ | --------- | --------------------------------------- |
+| data   | string    | Hex-encoded query data for trader order |
+
+### Response Fields
+
+Returns an array of funding history entries:
+
+| Field         | Data_Type | Description                                        |
+| ------------- | --------- | -------------------------------------------------- |
+| time          | string    | Funding update timestamp (ISO 8601 format)         |
+| position_side | string    | Position direction (`"LONG"` or `"SHORT"`)         |
+| payment       | string    | Funding payment delta since previous update        |
+| funding_rate  | string    | Funding rate applied at this update                |
+| order_id      | string    | Order UUID associated with the funding update      |
+
 ### Transaction Hashes
 
 The `transaction_hashes` method supports three different parameter types for querying transaction data:
