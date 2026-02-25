@@ -106,6 +106,22 @@ const UPDATE_FN: &str = r#"
         redis.call('ZADD', side, price_cents, new_size)
     end
 
+    if status == "REMOVE_SORTED_SET" then
+        local old_price = tonumber(redis.call('HGET', 'orders', id))
+        if not old_price then return end
+        redis.call('HDEL', 'orders', id)
+        local old_position_size = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
+        if old_position_size == 0 then
+            return
+        end
+        local new_size = old_position_size - size
+        redis.call('ZREM', side, old_position_size)
+        if new_size > 0 then
+            redis.call('ZADD', side, old_price, new_size)
+        end
+        return
+    end
+
     -- if order gets canncelled
     if status == "CANCELLED" then
         local old_price = tonumber(redis.call('HGET', 'orders', id))
@@ -315,7 +331,75 @@ impl DatabaseArchiver {
         }
     }
 
-    fn update_sorted_set(&self, _cmd: &relayer::SortedSetCommand) -> Result<(), ApiError> {
+    fn update_sorted_set(&self, cmd: &relayer::SortedSetCommand) -> Result<(), ApiError> {
+        match cmd {
+            relayer::SortedSetCommand::RemoveCloseLimitPrice(i, typ) => {
+                let order_uuid =
+                    uuid::Uuid::from_bytes(*i.as_bytes()).to_string();
+
+                // Get the order from DB to retrieve positionsize
+                let mut conn = match self.get_conn() {
+                    Ok(c) => c,
+                    Err(e) => {
+                        error!(
+                            "Failed to get DB connection for RemoveCloseLimitPrice {}: {:?}",
+                            order_uuid, e
+                        );
+                        return Ok(());
+                    }
+                };
+
+                let order = match TraderOrder::get_by_uuid(&mut conn, order_uuid.clone()) {
+                    Ok(o) => o,
+                    Err(e) => {
+                        error!(
+                            "Failed to get order {} for RemoveCloseLimitPrice: {:?}",
+                            order_uuid, e
+                        );
+                        return Ok(());
+                    }
+                };
+
+                let position_type: PositionType = typ.clone().into();
+                let side = match position_type {
+                    PositionType::LONG => "ask",
+                    PositionType::SHORT => "bid",
+                };
+
+                let positionsize = order.positionsize.to_f64().unwrap_or(0.0) as i64;
+
+                let mut pipe = redis::pipe();
+                let mut eval_cmd = redis::cmd("EVALSHA");
+                eval_cmd
+                    .arg(&self.script_sha)
+                    .arg(0)
+                    .arg(&order_uuid)
+                    .arg("REMOVE_SORTED_SET")
+                    .arg(side)
+                    .arg(0i64) // price (unused)
+                    .arg(0i64) // price_cents (unused)
+                    .arg(positionsize)
+                    .arg("") // timestamp (unused)
+                    .arg(0i64) // time (unused)
+                    .arg(0i64) // exp_time (unused)
+                    .arg(""); // execution_type (unused)
+
+                pipe.add_command(eval_cmd);
+
+                match self.redis.get_connection() {
+                    Ok(mut redis_conn) => {
+                        pipe.atomic().execute(&mut redis_conn);
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to get Redis connection for RemoveCloseLimitPrice {}: {:?}",
+                            order_uuid, e
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
         Ok(())
     }
 
