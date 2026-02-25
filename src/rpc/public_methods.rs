@@ -316,7 +316,7 @@ pub(super) fn order_funding_history(
                             let payment = &total - &prev_total;
                             prev_total = total;
 
-                            let fr = FundingRate::get_closest_before(&mut conn, update.timestamp);
+                            let fr = FundingRate::get_closest_after(&mut conn, update.timestamp);
                             let rate = fr.ok().flatten().map(|f| f.rate).unwrap_or_default();
 
                             OrderFundingHistoryEntry {

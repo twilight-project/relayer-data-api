@@ -1329,15 +1329,15 @@ impl FundingRate {
         })
     }
 
-    pub fn get_closest_before(
+    pub fn get_closest_after(
         conn: &mut PgConnection,
         ts: DateTime<Utc>,
     ) -> QueryResult<Option<FundingRate>> {
         use crate::database::schema::funding_rate::dsl::*;
 
         funding_rate
-            .filter(timestamp.le(ts))
-            .order(timestamp.desc())
+            .filter(timestamp.ge(ts))
+            .order(timestamp.asc())
             .first::<FundingRate>(conn)
             .optional()
     }
