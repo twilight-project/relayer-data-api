@@ -214,6 +214,11 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
         "get_market_stats",
         Box::new(public_methods::get_market_stats),
     );
+    register_method(
+        &mut module,
+        "order_funding_history",
+        Box::new(public_methods::order_funding_history),
+    );
     module
 }
 

@@ -1328,6 +1328,19 @@ impl FundingRate {
             funding_payment: pmnt.funding_payment,
         })
     }
+
+    pub fn get_closest_before(
+        conn: &mut PgConnection,
+        ts: DateTime<Utc>,
+    ) -> QueryResult<Option<FundingRate>> {
+        use crate::database::schema::funding_rate::dsl::*;
+
+        funding_rate
+            .filter(timestamp.le(ts))
+            .order(timestamp.desc())
+            .first::<FundingRate>(conn)
+            .optional()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
@@ -2106,6 +2119,18 @@ impl TraderOrderFundingUpdates {
             .order(id.desc())
             .first::<TraderOrderFundingUpdates>(conn)
             .optional()
+    }
+
+    pub fn get_all_by_uuid(
+        conn: &mut PgConnection,
+        order_uuid: &str,
+    ) -> QueryResult<Vec<TraderOrderFundingUpdates>> {
+        use crate::database::schema::trader_order_funding_updated::dsl::*;
+
+        trader_order_funding_updated
+            .filter(uuid.eq(order_uuid))
+            .order(timestamp.asc())
+            .load::<TraderOrderFundingUpdates>(conn)
     }
 }
 
