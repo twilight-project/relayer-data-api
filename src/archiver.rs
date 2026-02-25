@@ -65,7 +65,7 @@ const UPDATE_FN: &str = r#"
         end
 
         redis.call('ZREM', side, result)
-            
+
         if new_size > 0
         then
             redis.call('ZADD', side, old_price, new_size)
@@ -87,13 +87,13 @@ const UPDATE_FN: &str = r#"
                 local new_size = old_position_size - size
 
                 redis.call('ZREM', side, old_position_size)
-                
+
                 if new_size > 0
                 then
                     redis.call('ZADD', side, old_price, new_size)
                 end
             end
-        end    
+        end
         -- add the new limit price and position size
         redis.call('HSET', 'orders', id, price_cents)
 
