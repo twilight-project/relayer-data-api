@@ -1,5 +1,30 @@
 #![allow(non_camel_case_types)]
 #![allow(warnings)]
+
+pub const MAX_HISTORICAL_LIMIT: i64 = 5000;
+pub const MAX_PAGE_LIMIT: i64 = 500;
+
+fn default_page_limit() -> i64 {
+    500
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PaginationParams {
+    #[serde(default = "default_page_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
+
+impl Default for PaginationParams {
+    fn default() -> Self {
+        Self {
+            limit: 500,
+            offset: 0,
+        }
+    }
+}
+
 // •	Live Price Data
 // •	Historical Price Data
 // •	Funding Rate
@@ -56,14 +81,26 @@ pub enum TransactionHashArgs {
     TxId {
         id: String,
         status: Option<OrderStatus>,
+        #[serde(default = "default_page_limit")]
+        limit: i64,
+        #[serde(default)]
+        offset: i64,
     },
     AccountId {
         id: String,
         status: Option<OrderStatus>,
+        #[serde(default = "default_page_limit")]
+        limit: i64,
+        #[serde(default)]
+        offset: i64,
     },
     RequestId {
         id: String,
         status: Option<OrderStatus>,
+        #[serde(default = "default_page_limit")]
+        limit: i64,
+        #[serde(default)]
+        offset: i64,
     },
 }
 

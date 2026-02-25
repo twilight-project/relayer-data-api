@@ -151,39 +151,56 @@ pub struct NewTxHash {
 impl TxHash {
     pub fn get(conn: &mut PgConnection, args: TransactionHashArgs) -> QueryResult<Vec<TxHash>> {
         use crate::database::schema::transaction_hash::dsl::*;
+        use crate::rpc::MAX_PAGE_LIMIT;
 
         match args {
-            TransactionHashArgs::TxId { id: tx_id, status } => {
+            TransactionHashArgs::TxId { id: tx_id, status, limit, offset } => {
+                let limit = limit.clamp(1, MAX_PAGE_LIMIT);
+                let offset = offset.max(0);
                 if let Some(status) = status {
                     transaction_hash
                         .filter(order_id.eq(tx_id).and(order_status.eq(status)))
+                        .limit(limit)
+                        .offset(offset)
                         .load(conn)
                 } else {
-                    transaction_hash.filter(order_id.eq(tx_id)).load(conn)
+                    transaction_hash.filter(order_id.eq(tx_id)).limit(limit).offset(offset).load(conn)
                 }
             }
             TransactionHashArgs::AccountId {
                 id: acct_id,
                 status,
+                limit,
+                offset,
             } => {
+                let limit = limit.clamp(1, MAX_PAGE_LIMIT);
+                let offset = offset.max(0);
                 if let Some(status) = status {
                     transaction_hash
                         .filter(account_id.eq(acct_id).and(order_status.eq(status)))
+                        .limit(limit)
+                        .offset(offset)
                         .load(conn)
                 } else {
-                    transaction_hash.filter(account_id.eq(acct_id)).load(conn)
+                    transaction_hash.filter(account_id.eq(acct_id)).limit(limit).offset(offset).load(conn)
                 }
             }
             TransactionHashArgs::RequestId {
                 id: reqt_id,
                 status,
+                limit,
+                offset,
             } => {
+                let limit = limit.clamp(1, MAX_PAGE_LIMIT);
+                let offset = offset.max(0);
                 if let Some(status) = status {
                     transaction_hash
                         .filter(request_id.eq(reqt_id).and(order_status.eq(status)))
+                        .limit(limit)
+                        .offset(offset)
                         .load(conn)
                 } else {
-                    transaction_hash.filter(request_id.eq(reqt_id)).load(conn)
+                    transaction_hash.filter(request_id.eq(reqt_id)).limit(limit).offset(offset).load(conn)
                 }
             }
         }
@@ -1292,11 +1309,12 @@ impl FundingRate {
             r#"
         SELECT coalesce(payment, 0) as funding_payment
         FROM (SELECT LEAD(available_margin)
-            OVER (ORDER BY timestamp DESC) - available_margin AS payment 
+            OVER (ORDER BY timestamp DESC) - available_margin AS payment
             FROM trader_order
             WHERE uuid = '{}'
             AND account_id IN ({})
-        ) t"#,
+        ) t
+        LIMIT 1"#,
             order_id, accounts
         );
 
@@ -1601,6 +1619,7 @@ impl TraderOrder {
         trader_order
             .filter(account_id.eq(accountid))
             .order(timestamp.desc())
+            .limit(500)
             .load(conn)
     }
     pub fn get_by_uuid(conn: &mut PgConnection, order_id: String) -> QueryResult<TraderOrder> {
@@ -1666,7 +1685,8 @@ impl TraderOrder {
                         * FROM trader_order
                         WHERE account_id IN ({})
                         AND order_status NOT IN ('PENDING', 'CANCELLED', 'LIQUIDATE', 'SETTLED')
-                        ORDER BY uuid, timestamp DESC"#,
+                        ORDER BY uuid, timestamp DESC
+                        LIMIT 500"#,
                         accounts,
                     );
                     diesel::sql_query(query).load(conn)?
@@ -1683,7 +1703,8 @@ impl TraderOrder {
                     * FROM trader_order
                     WHERE account_id IN ({})
                     AND order_status NOT IN ('PENDING', 'CANCELLED', 'LIQUIDATE', 'SETTLED')
-                    ORDER BY uuid, timestamp DESC"#,
+                    ORDER BY uuid, timestamp DESC
+                    LIMIT 500"#,
                     accounts,
                 );
                 diesel::sql_query(query).load(conn)?
@@ -1744,18 +1765,24 @@ impl TraderOrder {
         match args {
             OrderHistoryArgs::OrderId(order_id) => trader_order
                 .filter(account_id.eq_any(accounts).and(uuid.eq(order_id)))
+                .limit(500)
                 .load(conn),
             OrderHistoryArgs::ClientId {
                 from,
                 to,
                 offset,
                 limit,
-            } => trader_order
-                .filter(account_id.eq_any(accounts).and(timestamp.between(from, to)))
-                .limit(limit)
-                .offset(offset)
-                .order_by(timestamp.desc())
-                .load(conn),
+            } => {
+                use crate::rpc::MAX_PAGE_LIMIT;
+                let limit = limit.clamp(1, MAX_PAGE_LIMIT);
+                let offset = offset.max(0);
+                trader_order
+                    .filter(account_id.eq_any(accounts).and(timestamp.between(from, to)))
+                    .limit(limit)
+                    .offset(offset)
+                    .order_by(timestamp.desc())
+                    .load(conn)
+            }
         }
     }
 
@@ -1975,9 +2002,12 @@ impl TraderOrder {
         Ok(ob)
     }
 
-    pub fn open_orders(conn: &mut PgConnection, customer_id: i64) -> QueryResult<Vec<TraderOrder>> {
+    pub fn open_orders(conn: &mut PgConnection, customer_id: i64, limit: i64, offset: i64) -> QueryResult<Vec<TraderOrder>> {
         use crate::database::schema::address_customer_id::dsl as acct_dsl;
-        // use crate::database::schema::trader_order::dsl::*;
+        use crate::rpc::MAX_PAGE_LIMIT;
+
+        let limit = limit.clamp(1, MAX_PAGE_LIMIT);
+        let offset = offset.max(0);
 
         let account: Vec<AddressCustomerId> = acct_dsl::address_customer_id
             .filter(acct_dsl::customer_id.eq(customer_id))
@@ -1994,12 +2024,13 @@ impl TraderOrder {
                 group by uuid
             ) mo
             on id = latest_id
-            where 
+            where
             account_id IN ({})
             and
             order_status IN ('PENDING', 'FILLED')
+            LIMIT {} OFFSET {}
         "#,
-            accounts
+            accounts, limit, offset
         );
 
         diesel::sql_query(query).get_results(conn)
@@ -2220,6 +2251,7 @@ impl LendOrder {
         lend_order
             .filter(account_id.eq(accountid))
             .order(timestamp.desc())
+            .limit(500)
             .load(conn)
     }
 

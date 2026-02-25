@@ -15,8 +15,8 @@ mod util;
 
 pub use types::{
     CandleSubscription, Candles, HistoricalFeeArgs, HistoricalFundingArgs, HistoricalPriceArgs,
-    Interval, Order, OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs,
-    TransactionHashArgs,
+    Interval, Order, OrderHistoryArgs, OrderId, PaginationParams, PnlArgs, RpcArgs,
+    TradeVolumeArgs, TransactionHashArgs, MAX_PAGE_LIMIT,
 };
 pub use util::{compute_market_risk_stats, order_book, recent_orders};
 

@@ -30,10 +30,11 @@ pub(super) fn historical_price(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args = match params.parse::<HistoricalPriceArgs>() {
+    let mut args = match params.parse::<HistoricalPriceArgs>() {
         Ok(args) => args,
         Err(e) => return Err(Error::Custom(format!("Invalid argument: {:?}", e))),
     };
+    args.limit = args.limit.clamp(1, super::types::MAX_HISTORICAL_LIMIT);
 
     match ctx.pool.get() {
         Ok(mut conn) => match BtcUsdPrice::get_historical(&mut conn, args) {
@@ -54,6 +55,7 @@ pub(super) fn candle_data(
         limit,
         offset,
     } = params.parse()?;
+    let limit = limit.clamp(1, super::types::MAX_HISTORICAL_LIMIT);
 
     match ctx.pool.get() {
         Ok(mut conn) => {
@@ -73,7 +75,8 @@ pub(super) fn historical_funding_rate(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args: HistoricalFundingArgs = params.parse()?;
+    let mut args: HistoricalFundingArgs = params.parse()?;
+    args.limit = args.limit.clamp(1, super::types::MAX_HISTORICAL_LIMIT);
 
     match ctx.pool.get() {
         Ok(mut conn) => match FundingRate::get_historical(&mut conn, args) {
@@ -100,7 +103,8 @@ pub(super) fn historical_fee_rate(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args: HistoricalFeeArgs = params.parse()?;
+    let mut args: HistoricalFeeArgs = params.parse()?;
+    args.limit = args.limit.clamp(1, super::types::MAX_HISTORICAL_LIMIT);
 
     match ctx.pool.get() {
         Ok(mut conn) => match FeeHistory::get_historical(&mut conn, args) {
