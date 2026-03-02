@@ -30,10 +30,11 @@ pub(super) fn historical_price(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args = match params.parse::<HistoricalPriceArgs>() {
+    let mut args = match params.parse::<HistoricalPriceArgs>() {
         Ok(args) => args,
         Err(e) => return Err(Error::Custom(format!("Invalid argument: {:?}", e))),
     };
+    args.limit = args.limit.clamp(1, super::types::MAX_HISTORICAL_LIMIT);
 
     match ctx.pool.get() {
         Ok(mut conn) => match BtcUsdPrice::get_historical(&mut conn, args) {
@@ -54,6 +55,7 @@ pub(super) fn candle_data(
         limit,
         offset,
     } = params.parse()?;
+    let limit = limit.clamp(1, super::types::MAX_HISTORICAL_LIMIT);
 
     match ctx.pool.get() {
         Ok(mut conn) => {
@@ -73,7 +75,8 @@ pub(super) fn historical_funding_rate(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args: HistoricalFundingArgs = params.parse()?;
+    let mut args: HistoricalFundingArgs = params.parse()?;
+    args.limit = args.limit.clamp(1, super::types::MAX_HISTORICAL_LIMIT);
 
     match ctx.pool.get() {
         Ok(mut conn) => match FundingRate::get_historical(&mut conn, args) {
@@ -100,7 +103,8 @@ pub(super) fn historical_fee_rate(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args: HistoricalFeeArgs = params.parse()?;
+    let mut args: HistoricalFeeArgs = params.parse()?;
+    args.limit = args.limit.clamp(1, super::types::MAX_HISTORICAL_LIMIT);
 
     match ctx.pool.get() {
         Ok(mut conn) => match FeeHistory::get_historical(&mut conn, args) {
@@ -259,6 +263,73 @@ pub(super) fn trader_order_info_v1(
                     .map(|f| f.initial_margin - f.available_margin - f.fee_filled);
                     let response = TraderOrderInfoV1 { order, settle_limit, funding_applied };
                     Ok(serde_json::to_value(response).expect("Error converting response"))
+                }
+                Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
+            }
+        }
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
+#[derive(Serialize)]
+struct OrderFundingHistoryEntry {
+    time: DateTime<Utc>,
+    position_side: PositionType,
+    payment: BigDecimal,
+    funding_rate: BigDecimal,
+    order_id: String,
+}
+
+pub(super) fn order_funding_history(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let Order { data } = params.parse()?;
+    let Ok(bytes) = hex::decode(&data) else {
+        return Ok(format!("Invalid hex data").into());
+    };
+    let Ok(tx) = bincode::deserialize::<relayer::QueryTraderOrderZkos>(&bytes) else {
+        return Ok(format!("Invalid bincode").into());
+    };
+    if let Err(arg) = verify_query_order(
+        tx.msg.clone(),
+        &bincode::serialize(&tx.query_trader_order).unwrap(),
+    ) {
+        return Ok(format!("Invalid order params:{:?}", arg).into());
+    }
+    match ctx.pool.get() {
+        Ok(mut conn) => {
+            match TraderOrder::get_by_signature(&mut conn, tx.query_trader_order.account_id) {
+                Ok(order) => {
+                    let funding_updates = TraderOrderFundingUpdates::get_all_by_uuid(
+                        &mut conn,
+                        &order.uuid,
+                    )
+                    .unwrap_or_default();
+
+                    let mut prev_total = BigDecimal::from(0);
+                    let entries: Vec<OrderFundingHistoryEntry> = funding_updates
+                        .into_iter()
+                        .map(|update| {
+                            let total =
+                                &update.initial_margin - &update.available_margin - &update.fee_filled;
+                            let payment = &total - &prev_total;
+                            prev_total = total;
+
+                            let fr = FundingRate::get_closest_after(&mut conn, update.timestamp);
+                            let rate = fr.ok().flatten().map(|f| f.rate).unwrap_or_default();
+
+                            OrderFundingHistoryEntry {
+                                time: update.timestamp,
+                                position_side: update.position_type,
+                                payment,
+                                funding_rate: rate,
+                                order_id: update.uuid,
+                            }
+                        })
+                        .collect();
+
+                    Ok(serde_json::to_value(entries).expect("Error converting response"))
                 }
                 Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
             }

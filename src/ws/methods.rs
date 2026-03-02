@@ -125,6 +125,11 @@ pub(super) fn candle_update(
 
             if let Err(e) = sink.send(&msg) {
                 error!("Error sending candle updates: {:?}", e);
+                break;
+            }
+            if sink.is_closed() {
+                info!("candle_update: subscriber closed, exiting.");
+                break;
             }
         }
         // Ok(())
@@ -153,6 +158,7 @@ pub(super) fn spawn_order_book(
 
                     if let Err(e) = sink.send(&result) {
                         error!("Error sending orderbook updates: {:?}", e);
+                        break;
                     }
                     sleep(Duration::from_secs(5)).await;
                 }
@@ -166,6 +172,10 @@ pub(super) fn spawn_order_book(
                 Err(TryRecvError::Empty) => {
                     sleep(Duration::from_millis(200)).await;
                 }
+            }
+            if sink.is_closed() {
+                info!("order_book: subscriber closed, exiting.");
+                break;
             }
         }
         Ok(())

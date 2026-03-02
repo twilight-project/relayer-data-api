@@ -15,8 +15,8 @@ mod util;
 
 pub use types::{
     CandleSubscription, Candles, HistoricalFeeArgs, HistoricalFundingArgs, HistoricalPriceArgs,
-    Interval, Order, OrderHistoryArgs, OrderId, PnlArgs, RpcArgs, TradeVolumeArgs,
-    TransactionHashArgs,
+    Interval, Order, OrderHistoryArgs, OrderId, PaginationParams, PnlArgs, RpcArgs,
+    TradeVolumeArgs, TransactionHashArgs, MAX_PAGE_LIMIT,
 };
 pub use util::{compute_market_risk_stats, order_book, recent_orders};
 
@@ -213,6 +213,11 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
         &mut module,
         "get_market_stats",
         Box::new(public_methods::get_market_stats),
+    );
+    register_method(
+        &mut module,
+        "order_funding_history",
+        Box::new(public_methods::order_funding_history),
     );
     module
 }

@@ -463,11 +463,12 @@ pub(super) fn open_orders(
     params: Params<'_>,
     ctx: &RelayerContext,
 ) -> Result<serde_json::Value, Error> {
-    let args: RpcArgs<()> = params.parse()?;
-    let (id, _params) = args.unpack();
+    let args: RpcArgs<Option<PaginationParams>> = params.parse()?;
+    let (id, pagination) = args.unpack();
+    let pagination = pagination.unwrap_or_default();
 
     match ctx.pool.get() {
-        Ok(mut conn) => match TraderOrder::open_orders(&mut conn, id) {
+        Ok(mut conn) => match TraderOrder::open_orders(&mut conn, id, pagination.limit, pagination.offset) {
             Ok(o) => Ok(serde_json::to_value(o).expect("Error converting response")),
             Err(e) => Err(Error::Custom(format!("Error fetching pnl: {:?}", e))),
         },

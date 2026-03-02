@@ -31,3 +31,4 @@ node_modules
 .vscode
 .env
 .cargo/config.toml
+docs/_public.md
