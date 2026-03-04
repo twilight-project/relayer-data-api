@@ -941,6 +941,64 @@ impl SortedSetCommand {
             })
         }))
     }
+
+    pub fn get_latest_take_profit(
+        conn: &mut PgConnection,
+        order_uuid: &str,
+    ) -> QueryResult<Option<SettleLimitDetails>> {
+        use crate::database::schema::sorted_set_command::dsl::*;
+
+        let result = sorted_set_command
+            .filter(uuid.eq(order_uuid))
+            .filter(command.eq_any(vec![
+                SortedSetCommandType::ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+                SortedSetCommandType::UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+                SortedSetCommandType::REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+            ]))
+            .order(id.desc())
+            .first::<SortedSetCommand>(conn)
+            .optional()?;
+
+        Ok(result.and_then(|r| {
+            if r.command == SortedSetCommandType::REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE {
+                return None;
+            }
+            r.amount.map(|price| SettleLimitDetails {
+                uuid: r.uuid.unwrap_or_default(),
+                position_type: r.position_type,
+                price,
+            })
+        }))
+    }
+
+    pub fn get_latest_stop_loss(
+        conn: &mut PgConnection,
+        order_uuid: &str,
+    ) -> QueryResult<Option<SettleLimitDetails>> {
+        use crate::database::schema::sorted_set_command::dsl::*;
+
+        let result = sorted_set_command
+            .filter(uuid.eq(order_uuid))
+            .filter(command.eq_any(vec![
+                SortedSetCommandType::ADD_STOP_LOSS_CLOSE_LIMIT_PRICE,
+                SortedSetCommandType::UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE,
+                SortedSetCommandType::REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE,
+            ]))
+            .order(id.desc())
+            .first::<SortedSetCommand>(conn)
+            .optional()?;
+
+        Ok(result.and_then(|r| {
+            if r.command == SortedSetCommandType::REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE {
+                return None;
+            }
+            r.amount.map(|price| SettleLimitDetails {
+                uuid: r.uuid.unwrap_or_default(),
+                position_type: r.position_type,
+                price,
+            })
+        }))
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
