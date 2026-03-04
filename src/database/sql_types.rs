@@ -298,6 +298,27 @@ impl FromSql<SortedSetCommandTypeSql, Pg> for SortedSetCommandType {
             b"BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE" => {
                 Ok(SortedSetCommandType::BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE)
             }
+            b"ADD_STOP_LOSS_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::ADD_STOP_LOSS_CLOSE_LIMIT_PRICE)
+            }
+            b"ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE)
+            }
+            b"REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE)
+            }
+            b"REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE)
+            }
+            b"UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE)
+            }
+            b"UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE)
+            }
+            b"BULK_SEARCH_REMOVE_SLTP_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::BULK_SEARCH_REMOVE_SLTP_CLOSE_LIMIT_PRICE)
+            }
             _ => panic!("Invalid enum type in database!"),
         }
     }
@@ -370,6 +391,8 @@ impl FromSql<OrderStatusSql, Pg> for OrderStatus {
             b"OrderNotFound" => Ok(OrderStatus::OrderNotFound),
             b"RejectedFromChain" => Ok(OrderStatus::RejectedFromChain),
             b"FilledUpdated" => Ok(OrderStatus::FilledUpdated),
+            b"CancelledStopLoss" => Ok(OrderStatus::CancelledStopLoss),
+            b"CancelledTakeProfit" => Ok(OrderStatus::CancelledTakeProfit),
             _ => panic!("Invalid enum type in database!"),
         }
     }
