@@ -941,6 +941,7 @@ impl SortedSetCommand {
                 uuid: r.uuid.unwrap_or_default(),
                 position_type: r.position_type,
                 price,
+                created_time: r.created_time,
             })
         }))
     }
@@ -970,6 +971,7 @@ impl SortedSetCommand {
                 uuid: r.uuid.unwrap_or_default(),
                 position_type: r.position_type,
                 price,
+                created_time: r.created_time,
             })
         }))
     }
@@ -999,6 +1001,7 @@ impl SortedSetCommand {
                 uuid: r.uuid.unwrap_or_default(),
                 position_type: r.position_type,
                 price,
+                created_time: r.created_time,
             })
         }))
     }
@@ -1009,6 +1012,7 @@ pub struct SettleLimitDetails {
     pub uuid: String,
     pub position_type: PositionType,
     pub price: BigDecimal,
+    pub created_time: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
