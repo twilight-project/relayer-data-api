@@ -981,22 +981,32 @@ impl DatabaseArchiver {
             Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
                 self.trader_order_funding_update(trader_order.into())?;
             }
-            // added for limit order update for settlement order
             Event::TraderOrderLimitUpdate(trader_order, cmd, _seq) => {
-                let settlement_price = match cmd.clone() {
+                let (settlement_price, cmd_order_type) = match cmd.clone() {
                     relayer_core::relayer::RpcCommand::ExecuteTraderOrder(
                         execute_trader_order,
                         _meta,
                         _zkos_hex_string,
                         _request_id,
-                    ) => execute_trader_order.execution_price,
-                    _ => 0.0, // Default value for other command types
+                    ) => (execute_trader_order.execution_price, execute_trader_order.order_type),
+                    relayer_core::relayer::RpcCommand::ExecuteTraderOrderSlTp(
+                        execute_trader_order,
+                        _sltp,
+                        _meta,
+                        _zkos_hex_string,
+                        _request_id,
+                    ) => (execute_trader_order.execution_price, execute_trader_order.order_type),
+                    _ => (0.0, relayer::OrderType::MARKET),
                 };
-                self.trader_order_limit_update_redis(
-                    trader_order.into(),
-                    settlement_price,
-                    Some(cmd),
-                )?;
+                // SLTP triggers are conditional — not resting limit orders.
+                // They're tracked via SortedSetDBUpdate events, not the bid/ask order book.
+                if cmd_order_type != relayer::OrderType::SLTP {
+                    self.trader_order_limit_update_redis(
+                        trader_order.into(),
+                        settlement_price,
+                        Some(cmd),
+                    )?;
+                }
             }
             Event::TraderOrderLiquidation(trader_order, _cmd, _seq) => {
                 self.trader_order(trader_order.into(), None)?;
