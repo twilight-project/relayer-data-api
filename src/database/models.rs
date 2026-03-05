@@ -694,6 +694,7 @@ pub struct SortedSetCommand {
     uuid: Option<String>,
     amount: Option<BigDecimal>,
     position_type: PositionType,
+    created_time: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
@@ -703,18 +704,19 @@ pub struct SortedSetCommandUpdate {
     uuid: Option<String>,
     amount: Option<BigDecimal>,
     position_type: PositionType,
+    created_time: DateTime<Utc>,
 }
 
 impl SortedSetCommand {
     pub fn append(
         conn: &mut PgConnection,
-        updates: Vec<relayer::SortedSetCommand>,
+        updates: Vec<(relayer::SortedSetCommand, DateTime<Utc>)>,
     ) -> QueryResult<usize> {
         use crate::database::schema::sorted_set_command::dsl::*;
 
         let items: Vec<_> = updates
             .into_iter()
-            .map(|item| {
+            .map(|(item, ts)| {
                 let (cmd, cmd_uuid, amt, typ) = match item {
                     relayer::SortedSetCommand::AddLiquidationPrice(i, amt, typ) => {
                         let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
@@ -904,6 +906,7 @@ impl SortedSetCommand {
                     uuid: cmd_uuid.map(|m| m.to_string()),
                     amount: amt,
                     position_type: typ.into(),
+                    created_time: ts,
                 }
             })
             .collect();

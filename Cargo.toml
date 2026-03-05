@@ -82,4 +82,5 @@ redis = { version = "0.25.4", features = ["r2d2"] }
 
 [dependencies.relayer-core]
 git = "https://git@github.com/twilight-project/relayer-core.git"
-tag = "v0.2.2"
+# tag = "v0.2.2"
+branch = "sltp-update-api"

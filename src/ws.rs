@@ -168,7 +168,7 @@ impl WsContext {
                                     }
                                 }
                                 Event::PoolUpdate(_lend_pool_command, ..) => {}
-                                Event::SortedSetDBUpdate(_sorted_set_command) => {}
+                                Event::SortedSetDBUpdate(_sorted_set_command, _time) => {}
                                 Event::PositionSizeLogDBUpdate(
                                     _position_size_log_command,
                                     _position_size_log,

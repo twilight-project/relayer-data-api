@@ -280,6 +280,7 @@ diesel::table! {
         uuid -> Nullable<Varchar>,
         amount -> Nullable<Numeric>,
         position_type -> PositionType,
+        created_time -> Timestamptz,
     }
 }
 
