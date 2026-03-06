@@ -264,6 +264,7 @@ async fn handler(request: Request<Body>) -> Result<Response<Body>, http::Error> 
 
 #[tokio::main]
 async fn main() {
+    dotenv::dotenv().ok();
     let service = ServiceBuilder::new().service_fn(handler);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 5000));

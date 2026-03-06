@@ -84,7 +84,7 @@ const UPDATE_FN: &str = r#"
             local old_position_size = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
             if old_position_size > 0 then
 
-                local new_size = old_position_size - size
+                local new_size = old_position_size - (size*old_price/price_cents)
 
                 redis.call('ZREM', side, old_position_size)
 
@@ -988,14 +988,20 @@ impl DatabaseArchiver {
                         _meta,
                         _zkos_hex_string,
                         _request_id,
-                    ) => (execute_trader_order.execution_price, execute_trader_order.order_type),
+                    ) => (
+                        execute_trader_order.execution_price,
+                        execute_trader_order.order_type,
+                    ),
                     relayer_core::relayer::RpcCommand::ExecuteTraderOrderSlTp(
                         execute_trader_order,
                         _sltp,
                         _meta,
                         _zkos_hex_string,
                         _request_id,
-                    ) => (execute_trader_order.execution_price, execute_trader_order.order_type),
+                    ) => (
+                        execute_trader_order.execution_price,
+                        execute_trader_order.order_type,
+                    ),
                     _ => (0.0, relayer::OrderType::MARKET),
                 };
                 // SLTP triggers are conditional — not resting limit orders.
