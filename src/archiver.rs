@@ -1078,46 +1078,35 @@ impl DatabaseArchiver {
             Event::Stop(_stop) => {
                 info!("FINISH STOP");
             }
-            Event::TxHash(
-                uuid,
-                account_id,
-                tx_hash,
-                order_type,
-                order_status,
-                datetime,
-                output,
-                request_id,
-            ) => {
+            Event::TxHash(data) => {
                 let hash = NewTxHash {
-                    order_id: uuid.to_string(),
-                    account_id,
-                    tx_hash,
-                    order_type: order_type.into(),
-                    order_status: order_status.into(),
-                    datetime,
-                    output,
-                    request_id: Some(request_id),
+                    order_id: data.order_id.to_string(),
+                    account_id: data.account_id,
+                    tx_hash: data.tx_hash,
+                    order_type: data.order_type.into(),
+                    order_status: data.order_status.into(),
+                    datetime: data.datetime,
+                    output: data.output,
+                    request_id: Some(data.request_id),
+                    reason: data.reason,
+                    old_price: data.old_price,
+                    new_price: data.new_price,
                 };
                 self.tx_hash(hash)?;
             }
-            Event::TxHashUpdate(
-                uuid,
-                account_id,
-                tx_hash,
-                order_type,
-                order_status,
-                datetime,
-                output,
-            ) => {
+            Event::TxHashUpdate(data) => {
                 let hash = NewTxHash {
-                    order_id: uuid.to_string(),
-                    account_id,
-                    tx_hash,
-                    order_type: order_type.into(),
-                    order_status: order_status.into(),
-                    datetime,
-                    output,
+                    order_id: data.order_id.to_string(),
+                    account_id: data.account_id,
+                    tx_hash: data.tx_hash,
+                    order_type: data.order_type.into(),
+                    order_status: data.order_status.into(),
+                    datetime: data.datetime,
+                    output: data.output,
                     request_id: None,
+                    reason: data.reason,
+                    old_price: data.old_price,
+                    new_price: data.new_price,
                 };
                 self.tx_hash(hash)?;
             }

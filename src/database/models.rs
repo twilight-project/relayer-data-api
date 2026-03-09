@@ -133,6 +133,9 @@ pub struct TxHash {
     pub datetime: String,
     pub output: Option<String>,
     pub request_id: Option<String>,
+    pub reason: Option<String>,
+    pub old_price: Option<f64>,
+    pub new_price: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
@@ -146,6 +149,9 @@ pub struct NewTxHash {
     pub datetime: String,
     pub output: Option<String>,
     pub request_id: Option<String>,
+    pub reason: Option<String>,
+    pub old_price: Option<f64>,
+    pub new_price: Option<f64>,
 }
 
 impl TxHash {

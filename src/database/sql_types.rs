@@ -112,6 +112,10 @@ pub enum OrderStatus {
     FilledUpdated,
     CancelledStopLoss,
     CancelledTakeProfit,
+    LimitPriceUpdated,
+    StopLossUpdated,
+    TakeProfitUpdated,
+    RejectedByRiskEngine,
 }
 
 impl OrderStatus {
@@ -138,6 +142,10 @@ impl OrderStatus {
             FilledUpdated => "FilledUpdated",
             CancelledStopLoss => "CancelledStopLoss",
             CancelledTakeProfit => "CancelledTakeProfit",
+            LimitPriceUpdated => "LimitPriceUpdated",
+            StopLossUpdated => "StopLossUpdated",
+            TakeProfitUpdated => "TakeProfitUpdated",
+            RejectedByRiskEngine => "RejectedByRiskEngine",
         }
     }
 
@@ -346,6 +354,10 @@ impl ToSql<OrderStatusSql, Pg> for OrderStatus {
             OrderStatus::FilledUpdated => out.write_all(b"FilledUpdated")?,
             OrderStatus::CancelledStopLoss => out.write_all(b"CancelledStopLoss")?,
             OrderStatus::CancelledTakeProfit => out.write_all(b"CancelledTakeProfit")?,
+            OrderStatus::LimitPriceUpdated => out.write_all(b"LimitPriceUpdated")?,
+            OrderStatus::StopLossUpdated => out.write_all(b"StopLossUpdated")?,
+            OrderStatus::TakeProfitUpdated => out.write_all(b"TakeProfitUpdated")?,
+            OrderStatus::RejectedByRiskEngine => out.write_all(b"RejectedByRiskEngine")?,
         }
         Ok(IsNull::No)
     }
@@ -393,6 +405,10 @@ impl FromSql<OrderStatusSql, Pg> for OrderStatus {
             b"FilledUpdated" => Ok(OrderStatus::FilledUpdated),
             b"CancelledStopLoss" => Ok(OrderStatus::CancelledStopLoss),
             b"CancelledTakeProfit" => Ok(OrderStatus::CancelledTakeProfit),
+            b"LimitPriceUpdated" => Ok(OrderStatus::LimitPriceUpdated),
+            b"StopLossUpdated" => Ok(OrderStatus::StopLossUpdated),
+            b"TakeProfitUpdated" => Ok(OrderStatus::TakeProfitUpdated),
+            b"RejectedByRiskEngine" => Ok(OrderStatus::RejectedByRiskEngine),
             _ => panic!("Invalid enum type in database!"),
         }
     }
@@ -474,6 +490,10 @@ impl From<relayer_types::OrderStatus> for OrderStatus {
             relayer_types::OrderStatus::FilledUpdated => OrderStatus::FilledUpdated,
             relayer_types::OrderStatus::CancelledStopLoss => OrderStatus::CancelledStopLoss,
             relayer_types::OrderStatus::CancelledTakeProfit => OrderStatus::CancelledTakeProfit,
+            relayer_types::OrderStatus::LimitPriceUpdated => OrderStatus::LimitPriceUpdated,
+            relayer_types::OrderStatus::StopLossUpdated => OrderStatus::StopLossUpdated,
+            relayer_types::OrderStatus::TakeProfitUpdated => OrderStatus::TakeProfitUpdated,
+            relayer_types::OrderStatus::RejectedByRiskEngine => OrderStatus::RejectedByRiskEngine,
         }
     }
 }
