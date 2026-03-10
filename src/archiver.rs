@@ -1103,7 +1103,7 @@ impl DatabaseArchiver {
                     order_status: data.order_status.into(),
                     datetime: data.datetime,
                     output: data.output,
-                    request_id: None,
+                    request_id: Some(data.request_id),
                     reason: data.reason,
                     old_price: data.old_price,
                     new_price: data.new_price,
