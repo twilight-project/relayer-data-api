@@ -164,7 +164,7 @@ impl WsContext {
                                         .expect("Bad datetime format")
                                         .into();
                                     if let Err(e) = price_feed2.send((current_price, ts)) {
-                                        info!("No subscribers present {:?}", e);
+                                        // info!("No subscribers present {:?}", e);
                                     }
                                 }
                                 Event::PoolUpdate(_lend_pool_command, ..) => {}
