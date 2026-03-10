@@ -438,6 +438,7 @@ impl FromSql<OrderTypeSql, Pg> for OrderType {
             b"MARKET" => Ok(OrderType::MARKET),
             b"DARK" => Ok(OrderType::DARK),
             b"LEND" => Ok(OrderType::LEND),
+            b"SLTP" => Ok(OrderType::SLTP),
             _ => panic!("Invalid enum type in database!"),
         }
     }

@@ -7,7 +7,7 @@ use crossbeam_channel::{unbounded, Sender as CrossbeamSender};
 use diesel::prelude::PgConnection;
 use diesel::r2d2::ConnectionManager;
 use jsonrpsee::RpcModule;
-use log::{error, info, trace};
+use log::{debug, error, info, trace};
 use redis::Client;
 use relayer_core::db::Event;
 use relayer_core::relayer::PositionType;
@@ -164,7 +164,7 @@ impl WsContext {
                                         .expect("Bad datetime format")
                                         .into();
                                     if let Err(e) = price_feed2.send((current_price, ts)) {
-                                        // info!("No subscribers present {:?}", e);
+                                        debug!("No subscribers present {:?}", e);
                                     }
                                 }
                                 Event::PoolUpdate(_lend_pool_command, ..) => {}
