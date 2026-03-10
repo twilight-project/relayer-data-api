@@ -117,6 +117,7 @@ pub enum OrderStatus {
     TakeProfitUpdated,
     RejectedByRiskEngine,
     CancelledLimitClose,
+    OrderUpdated,
 }
 
 impl OrderStatus {
@@ -148,6 +149,7 @@ impl OrderStatus {
             TakeProfitUpdated => "TakeProfitUpdated",
             RejectedByRiskEngine => "RejectedByRiskEngine",
             CancelledLimitClose => "CancelledLimitClose",
+            OrderUpdated => "OrderUpdated",
         }
     }
 
@@ -361,6 +363,7 @@ impl ToSql<OrderStatusSql, Pg> for OrderStatus {
             OrderStatus::TakeProfitUpdated => out.write_all(b"TakeProfitUpdated")?,
             OrderStatus::RejectedByRiskEngine => out.write_all(b"RejectedByRiskEngine")?,
             OrderStatus::CancelledLimitClose => out.write_all(b"CancelledLimitClose")?,
+            OrderStatus::OrderUpdated => out.write_all(b"OrderUpdated")?,
         }
         Ok(IsNull::No)
     }
@@ -413,6 +416,7 @@ impl FromSql<OrderStatusSql, Pg> for OrderStatus {
             b"TakeProfitUpdated" => Ok(OrderStatus::TakeProfitUpdated),
             b"RejectedByRiskEngine" => Ok(OrderStatus::RejectedByRiskEngine),
             b"CancelledLimitClose" => Ok(OrderStatus::CancelledLimitClose),
+            b"OrderUpdated" => Ok(OrderStatus::OrderUpdated),
             _ => panic!("Invalid enum type in database!"),
         }
     }
@@ -500,6 +504,7 @@ impl From<relayer_types::OrderStatus> for OrderStatus {
             relayer_types::OrderStatus::TakeProfitUpdated => OrderStatus::TakeProfitUpdated,
             relayer_types::OrderStatus::RejectedByRiskEngine => OrderStatus::RejectedByRiskEngine,
             relayer_types::OrderStatus::CancelledLimitClose => OrderStatus::CancelledLimitClose,
+            relayer_types::OrderStatus::OrderUpdated => OrderStatus::OrderUpdated,
         }
     }
 }
