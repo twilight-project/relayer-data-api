@@ -83,8 +83,12 @@ const UPDATE_FN: &str = r#"
             redis.call('HDEL', 'orders', id)
             local old_position_size = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
             if old_position_size > 0 then
-
-                local new_size = old_position_size - (size*old_price/price_cents)
+                local new_size = 0
+                if status == "PENDING" then
+                    new_size = old_position_size - (size*old_price/price_cents)
+                else
+                    new_size = old_position_size - size
+                end
 
                 redis.call('ZREM', side, old_position_size)
 
