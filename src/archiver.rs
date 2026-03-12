@@ -409,7 +409,7 @@ impl DatabaseArchiver {
     fn update_order_cache(
         &self,
         order: &InsertTraderOrder,
-        cmd: Option<relayer::RpcCommand>,
+        _cmd: Option<relayer::RpcCommand>,
     ) -> Result<(), ApiError> {
         let mut pipe = redis::pipe();
         let side;
@@ -595,7 +595,7 @@ impl DatabaseArchiver {
         &mut self,
         order: InsertTraderOrder,
         settlement_price: f64,
-        cmd: Option<relayer::RpcCommand>,
+        _cmd: Option<relayer::RpcCommand>,
     ) -> Result<(), ApiError> {
         let mut pipe = redis::pipe();
         let side;
