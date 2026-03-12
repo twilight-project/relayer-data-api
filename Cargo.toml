@@ -1,6 +1,6 @@
 [package]
 name = "relayer-data-api"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 authors = ["Twilight Project"]
 description = "A high-throughput data archiving and retrieval API service for the Twilight Relayer Core"
@@ -82,4 +82,4 @@ redis = { version = "0.25.4", features = ["r2d2"] }
 
 [dependencies.relayer-core]
 git = "https://git@github.com/twilight-project/relayer-core.git"
-tag = "v0.2.2"
+branch = "main"

@@ -226,6 +226,8 @@ struct TraderOrderInfoV1 {
     #[serde(flatten)]
     order: TraderOrder,
     settle_limit: Option<SettleLimitDetails>,
+    take_profit: Option<SettleLimitDetails>,
+    stop_loss: Option<SettleLimitDetails>,
     funding_applied: Option<BigDecimal>,
 }
 
@@ -250,10 +252,27 @@ pub(super) fn trader_order_info_v1(
         Ok(mut conn) => {
             match TraderOrder::get_by_signature(&mut conn, tx.query_trader_order.account_id) {
                 Ok(order) => {
-                    let settle_limit = match order.order_status {
-                        OrderStatus::SETTLED | OrderStatus::LIQUIDATE => None,
-                        _ => SortedSetCommand::get_latest_close_limit(&mut conn, &order.uuid)
-                            .unwrap_or(None),
+                    let is_active = !matches!(
+                        order.order_status,
+                        OrderStatus::SETTLED | OrderStatus::LIQUIDATE
+                    );
+                    let settle_limit = if is_active {
+                        SortedSetCommand::get_latest_close_limit(&mut conn, &order.uuid)
+                            .unwrap_or(None)
+                    } else {
+                        None
+                    };
+                    let take_profit = if is_active {
+                        SortedSetCommand::get_latest_take_profit(&mut conn, &order.uuid)
+                            .unwrap_or(None)
+                    } else {
+                        None
+                    };
+                    let stop_loss = if is_active {
+                        SortedSetCommand::get_latest_stop_loss(&mut conn, &order.uuid)
+                            .unwrap_or(None)
+                    } else {
+                        None
                     };
                     let funding_applied = TraderOrderFundingUpdates::get_latest_by_uuid(
                         &mut conn,
@@ -261,7 +280,13 @@ pub(super) fn trader_order_info_v1(
                     )
                     .unwrap_or(None)
                     .map(|f| f.initial_margin - f.available_margin - f.fee_filled);
-                    let response = TraderOrderInfoV1 { order, settle_limit, funding_applied };
+                    let response = TraderOrderInfoV1 {
+                        order,
+                        settle_limit,
+                        take_profit,
+                        stop_loss,
+                        funding_applied,
+                    };
                     Ok(serde_json::to_value(response).expect("Error converting response"))
                 }
                 Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),

@@ -1,7 +1,7 @@
 use crossbeam_channel::{unbounded, Sender};
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 use log::{error, info};
-use relayer_core::db::Event;
+use relayer_core::db::{Event, EventKey};
 use std::thread::{self, JoinHandle};
 
 pub type Completion = (i32, i64);
@@ -46,12 +46,19 @@ pub fn start_consumer(
                         .map(|m| {
                             max_offset = max_offset.max(m.offset);
 
-                            let msg_data = String::from_utf8_lossy(&m.value);
+                            let msg_key = String::from_utf8_lossy(&m.key).to_string();
+                            let mut eventkey = EventKey::from_string_or_default(msg_key);
+                            let mut msg_data = String::from_utf8_lossy(&m.value).to_string();
+
+                            // Upcast old event versions to current format
+                            while eventkey.is_upcast() {
+                                msg_data = eventkey.event_log_upcast(msg_data);
+                            }
+
                             let message: Event = match serde_json::from_str(&msg_data) {
                                 Ok(event) => event,
                                 Err(e) => {
                                     println!("Invalid message! {:?} {}\n", e, msg_data);
-                                    // continue;
                                     Event::Stop(e.to_string())
                                 }
                             };

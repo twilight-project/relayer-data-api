@@ -46,12 +46,12 @@ const UPDATE_FN: &str = r#"
         local old_price = tonumber(redis.call('HGET', 'orders', id))
         redis.call('HDEL', 'orders', id)
 
-        
+
         local table = { order_id = id, side = side, price = price, positionsize = size, timestamp = timestamp }
 
         local order_json = cjson.encode(table)
         redis.call('ZADD', 'recent_orders', time, order_json)
-        
+
 
         local result = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
         if result == 0 then
@@ -83,8 +83,12 @@ const UPDATE_FN: &str = r#"
             redis.call('HDEL', 'orders', id)
             local old_position_size = tonumber(redis.pcall('ZRANGEBYSCORE', side, old_price, old_price)[1]) or 0
             if old_position_size > 0 then
-
-                local new_size = old_position_size - size
+                local new_size = 0
+                if status == "PENDING" then
+                    new_size = old_position_size - (size*old_price/price_cents)
+                else
+                    new_size = old_position_size - size
+                end
 
                 redis.call('ZREM', side, old_position_size)
 
@@ -153,7 +157,7 @@ pub struct DatabaseArchiver {
     lend_orders: Vec<InsertLendOrder>,
     position_size: Vec<PositionSizeUpdate>,
     tx_hashes: Vec<NewTxHash>,
-    sorted_set: Vec<relayer::SortedSetCommand>,
+    sorted_set: Vec<(relayer::SortedSetCommand, DateTime<Utc>)>,
     lend_pool: Vec<relayer_db::LendPool>,
     lend_pool_commands: Vec<relayer_db::LendPoolCommand>,
     risk_engine_updates: Vec<NewRiskEngineUpdate>,
@@ -334,8 +338,7 @@ impl DatabaseArchiver {
     fn update_sorted_set(&self, cmd: &relayer::SortedSetCommand) -> Result<(), ApiError> {
         match cmd {
             relayer::SortedSetCommand::RemoveCloseLimitPrice(i, typ) => {
-                let order_uuid =
-                    uuid::Uuid::from_bytes(*i.as_bytes()).to_string();
+                let order_uuid = uuid::Uuid::from_bytes(*i.as_bytes()).to_string();
 
                 // Get the order from DB to retrieve positionsize
                 let mut conn = match self.get_conn() {
@@ -403,7 +406,11 @@ impl DatabaseArchiver {
         Ok(())
     }
 
-    fn update_order_cache(&self, order: &InsertTraderOrder) -> Result<(), ApiError> {
+    fn update_order_cache(
+        &self,
+        order: &InsertTraderOrder,
+        _cmd: Option<relayer::RpcCommand>,
+    ) -> Result<(), ApiError> {
         let mut pipe = redis::pipe();
         let side;
         let price;
@@ -480,10 +487,11 @@ impl DatabaseArchiver {
     fn sorted_set_update(
         &mut self,
         sorted_set_update: relayer::SortedSetCommand,
+        time: DateTime<Utc>,
     ) -> Result<(), ApiError> {
         debug!("Appending sorted set update");
         let _ = self.update_sorted_set(&sorted_set_update);
-        self.sorted_set.push(sorted_set_update);
+        self.sorted_set.push((sorted_set_update, time));
 
         if self.sorted_set.len() == self.sorted_set.capacity() {
             self.commit_sorted_set_updates()?;
@@ -565,10 +573,14 @@ impl DatabaseArchiver {
     }
     /// Add a trader order to the next update batch, if the queue is full, commit and clear the
     /// queue.
-    fn trader_order(&mut self, order: InsertTraderOrder) -> Result<(), ApiError> {
+    fn trader_order(
+        &mut self,
+        order: InsertTraderOrder,
+        cmd: Option<relayer::RpcCommand>,
+    ) -> Result<(), ApiError> {
         debug!("Appending trader order");
 
-        let _ = self.update_order_cache(&order);
+        let _ = self.update_order_cache(&order, cmd);
         self.trader_orders.push(order);
 
         if self.trader_orders.len() == self.trader_orders.capacity() {
@@ -583,6 +595,7 @@ impl DatabaseArchiver {
         &mut self,
         order: InsertTraderOrder,
         settlement_price: f64,
+        _cmd: Option<relayer::RpcCommand>,
     ) -> Result<(), ApiError> {
         let mut pipe = redis::pipe();
         let side;
@@ -942,7 +955,7 @@ impl DatabaseArchiver {
                 _ => {}
             },
             Event::TraderOrder(trader_order, cmd, _seq) => {
-                match cmd {
+                match cmd.clone() {
                     relayer_core::relayer::RpcCommand::CreateTraderOrder(
                         _create_trader_order,
                         meta,
@@ -964,29 +977,49 @@ impl DatabaseArchiver {
                     }
                     _ => {}
                 }
-                self.trader_order(trader_order.into())?;
+                self.trader_order(trader_order.into(), Some(cmd))?;
             }
             Event::TraderOrderUpdate(trader_order, _cmd, _seq) => {
-                self.trader_order(trader_order.into())?;
+                self.trader_order(trader_order.into(), None)?;
             }
             Event::TraderOrderFundingUpdate(trader_order, _cmd) => {
                 self.trader_order_funding_update(trader_order.into())?;
             }
-            // added for limit order update for settlement order
             Event::TraderOrderLimitUpdate(trader_order, cmd, _seq) => {
-                let settlement_price = match cmd {
+                let (settlement_price, cmd_order_type) = match cmd.clone() {
                     relayer_core::relayer::RpcCommand::ExecuteTraderOrder(
                         execute_trader_order,
                         _meta,
                         _zkos_hex_string,
                         _request_id,
-                    ) => execute_trader_order.execution_price,
-                    _ => 0.0, // Default value for other command types
+                    ) => (
+                        execute_trader_order.execution_price,
+                        execute_trader_order.order_type,
+                    ),
+                    relayer_core::relayer::RpcCommand::ExecuteTraderOrderSlTp(
+                        execute_trader_order,
+                        _sltp,
+                        _meta,
+                        _zkos_hex_string,
+                        _request_id,
+                    ) => (
+                        execute_trader_order.execution_price,
+                        execute_trader_order.order_type,
+                    ),
+                    _ => (0.0, relayer::OrderType::MARKET),
                 };
-                self.trader_order_limit_update_redis(trader_order.into(), settlement_price)?;
+                // SLTP triggers are conditional — not resting limit orders.
+                // They're tracked via SortedSetDBUpdate events, not the bid/ask order book.
+                if cmd_order_type != relayer::OrderType::SLTP {
+                    self.trader_order_limit_update_redis(
+                        trader_order.into(),
+                        settlement_price,
+                        Some(cmd),
+                    )?;
+                }
             }
             Event::TraderOrderLiquidation(trader_order, _cmd, _seq) => {
-                self.trader_order(trader_order.into())?;
+                self.trader_order(trader_order.into(), None)?;
             }
             Event::LendOrder(lend_order, cmd, _seq) => {
                 if let relayer::RpcCommand::CreateLendOrder(
@@ -1037,8 +1070,11 @@ impl DatabaseArchiver {
                 self.lend_pool_updates(lend_pool)?;
                 self.lend_pool_command(lend_pool_command)?;
             }
-            Event::SortedSetDBUpdate(sorted_set_command) => {
-                self.sorted_set_update(sorted_set_command)?;
+            Event::SortedSetDBUpdate(sorted_set_command, system_time) => {
+                let ts = DateTime::parse_from_rfc3339(&system_time)
+                    .expect("Bad datetime format")
+                    .into();
+                self.sorted_set_update(sorted_set_command, ts)?;
             }
             Event::PositionSizeLogDBUpdate(position_size_log_command, position_size_log) => {
                 self.position_size_log((position_size_log_command, position_size_log))?;
@@ -1046,46 +1082,35 @@ impl DatabaseArchiver {
             Event::Stop(_stop) => {
                 info!("FINISH STOP");
             }
-            Event::TxHash(
-                uuid,
-                account_id,
-                tx_hash,
-                order_type,
-                order_status,
-                datetime,
-                output,
-                request_id,
-            ) => {
+            Event::TxHash(data) => {
                 let hash = NewTxHash {
-                    order_id: uuid.to_string(),
-                    account_id,
-                    tx_hash,
-                    order_type: order_type.into(),
-                    order_status: order_status.into(),
-                    datetime,
-                    output,
-                    request_id: Some(request_id),
+                    order_id: data.order_id.to_string(),
+                    account_id: data.account_id,
+                    tx_hash: data.tx_hash,
+                    order_type: data.order_type.into(),
+                    order_status: data.order_status.into(),
+                    datetime: data.datetime,
+                    output: data.output,
+                    request_id: Some(data.request_id),
+                    reason: data.reason,
+                    old_price: data.old_price,
+                    new_price: data.new_price,
                 };
                 self.tx_hash(hash)?;
             }
-            Event::TxHashUpdate(
-                uuid,
-                account_id,
-                tx_hash,
-                order_type,
-                order_status,
-                datetime,
-                output,
-            ) => {
+            Event::TxHashUpdate(data) => {
                 let hash = NewTxHash {
-                    order_id: uuid.to_string(),
-                    account_id,
-                    tx_hash,
-                    order_type: order_type.into(),
-                    order_status: order_status.into(),
-                    datetime,
-                    output,
-                    request_id: None,
+                    order_id: data.order_id.to_string(),
+                    account_id: data.account_id,
+                    tx_hash: data.tx_hash,
+                    order_type: data.order_type.into(),
+                    order_status: data.order_status.into(),
+                    datetime: data.datetime,
+                    output: data.output,
+                    request_id: Some(data.request_id),
+                    reason: data.reason,
+                    old_price: data.old_price,
+                    new_price: data.new_price,
                 };
                 self.tx_hash(hash)?;
             }

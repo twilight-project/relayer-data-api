@@ -133,6 +133,9 @@ pub struct TxHash {
     pub datetime: String,
     pub output: Option<String>,
     pub request_id: Option<String>,
+    pub reason: Option<String>,
+    pub old_price: Option<f64>,
+    pub new_price: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable, Queryable)]
@@ -146,6 +149,9 @@ pub struct NewTxHash {
     pub datetime: String,
     pub output: Option<String>,
     pub request_id: Option<String>,
+    pub reason: Option<String>,
+    pub old_price: Option<f64>,
+    pub new_price: Option<f64>,
 }
 
 impl TxHash {
@@ -694,6 +700,7 @@ pub struct SortedSetCommand {
     uuid: Option<String>,
     amount: Option<BigDecimal>,
     position_type: PositionType,
+    created_time: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Insertable)]
@@ -703,18 +710,19 @@ pub struct SortedSetCommandUpdate {
     uuid: Option<String>,
     amount: Option<BigDecimal>,
     position_type: PositionType,
+    created_time: DateTime<Utc>,
 }
 
 impl SortedSetCommand {
     pub fn append(
         conn: &mut PgConnection,
-        updates: Vec<relayer::SortedSetCommand>,
+        updates: Vec<(relayer::SortedSetCommand, DateTime<Utc>)>,
     ) -> QueryResult<usize> {
         use crate::database::schema::sorted_set_command::dsl::*;
 
         let items: Vec<_> = updates
             .into_iter()
-            .map(|item| {
+            .map(|(item, ts)| {
                 let (cmd, cmd_uuid, amt, typ) = match item {
                     relayer::SortedSetCommand::AddLiquidationPrice(i, amt, typ) => {
                         let amt = Some(BigDecimal::from_f64(amt).expect("Invalid f64"));
@@ -904,6 +912,7 @@ impl SortedSetCommand {
                     uuid: cmd_uuid.map(|m| m.to_string()),
                     amount: amt,
                     position_type: typ.into(),
+                    created_time: ts,
                 }
             })
             .collect();
@@ -938,6 +947,67 @@ impl SortedSetCommand {
                 uuid: r.uuid.unwrap_or_default(),
                 position_type: r.position_type,
                 price,
+                created_time: r.created_time,
+            })
+        }))
+    }
+
+    pub fn get_latest_take_profit(
+        conn: &mut PgConnection,
+        order_uuid: &str,
+    ) -> QueryResult<Option<SettleLimitDetails>> {
+        use crate::database::schema::sorted_set_command::dsl::*;
+
+        let result = sorted_set_command
+            .filter(uuid.eq(order_uuid))
+            .filter(command.eq_any(vec![
+                SortedSetCommandType::ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+                SortedSetCommandType::UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+                SortedSetCommandType::REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE,
+            ]))
+            .order(id.desc())
+            .first::<SortedSetCommand>(conn)
+            .optional()?;
+
+        Ok(result.and_then(|r| {
+            if r.command == SortedSetCommandType::REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE {
+                return None;
+            }
+            r.amount.map(|price| SettleLimitDetails {
+                uuid: r.uuid.unwrap_or_default(),
+                position_type: r.position_type,
+                price,
+                created_time: r.created_time,
+            })
+        }))
+    }
+
+    pub fn get_latest_stop_loss(
+        conn: &mut PgConnection,
+        order_uuid: &str,
+    ) -> QueryResult<Option<SettleLimitDetails>> {
+        use crate::database::schema::sorted_set_command::dsl::*;
+
+        let result = sorted_set_command
+            .filter(uuid.eq(order_uuid))
+            .filter(command.eq_any(vec![
+                SortedSetCommandType::ADD_STOP_LOSS_CLOSE_LIMIT_PRICE,
+                SortedSetCommandType::UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE,
+                SortedSetCommandType::REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE,
+            ]))
+            .order(id.desc())
+            .first::<SortedSetCommand>(conn)
+            .optional()?;
+
+        Ok(result.and_then(|r| {
+            if r.command == SortedSetCommandType::REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE {
+                return None;
+            }
+            r.amount.map(|price| SettleLimitDetails {
+                uuid: r.uuid.unwrap_or_default(),
+                position_type: r.position_type,
+                price,
+                created_time: r.created_time,
             })
         }))
     }
@@ -948,6 +1018,7 @@ pub struct SettleLimitDetails {
     pub uuid: String,
     pub position_type: PositionType,
     pub price: BigDecimal,
+    pub created_time: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]

@@ -1,0 +1,4 @@
+-- Note: PostgreSQL does not support removing enum values directly.
+-- The new order_type values (Stoploss, Takeprofit) and
+-- order_status values (LimitPriceAdded, StopLossAdded, TakeProfitAdded)
+-- will remain in the enum types.

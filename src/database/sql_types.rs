@@ -74,6 +74,8 @@ pub enum OrderType {
     DARK,
     LEND,
     SLTP,
+    Stoploss,
+    Takeprofit,
 }
 
 impl diesel::query_builder::QueryId for OrderTypeSql {
@@ -112,6 +114,15 @@ pub enum OrderStatus {
     FilledUpdated,
     CancelledStopLoss,
     CancelledTakeProfit,
+    LimitPriceAdded,
+    LimitPriceUpdated,
+    StopLossAdded,
+    StopLossUpdated,
+    TakeProfitAdded,
+    TakeProfitUpdated,
+    RejectedByRiskEngine,
+    CancelledLimitClose,
+    OrderUpdated,
 }
 
 impl OrderStatus {
@@ -138,6 +149,15 @@ impl OrderStatus {
             FilledUpdated => "FilledUpdated",
             CancelledStopLoss => "CancelledStopLoss",
             CancelledTakeProfit => "CancelledTakeProfit",
+            LimitPriceAdded => "LimitPriceAdded",
+            LimitPriceUpdated => "LimitPriceUpdated",
+            StopLossAdded => "StopLossAdded",
+            StopLossUpdated => "StopLossUpdated",
+            TakeProfitAdded => "TakeProfitAdded",
+            TakeProfitUpdated => "TakeProfitUpdated",
+            RejectedByRiskEngine => "RejectedByRiskEngine",
+            CancelledLimitClose => "CancelledLimitClose",
+            OrderUpdated => "OrderUpdated",
         }
     }
 
@@ -298,6 +318,27 @@ impl FromSql<SortedSetCommandTypeSql, Pg> for SortedSetCommandType {
             b"BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE" => {
                 Ok(SortedSetCommandType::BULK_SEARCH_REMOVE_CLOSE_LIMIT_PRICE)
             }
+            b"ADD_STOP_LOSS_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::ADD_STOP_LOSS_CLOSE_LIMIT_PRICE)
+            }
+            b"ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::ADD_TAKE_PROFIT_CLOSE_LIMIT_PRICE)
+            }
+            b"REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::REMOVE_STOP_LOSS_CLOSE_LIMIT_PRICE)
+            }
+            b"REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::REMOVE_TAKE_PROFIT_CLOSE_LIMIT_PRICE)
+            }
+            b"UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::UPDATE_STOP_LOSS_CLOSE_LIMIT_PRICE)
+            }
+            b"UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::UPDATE_TAKE_PROFIT_CLOSE_LIMIT_PRICE)
+            }
+            b"BULK_SEARCH_REMOVE_SLTP_CLOSE_LIMIT_PRICE" => {
+                Ok(SortedSetCommandType::BULK_SEARCH_REMOVE_SLTP_CLOSE_LIMIT_PRICE)
+            }
             _ => panic!("Invalid enum type in database!"),
         }
     }
@@ -325,6 +366,15 @@ impl ToSql<OrderStatusSql, Pg> for OrderStatus {
             OrderStatus::FilledUpdated => out.write_all(b"FilledUpdated")?,
             OrderStatus::CancelledStopLoss => out.write_all(b"CancelledStopLoss")?,
             OrderStatus::CancelledTakeProfit => out.write_all(b"CancelledTakeProfit")?,
+            OrderStatus::LimitPriceAdded => out.write_all(b"LimitPriceAdded")?,
+            OrderStatus::LimitPriceUpdated => out.write_all(b"LimitPriceUpdated")?,
+            OrderStatus::StopLossAdded => out.write_all(b"StopLossAdded")?,
+            OrderStatus::StopLossUpdated => out.write_all(b"StopLossUpdated")?,
+            OrderStatus::TakeProfitAdded => out.write_all(b"TakeProfitAdded")?,
+            OrderStatus::TakeProfitUpdated => out.write_all(b"TakeProfitUpdated")?,
+            OrderStatus::RejectedByRiskEngine => out.write_all(b"RejectedByRiskEngine")?,
+            OrderStatus::CancelledLimitClose => out.write_all(b"CancelledLimitClose")?,
+            OrderStatus::OrderUpdated => out.write_all(b"OrderUpdated")?,
         }
         Ok(IsNull::No)
     }
@@ -370,6 +420,17 @@ impl FromSql<OrderStatusSql, Pg> for OrderStatus {
             b"OrderNotFound" => Ok(OrderStatus::OrderNotFound),
             b"RejectedFromChain" => Ok(OrderStatus::RejectedFromChain),
             b"FilledUpdated" => Ok(OrderStatus::FilledUpdated),
+            b"CancelledStopLoss" => Ok(OrderStatus::CancelledStopLoss),
+            b"CancelledTakeProfit" => Ok(OrderStatus::CancelledTakeProfit),
+            b"LimitPriceAdded" => Ok(OrderStatus::LimitPriceAdded),
+            b"LimitPriceUpdated" => Ok(OrderStatus::LimitPriceUpdated),
+            b"StopLossAdded" => Ok(OrderStatus::StopLossAdded),
+            b"StopLossUpdated" => Ok(OrderStatus::StopLossUpdated),
+            b"TakeProfitAdded" => Ok(OrderStatus::TakeProfitAdded),
+            b"TakeProfitUpdated" => Ok(OrderStatus::TakeProfitUpdated),
+            b"RejectedByRiskEngine" => Ok(OrderStatus::RejectedByRiskEngine),
+            b"CancelledLimitClose" => Ok(OrderStatus::CancelledLimitClose),
+            b"OrderUpdated" => Ok(OrderStatus::OrderUpdated),
             _ => panic!("Invalid enum type in database!"),
         }
     }
@@ -383,6 +444,8 @@ impl ToSql<OrderTypeSql, Pg> for OrderType {
             OrderType::DARK => out.write_all(b"DARK")?,
             OrderType::LEND => out.write_all(b"LEND")?,
             OrderType::SLTP => out.write_all(b"SLTP")?,
+            OrderType::Stoploss => out.write_all(b"Stoploss")?,
+            OrderType::Takeprofit => out.write_all(b"Takeprofit")?,
         }
         Ok(IsNull::No)
     }
@@ -395,6 +458,9 @@ impl FromSql<OrderTypeSql, Pg> for OrderType {
             b"MARKET" => Ok(OrderType::MARKET),
             b"DARK" => Ok(OrderType::DARK),
             b"LEND" => Ok(OrderType::LEND),
+            b"SLTP" => Ok(OrderType::SLTP),
+            b"Stoploss" => Ok(OrderType::Stoploss),
+            b"Takeprofit" => Ok(OrderType::Takeprofit),
             _ => panic!("Invalid enum type in database!"),
         }
     }
@@ -451,6 +517,15 @@ impl From<relayer_types::OrderStatus> for OrderStatus {
             relayer_types::OrderStatus::FilledUpdated => OrderStatus::FilledUpdated,
             relayer_types::OrderStatus::CancelledStopLoss => OrderStatus::CancelledStopLoss,
             relayer_types::OrderStatus::CancelledTakeProfit => OrderStatus::CancelledTakeProfit,
+            relayer_types::OrderStatus::LimitPriceAdded => OrderStatus::LimitPriceAdded,
+            relayer_types::OrderStatus::LimitPriceUpdated => OrderStatus::LimitPriceUpdated,
+            relayer_types::OrderStatus::StopLossAdded => OrderStatus::StopLossAdded,
+            relayer_types::OrderStatus::StopLossUpdated => OrderStatus::StopLossUpdated,
+            relayer_types::OrderStatus::TakeProfitAdded => OrderStatus::TakeProfitAdded,
+            relayer_types::OrderStatus::TakeProfitUpdated => OrderStatus::TakeProfitUpdated,
+            relayer_types::OrderStatus::RejectedByRiskEngine => OrderStatus::RejectedByRiskEngine,
+            relayer_types::OrderStatus::CancelledLimitClose => OrderStatus::CancelledLimitClose,
+            relayer_types::OrderStatus::OrderUpdated => OrderStatus::OrderUpdated,
         }
     }
 }
@@ -463,6 +538,8 @@ impl From<relayer_types::OrderType> for OrderType {
             relayer_types::OrderType::DARK => OrderType::DARK,
             relayer_types::OrderType::LEND => OrderType::LEND,
             relayer_types::OrderType::SLTP => OrderType::SLTP,
+            relayer_types::OrderType::Stoploss => OrderType::Stoploss,
+            relayer_types::OrderType::Takeprofit => OrderType::Takeprofit,
         }
     }
 }
