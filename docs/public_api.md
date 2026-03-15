@@ -2955,3 +2955,88 @@ The `transaction_hashes` method accepts one of three parameter variants:
 | datetime     | string    | Transaction timestamp (Unix timestamp in microseconds) |
 | output       | string    | Hex-encoded transaction output data (nullable)         |
 | request_id   | string    | Unique request identifier (nullable)                   |
+
+### Open Interest Chart
+
+```javascript
+var myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+  jsonrpc: "2.0",
+  method: "open_interest_chart",
+  id: 123,
+  params: {
+    range: "1d",
+    step: "5m", // Optional: defaults based on range
+  },
+});
+
+var requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow",
+};
+
+fetch("API_ENDPOINT/api", requestOptions)
+  .then((response) => response.text())
+  .then((result) => console.log(result))
+  .catch((error) => console.log("error", error));
+```
+
+**Example Response:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "bucket_ts": "2026-03-16T00:00:00Z",
+      "open_interest": 12.345,
+      "pct_change": 0.0
+    },
+    {
+      "bucket_ts": "2026-03-16T00:05:00Z",
+      "open_interest": 12.567,
+      "pct_change": 1.798
+    }
+  ],
+  "id": 123
+}
+```
+
+**Description:** Returns a time series of open interest values (total long + total short BTC exposure) with percentage change between each bucket. Data is sourced from the `risk_engine_update` table. Useful for charting open interest trends over time on a frontend dashboard.
+
+**Use Cases:**
+
+- Charting open interest over time on a frontend dashboard
+- Monitoring market participation trends across different time windows
+- Detecting sudden changes in open interest for risk analysis
+
+Open Interest Chart
+
+### HTTP Method
+
+`POST`
+
+### RPC Method
+
+`open_interest_chart`
+
+### Message Parameters
+
+| Params | Data_Type | Required | Values                                                                                               |
+| ------ | --------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| range  | string    | Yes      | Time window: `"1d"`, `"7d"`, `"30d"` (or long-form: `"24 hours"`, `"7 days"`, `"30 days"`)          |
+| step   | string    | No       | Bucket interval: `"1m"`, `"5m"`, `"15m"`, `"30m"`, `"1h"`, `"2h"`, `"4h"`, `"12h"`. Defaults: 1d→1m, 7d→5m, 30d→1h |
+
+### Response Fields
+
+Returns an array of objects with the following fields:
+
+| Field         | Data_Type | Description                                                          |
+| ------------- | --------- | -------------------------------------------------------------------- |
+| bucket_ts     | string    | Bucket timestamp (ISO 8601 format)                                   |
+| open_interest | float     | Total open interest in BTC (total_long_btc + total_short_btc)        |
+| pct_change    | float     | Percentage change in open interest from the previous bucket (0-100%) |

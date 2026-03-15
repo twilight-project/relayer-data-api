@@ -457,6 +457,57 @@ impl ApySeriesArgs {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OiChartArgs {
+    pub range: String,
+    #[serde(default)]
+    pub step: Option<String>,
+}
+
+impl OiChartArgs {
+    pub fn resolve(&self) -> Result<(&'static str, &'static str), String> {
+        let window = ApySeriesArgs::normalize_interval(&self.range)
+            .or_else(|| {
+                match self.range.trim().to_lowercase().as_str() {
+                    "24 hours" => Some("24 hours"),
+                    "7 days" => Some("7 days"),
+                    "30 days" => Some("30 days"),
+                    _ => None,
+                }
+            })
+            .ok_or_else(|| format!("Unsupported range: {}", self.range))?;
+
+        let default_step = match window {
+            "24 hours" => "1 minute",
+            "7 days" => "5 minutes",
+            "30 days" => "1 hour",
+            _ => "1 minute",
+        };
+
+        let step = if let Some(ref s) = self.step {
+            ApySeriesArgs::normalize_interval(s)
+                .or_else(|| {
+                    match s.trim().to_lowercase().as_str() {
+                        "1 minute" => Some("1 minute"),
+                        "5 minutes" => Some("5 minutes"),
+                        "15 minutes" => Some("15 minutes"),
+                        "30 minutes" => Some("30 minutes"),
+                        "1 hour" => Some("1 hour"),
+                        "2 hours" => Some("2 hours"),
+                        "4 hours" => Some("4 hours"),
+                        "12 hours" => Some("12 hours"),
+                        _ => None,
+                    }
+                })
+                .ok_or_else(|| format!("Unsupported step: {}", s))?
+        } else {
+            default_step
+        };
+
+        Ok((window, step))
+    }
+}
+
 const MAX_DELAYED_DAYS: i64 = 7;
 
 fn max_delayed_days() -> i64 {

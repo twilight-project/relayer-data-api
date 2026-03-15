@@ -2685,6 +2685,16 @@ pub struct ApyPoint {
     pub apy: BigDecimal,
 }
 
+#[derive(Debug, QueryableByName, Serialize, Deserialize)]
+pub struct OiPoint {
+    #[diesel(sql_type = Timestamptz)]
+    pub bucket_ts: DateTime<Utc>,
+    #[diesel(sql_type = diesel::sql_types::Float8)]
+    pub open_interest: f64,
+    #[diesel(sql_type = diesel::sql_types::Float8)]
+    pub pct_change: f64,
+}
+
 #[derive(Debug, Clone, QueryableByName)]
 struct LastDayApyRow {
     #[diesel(sql_type = Nullable<Numeric>)]

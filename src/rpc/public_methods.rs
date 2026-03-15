@@ -835,6 +835,40 @@ pub(super) fn open_interest(
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
 }
+
+pub(super) fn open_interest_chart(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    use diesel::RunQueryDsl;
+
+    let args: crate::rpc::types::OiChartArgs = params
+        .parse()
+        .map_err(|e| Error::Custom(format!("Invalid argument: {:?}", e)))?;
+
+    let (window, step) = match args.resolve() {
+        Ok(t) => t,
+        Err(msg) => return Err(Error::Custom(msg)),
+    };
+
+    match ctx.pool.get() {
+        Ok(mut conn) => {
+            let sql = r#"
+                SELECT bucket_ts, open_interest, pct_change
+                FROM oi_series($1::interval, $2::interval)
+                ORDER BY bucket_ts;
+            "#;
+            let rows: Vec<OiPoint> = diesel::sql_query(sql)
+                .bind::<diesel::sql_types::Text, _>(window)
+                .bind::<diesel::sql_types::Text, _>(step)
+                .load(&mut conn)
+                .map_err(|e| Error::Custom(format!("Database error: {:?}", e)))?;
+
+            Ok(serde_json::to_value(rows).expect("Error converting response"))
+        }
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
 // pub(super) fn account_summary_by_twilight_address(
 //     params: Params<'_>,
 //     ctx: &RelayerContext,

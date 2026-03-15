@@ -201,6 +201,11 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
     );
     register_method(
         &mut module,
+        "open_interest_chart",
+        Box::new(public_methods::open_interest_chart),
+    );
+    register_method(
+        &mut module,
         "account_summary_by_twilight_address",
         Box::new(public_methods::account_summary_by_twilight_address),
     );
