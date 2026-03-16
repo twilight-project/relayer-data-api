@@ -946,7 +946,7 @@ impl SortedSetCommand {
             r.amount.map(|price| SettleLimitDetails {
                 uuid: r.uuid.unwrap_or_default(),
                 position_type: r.position_type,
-                price,
+                price: price.with_scale(2),
                 created_time: r.created_time,
             })
         }))
@@ -976,7 +976,7 @@ impl SortedSetCommand {
             r.amount.map(|price| SettleLimitDetails {
                 uuid: r.uuid.unwrap_or_default(),
                 position_type: r.position_type,
-                price,
+                price: price.with_scale(2),
                 created_time: r.created_time,
             })
         }))
@@ -1006,7 +1006,7 @@ impl SortedSetCommand {
             r.amount.map(|price| SettleLimitDetails {
                 uuid: r.uuid.unwrap_or_default(),
                 position_type: r.position_type,
-                price,
+                price: price.with_scale(2),
                 created_time: r.created_time,
             })
         }))
