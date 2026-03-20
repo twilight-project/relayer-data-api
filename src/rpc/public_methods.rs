@@ -1,7 +1,7 @@
-use super::*;
 use super::types::RiskParams;
-use bigdecimal::{BigDecimal, ToPrimitive};
+use super::*;
 use crate::database::*;
+use bigdecimal::{BigDecimal, ToPrimitive};
 use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
 use kafka::producer::Record;
@@ -274,12 +274,10 @@ pub(super) fn trader_order_info_v1(
                     } else {
                         None
                     };
-                    let funding_applied = TraderOrderFundingUpdates::get_latest_by_uuid(
-                        &mut conn,
-                        &order.uuid,
-                    )
-                    .unwrap_or(None)
-                    .map(|f| f.initial_margin - f.available_margin - f.fee_filled);
+                    let funding_applied =
+                        TraderOrderFundingUpdates::get_latest_by_uuid(&mut conn, &order.uuid)
+                            .unwrap_or(None)
+                            .map(|f| f.initial_margin - f.available_margin - f.fee_filled);
                     let response = TraderOrderInfoV1 {
                         order,
                         settle_limit,
@@ -326,18 +324,17 @@ pub(super) fn order_funding_history(
         Ok(mut conn) => {
             match TraderOrder::get_by_signature(&mut conn, tx.query_trader_order.account_id) {
                 Ok(order) => {
-                    let funding_updates = TraderOrderFundingUpdates::get_all_by_uuid(
-                        &mut conn,
-                        &order.uuid,
-                    )
-                    .unwrap_or_default();
+                    let funding_updates =
+                        TraderOrderFundingUpdates::get_all_by_uuid(&mut conn, &order.uuid)
+                            .unwrap_or_default();
 
                     let mut prev_total = BigDecimal::from(0);
                     let entries: Vec<OrderFundingHistoryEntry> = funding_updates
                         .into_iter()
                         .map(|update| {
-                            let total =
-                                &update.initial_margin - &update.available_margin - &update.fee_filled;
+                            let total = &update.initial_margin
+                                - &update.available_margin
+                                - &update.fee_filled;
                             let payment = &total - &prev_total;
                             prev_total = total;
 
@@ -426,21 +423,25 @@ pub(super) fn lend_order_info_v1(
         Ok(mut conn) => {
             match LendOrder::get_by_signature(&mut conn, tx.query_lend_order.account_id) {
                 Ok(order) => {
-                    let pool = LendPool::get(&mut conn)
-                        .map_err(|e| Error::Custom(format!("Error fetching lend pool: {:?}", e)))?;
-                    let tlv = pool.get_total_locked_value();
-                    let tps = pool.get_total_pool_shares();
-
-                    let npoolshare = order.npoolshare.to_f64().unwrap_or(0.0);
-                    let principal = order.new_lend_state_amount.to_f64().unwrap_or(0.0);
-
-                    let nwithdraw = tlv * npoolshare / tps;
-                    let withdraw = nwithdraw / 10000.0;
-                    let u_pnl = (withdraw - principal).round();
-
+                    let principal = order.deposit.to_f64().unwrap_or(0.0);
                     let now = Utc::now();
                     let duration_secs = (now - order.timestamp).num_seconds().max(1) as f64;
                     const SECONDS_PER_YEAR: f64 = 31_536_000.0;
+
+                    let u_pnl = if order.order_status == OrderStatus::SETTLED {
+                        order.payment.to_f64().unwrap_or(0.0).round()
+                    } else {
+                        let pool = LendPool::get(&mut conn).map_err(|e| {
+                            Error::Custom(format!("Error fetching lend pool: {:?}", e))
+                        })?;
+                        let tlv = pool.get_total_locked_value();
+                        let tps = pool.get_total_pool_shares();
+                        let npoolshare = order.npoolshare.to_f64().unwrap_or(0.0);
+                        let nwithdraw = tlv * npoolshare / tps;
+                        let withdraw = nwithdraw / 10000.0;
+                        (withdraw - principal).round()
+                    };
+
                     let apr = if principal > 0.0 {
                         let raw = (u_pnl / principal) * (SECONDS_PER_YEAR / duration_secs) * 100.0;
                         (raw * 100.0).round() / 100.0
