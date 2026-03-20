@@ -82,4 +82,4 @@ redis = { version = "0.25.4", features = ["r2d2"] }
 
 [dependencies.relayer-core]
 git = "https://git@github.com/twilight-project/relayer-core.git"
-branch = "main"
+tag = "v0.2.3"
