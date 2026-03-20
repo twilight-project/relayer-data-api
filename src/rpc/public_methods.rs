@@ -436,13 +436,14 @@ pub(super) fn lend_order_info_v1(
 
                     let nwithdraw = tlv * npoolshare / tps;
                     let withdraw = nwithdraw / 10000.0;
-                    let u_pnl = withdraw - principal;
+                    let u_pnl = (withdraw - principal).round();
 
                     let now = Utc::now();
                     let duration_secs = (now - order.timestamp).num_seconds().max(1) as f64;
                     const SECONDS_PER_YEAR: f64 = 31_536_000.0;
                     let apr = if principal > 0.0 {
-                        (u_pnl / principal) * (SECONDS_PER_YEAR / duration_secs) * 100.0
+                        let raw = (u_pnl / principal) * (SECONDS_PER_YEAR / duration_secs) * 100.0;
+                        (raw * 100.0).round() / 100.0
                     } else {
                         0.0
                     };
