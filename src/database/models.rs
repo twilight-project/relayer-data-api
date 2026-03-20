@@ -549,6 +549,10 @@ impl LendPool {
         self.total_locked_value.to_f64().unwrap_or(0.0)
     }
 
+    pub fn get_total_pool_shares(&self) -> f64 {
+        self.total_pool_share.to_f64().unwrap_or(1.0)
+    }
+
     pub fn insert(
         conn: &mut PgConnection,
         updates: Vec<relayer_db::LendPool>,

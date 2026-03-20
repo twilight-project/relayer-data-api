@@ -141,6 +141,11 @@ pub fn init_public_methods(database_url: &str, redis_url: &str) -> RpcModule<Rel
     );
     register_method(
         &mut module,
+        "lend_order_info_v1",
+        Box::new(public_methods::lend_order_info_v1),
+    );
+    register_method(
+        &mut module,
         "submit_trade_order",
         Box::new(public_methods::submit_trade_order),
     );

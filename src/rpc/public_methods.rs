@@ -1,6 +1,6 @@
 use super::*;
 use super::types::RiskParams;
-use bigdecimal::BigDecimal;
+use bigdecimal::{BigDecimal, ToPrimitive};
 use crate::database::*;
 use chrono::prelude::*;
 use jsonrpsee::{core::error::Error, server::logger::Params};
@@ -391,6 +391,79 @@ pub(super) fn lend_order_info(
         Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
     }
 }
+#[derive(Serialize)]
+struct UnrealisedProfit {
+    u_pnl: f64,
+    apr: f64,
+    timestamp: DateTime<Utc>,
+}
+
+#[derive(Serialize)]
+struct LendOrderInfoV1 {
+    #[serde(flatten)]
+    order: LendOrder,
+    unrealised_profit: UnrealisedProfit,
+}
+
+pub(super) fn lend_order_info_v1(
+    params: Params<'_>,
+    ctx: &RelayerContext,
+) -> Result<serde_json::Value, Error> {
+    let Order { data } = params.parse()?;
+    let Ok(bytes) = hex::decode(&data) else {
+        return Ok(format!("Invalid hex data").into());
+    };
+    let Ok(tx) = bincode::deserialize::<relayer::QueryLendOrderZkos>(&bytes) else {
+        return Ok(format!("Invalid bincode").into());
+    };
+    if let Err(arg) = verify_query_order(
+        tx.msg.clone(),
+        &bincode::serialize(&tx.query_lend_order).unwrap(),
+    ) {
+        return Ok(format!("Invalid order params:{:?}", arg).into());
+    }
+    match ctx.pool.get() {
+        Ok(mut conn) => {
+            match LendOrder::get_by_signature(&mut conn, tx.query_lend_order.account_id) {
+                Ok(order) => {
+                    let pool = LendPool::get(&mut conn)
+                        .map_err(|e| Error::Custom(format!("Error fetching lend pool: {:?}", e)))?;
+                    let tlv = pool.get_total_locked_value();
+                    let tps = pool.get_total_pool_shares();
+
+                    let npoolshare = order.npoolshare.to_f64().unwrap_or(0.0);
+                    let principal = order.new_lend_state_amount.to_f64().unwrap_or(0.0);
+
+                    let nwithdraw = tlv * npoolshare / tps;
+                    let withdraw = nwithdraw / 10000.0;
+                    let u_pnl = withdraw - principal;
+
+                    let now = Utc::now();
+                    let duration_secs = (now - order.timestamp).num_seconds().max(1) as f64;
+                    const SECONDS_PER_YEAR: f64 = 31_536_000.0;
+                    let apr = if principal > 0.0 {
+                        (u_pnl / principal) * (SECONDS_PER_YEAR / duration_secs) * 100.0
+                    } else {
+                        0.0
+                    };
+
+                    let response = LendOrderInfoV1 {
+                        order,
+                        unrealised_profit: UnrealisedProfit {
+                            u_pnl,
+                            apr,
+                            timestamp: now,
+                        },
+                    };
+                    Ok(serde_json::to_value(response).expect("Error converting response"))
+                }
+                Err(e) => Err(Error::Custom(format!("Error fetching order info: {:?}", e))),
+            }
+        }
+        Err(e) => Err(Error::Custom(format!("Database error: {:?}", e))),
+    }
+}
+
 pub(super) fn historical_trader_order_info(
     params: Params<'_>,
     ctx: &RelayerContext,

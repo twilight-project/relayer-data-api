@@ -2495,6 +2495,114 @@ Get lend order information by account ID
 | tps3                  | string    | Total pool shares tier 3                          |
 | entry_sequence        | integer   | Entry sequence number                             |
 
+### Lend Order Info V1
+
+```javascript
+var myHeaders = new Headers();
+myHeaders.append("Content-Type", "application/json");
+
+var raw = JSON.stringify({
+  jsonrpc: "2.0",
+  method: "lend_order_info_v1",
+  id: 123,
+  params: {
+    data: "hex_encoded_data_string",
+  },
+});
+
+var requestOptions = {
+  method: "POST",
+  headers: myHeaders,
+  body: raw,
+  redirect: "follow",
+};
+
+fetch("API_ENDPOINT/api", requestOptions)
+  .then((response) => response.text())
+  .then((result) => console.log(result))
+  .catch((error) => console.log("error", error));
+```
+
+> The result from the above endpoint looks like this:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "id": 25,
+    "uuid": "6fb4f910-ceb4-432d-995b-79eddb8c4c83",
+    "account_id": "0c08ed4f0daeec9b...",
+    "balance": "153620",
+    "order_status": "FILLED",
+    "order_type": "MARKET",
+    "entry_nonce": 0,
+    "exit_nonce": 0,
+    "deposit": "153620",
+    "new_lend_state_amount": "153620",
+    "timestamp": "2024-02-28T04:59:44.020048Z",
+    "npoolshare": "100",
+    "nwithdraw": "0",
+    "payment": "0",
+    "tlv0": "0",
+    "tps0": "0",
+    "tlv1": "0",
+    "tps1": "0",
+    "tlv2": "0",
+    "tps2": "0",
+    "tlv3": "0",
+    "tps3": "0",
+    "entry_sequence": 10,
+    "unrealised_profit": {
+      "u_pnl": 0.0025,
+      "apr": 30.42,
+      "timestamp": "2024-03-01T12:00:00.000000Z"
+    }
+  },
+  "id": 123
+}
+```
+
+**Description:** Enhanced version of `lend_order_info` that includes unrealised profit data. Returns all lend order fields plus an `unrealised_profit` object containing the current unrealised P&L, annualised percentage rate (APR), and the calculation timestamp. The unrealised profit is computed using the current pool's total locked value (TLV) and total pool shares (TPS): `withdraw = (TLV * npoolshare / TPS) / 10000`, then `u_pnl = withdraw - new_lend_state_amount`. APR is calculated as `(u_pnl / principal) * (31,536,000 / elapsed_seconds) * 100`.
+
+**Use Cases:**
+
+- Real-time unrealised P&L tracking for active lending positions
+- APR monitoring to compare lending returns across time periods
+- Portfolio dashboards displaying current yield and profit metrics
+- Withdrawal planning with visibility into current position value
+
+Get enhanced lend order information by account ID
+
+### HTTP Method
+
+`POST`
+
+### RPC Method
+
+`lend_order_info_v1`
+
+### Message Parameters
+
+| Params | Data_Type | Values                                |
+| ------ | --------- | ------------------------------------- |
+| data   | string    | Hex-encoded query data for lend order |
+
+### Response Fields
+
+All fields from `lend_order_info` plus:
+
+| Field             | Data_Type | Description                                              |
+| ----------------- | --------- | -------------------------------------------------------- |
+| unrealised_profit | object    | Unrealised profit details for the lending position       |
+
+_unrealised_profit object:_
+
+| Field     | Data_Type | Description                                                        |
+| --------- | --------- | ------------------------------------------------------------------ |
+| u_pnl     | number    | Unrealised profit/loss based on current pool value                 |
+| apr       | number    | Annualised percentage rate extrapolated from current returns       |
+| timestamp | string    | Calculation timestamp (ISO 8601 format)                            |
+
 ### Historical Trader Order Info
 
 ```javascript
