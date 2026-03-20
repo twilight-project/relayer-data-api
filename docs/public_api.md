@@ -2328,7 +2328,20 @@ fetch("API_ENDPOINT/api", requestOptions)
     "settle_limit": {
       "uuid": "3374714d-8a95-4096-855f-7e2675fe0dc8",
       "position_type": "LONG",
-      "price": "45000.00"
+      "price": "45000.00",
+      "created_time": "2024-01-31T12:00:00.000000Z"
+    },
+    "take_profit": {
+      "uuid": "3374714d-8a95-4096-855f-7e2675fe0dc8",
+      "position_type": "LONG",
+      "price": "48000.00",
+      "created_time": "2024-01-31T12:05:00.000000Z"
+    },
+    "stop_loss": {
+      "uuid": "3374714d-8a95-4096-855f-7e2675fe0dc8",
+      "position_type": "LONG",
+      "price": "40000.00",
+      "created_time": "2024-01-31T12:05:00.000000Z"
     },
     "funding_applied": "0.0025"
   },
@@ -2336,13 +2349,13 @@ fetch("API_ENDPOINT/api", requestOptions)
 }
 ```
 
-**Description:** Enhanced version of `trader_order_info` that includes additional fields: `settle_limit` (the latest close limit price for non-settled/non-liquidated orders) and `funding_applied` (the cumulative funding payment applied to the order, computed as `initial_margin - available_margin - fee_filled`).
+**Description:** Enhanced version of `trader_order_info` that includes additional fields: `settle_limit` (the latest close limit price), `take_profit` (take-profit trigger price), `stop_loss` (stop-loss trigger price) for non-settled/non-liquidated orders, and `funding_applied` (the cumulative funding payment applied to the order, computed as `initial_margin - available_margin - fee_filled`).
 
 **Use Cases:**
 
 - Comprehensive order detail retrieval including pending settlement limits
 - Funding cost analysis and tracking for active positions
-- Advanced position management with close limit price visibility
+- Advanced position management with close limit, take-profit, and stop-loss visibility
 - Detailed P&L breakdown including funding impact
 - Risk assessment incorporating settlement limit prices
 
@@ -2369,15 +2382,18 @@ All fields from `trader_order_info` plus:
 | Field           | Data_Type | Description                                                                 |
 | --------------- | --------- | --------------------------------------------------------------------------- |
 | settle_limit    | object    | Latest close limit details (null if settled/liquidated or no limit set)     |
-| funding_applied | string    | Cumulative funding payment applied (null if no funding updates recorded)   |
+| take_profit     | object    | Latest take-profit details (null if settled/liquidated or none set)         |
+| stop_loss       | object    | Latest stop-loss details (null if settled/liquidated or none set)           |
+| funding_applied | string    | Cumulative funding payment applied (null if no funding updates recorded)    |
 
-_settle_limit object (when present):_
+_settle_limit / take_profit / stop_loss object (when present):_
 
-| Field         | Data_Type | Description                        |
-| ------------- | --------- | ---------------------------------- |
-| uuid          | string    | Order UUID                         |
-| position_type | string    | Position direction                 |
-| price         | string    | Close limit price                  |
+| Field         | Data_Type | Description                              |
+| ------------- | --------- | ---------------------------------------- |
+| uuid          | string    | Order UUID                               |
+| position_type | string    | Position direction                       |
+| price         | string    | Trigger/limit price                      |
+| created_time  | string    | Creation timestamp (ISO 8601 format)     |
 
 ### Lend Order Info
 
