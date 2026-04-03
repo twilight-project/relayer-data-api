@@ -1410,6 +1410,7 @@ Market Stats
 | status                  | string    | Market status: `"HEALTHY"`, `"CLOSE_ONLY"`, or `"HALT"`                                 |
 | status_reason           | string    | Reason for non-healthy status (nullable). E.g. `"MANUAL_HALT"`, `"POOL_EQUITY_INVALID"` |
 | params                  | object    | Risk parameters object (see below)                                                       |
+| funding_rate            | object    | Funding rate information object (see below)                                              |
 
 _Risk params object:_
 
@@ -1421,6 +1422,15 @@ _Risk params object:_
 | min_position_btc | number    | Minimum position size in BTC                         |
 | max_leverage     | number    | Maximum allowed leverage                             |
 | mm_ratio         | number    | Maintenance margin ratio                             |
+
+_Funding rate object:_
+
+| Field                            | Data_Type | Description                                                |
+| -------------------------------- | --------- | ---------------------------------------------------------- |
+| funding_rate                     | number    | Last applied funding rate from the database                |
+| estimated_funding_rate           | number    | Calculated next funding rate based on current imbalance    |
+| funding_rate_timestamp           | string    | ISO-8601 timestamp of the last applied funding rate update |
+| estimated_funding_rate_timestamp | string    | ISO-8601 timestamp for the estimated funding rate           |
 
 ## Account Analytics
 
