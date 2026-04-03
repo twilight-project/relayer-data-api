@@ -1353,13 +1353,19 @@ fetch("API_ENDPOINT/api", requestOptions)
       "min_position_btc": 0.0,
       "max_leverage": 50.0,
       "mm_ratio": 0.4
+    },
+    "funding_rate": {
+      "funding_rate": 0.0001,
+      "estimated_funding_rate": 0.00012,
+      "funding_rate_timestamp": "2023-09-25T12:00:00Z",
+      "estimated_funding_rate_timestamp": "2023-09-25T13:00:00Z"
     }
   },
   "id": 123
 }
 ```
 
-**Description:** Returns comprehensive market risk statistics computed from the cached RiskState (Redis) and lending pool equity. Includes open interest, net exposure, utilization ratio, maximum allowed position sizes, and market status (HEALTHY, CLOSE_ONLY, or HALT).
+**Description:** Returns comprehensive market risk statistics computed from the cached RiskState (Redis) and lending pool equity. Includes open interest, net exposure, utilization ratio, maximum allowed position sizes, and market status (HEALTHY, CLOSE_ONLY, or HALT), as well as current and estimated funding rates.
 
 **Use Cases:**
 
