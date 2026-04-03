@@ -1096,8 +1096,19 @@ pub(super) fn get_market_stats(
         Err(_) => 0.0,
     };
 
+    let (funding_rate, funding_rate_timestamp) = match FundingRate::get(&mut db_conn) {
+        Ok(fr) => (fr.rate.to_f64().unwrap_or(0.0), fr.timestamp),
+        Err(_) => (0.0, Utc::now()),
+    };
+
     // 3. Compute and return market risk stats
-    let stats = util::compute_market_risk_stats(&risk_state, pool_equity_btc, risk_params);
+    let stats = util::compute_market_risk_stats(
+        &risk_state,
+        pool_equity_btc,
+        risk_params,
+        funding_rate,
+        funding_rate_timestamp,
+    );
 
     Ok(serde_json::to_value(stats).expect("Error converting response"))
 }

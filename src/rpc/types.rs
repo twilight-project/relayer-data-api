@@ -780,6 +780,14 @@ pub enum MarketStatus {
     CLOSE_ONLY,
     HALT,
 }
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct FundingRateResponse {
+    pub funding_rate: f64,
+    pub estimated_funding_rate: f64,
+    pub funding_rate_timestamp: DateTime<Utc>,
+    pub estimated_funding_rate_timestamp: DateTime<Utc>,
+}
+
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct MarketRiskStatsResponse {
@@ -798,4 +806,5 @@ pub struct MarketRiskStatsResponse {
     pub status: MarketStatus,
     pub status_reason: Option<String>,
     pub params: RiskParams,
+    pub funding_rate: FundingRateResponse,
 }
