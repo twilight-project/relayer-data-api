@@ -84,6 +84,8 @@ pub fn compute_market_risk_stats(
     params: RiskParams,
     funding_rate: f64,
     funding_rate_timestamp: DateTime<Utc>,
+    total_long_usd: f64,
+    total_short_usd: f64,
 ) -> MarketRiskStatsResponse {
 
     // Compute market status
@@ -133,14 +135,14 @@ pub fn compute_market_risk_stats(
 
     let mut estimated_funding_rate: f64;
     let psi = 1.0;
-    if oi_btc == 0.0 {
+    if total_long_usd+total_short_usd == 0.0 {
         estimated_funding_rate = 0.0;
     } else {
-        estimated_funding_rate = ((total_long - total_short) / oi_btc).powi(2) / (psi * 8.0);
+        estimated_funding_rate = ((total_long_usd - total_short_usd) / (total_long_usd + total_short_usd)).powi(2) / (psi * 8.0);
     }
 
     //positive funding if totallong > totalshort else negative funding
-    if total_long <= total_short {
+    if total_long_usd <= total_short_usd {
         estimated_funding_rate = estimated_funding_rate * -1.0;
     }
 

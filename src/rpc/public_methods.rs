@@ -1100,6 +1100,14 @@ pub(super) fn get_market_stats(
         Ok(fr) => (fr.rate.to_f64().unwrap_or(0.0), fr.timestamp),
         Err(_) => (0.0, Utc::now()),
     };
+    let position_size = match PositionSizeLog::get_latest(&mut db_conn) {
+        Ok(ps) => ps,
+        Err(_) => PositionSize {
+            total_short: BigDecimal::from(0),
+            total_long: BigDecimal::from(0),
+            total: BigDecimal::from(0),
+        },
+    };
 
     // 3. Compute and return market risk stats
     let stats = util::compute_market_risk_stats(
@@ -1108,6 +1116,8 @@ pub(super) fn get_market_stats(
         risk_params,
         funding_rate,
         funding_rate_timestamp,
+       position_size.total_long.to_f64().unwrap_or(0.0),
+         position_size.total_short.to_f64().unwrap_or(0.0),
     );
 
     Ok(serde_json::to_value(stats).expect("Error converting response"))
