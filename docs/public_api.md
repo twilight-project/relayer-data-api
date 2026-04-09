@@ -1353,13 +1353,19 @@ fetch("API_ENDPOINT/api", requestOptions)
       "min_position_btc": 0.0,
       "max_leverage": 50.0,
       "mm_ratio": 0.4
+    },
+    "funding_rate": {
+      "funding_rate": 0.0001,
+      "estimated_funding_rate": 0.00012,
+      "funding_rate_timestamp": "2023-09-25T12:00:00Z",
+      "estimated_funding_rate_timestamp": "2023-09-25T13:00:00Z"
     }
   },
   "id": 123
 }
 ```
 
-**Description:** Returns comprehensive market risk statistics computed from the cached RiskState (Redis) and lending pool equity. Includes open interest, net exposure, utilization ratio, maximum allowed position sizes, and market status (HEALTHY, CLOSE_ONLY, or HALT).
+**Description:** Returns comprehensive market risk statistics computed from the cached RiskState (Redis) and lending pool equity. Includes open interest, net exposure, utilization ratio, maximum allowed position sizes, and market status (HEALTHY, CLOSE_ONLY, or HALT), as well as current and estimated funding rates.
 
 **Use Cases:**
 
@@ -1404,6 +1410,7 @@ Market Stats
 | status                  | string    | Market status: `"HEALTHY"`, `"CLOSE_ONLY"`, or `"HALT"`                                 |
 | status_reason           | string    | Reason for non-healthy status (nullable). E.g. `"MANUAL_HALT"`, `"POOL_EQUITY_INVALID"` |
 | params                  | object    | Risk parameters object (see below)                                                       |
+| funding_rate            | object    | Funding rate information object (see below)                                              |
 
 _Risk params object:_
 
@@ -1415,6 +1422,15 @@ _Risk params object:_
 | min_position_btc | number    | Minimum position size in BTC                         |
 | max_leverage     | number    | Maximum allowed leverage                             |
 | mm_ratio         | number    | Maintenance margin ratio                             |
+
+_Funding rate object:_
+
+| Field                            | Data_Type | Description                                                |
+| -------------------------------- | --------- | ---------------------------------------------------------- |
+| funding_rate                     | number    | Last applied funding rate from the database                |
+| estimated_funding_rate           | number    | Calculated next funding rate based on current imbalance    |
+| funding_rate_timestamp           | string    | ISO-8601 timestamp of the last applied funding rate update |
+| estimated_funding_rate_timestamp | string    | ISO-8601 timestamp for the estimated funding rate           |
 
 ## Account Analytics
 
@@ -1966,17 +1982,18 @@ fetch("API_ENDPOINT/api", requestOptions)
 }
 ```
 
-**Description:** Executes the settlement process for filled trade orders, finalizing the trade and updating account balances. The hex-encoded data contains a serialized `ExecuteTraderOrderZkos` struct.
+**Description:** Executes the settlement process for filled trade orders, finalizing the trade and updating account balances. This method handles both standard and stop-loss/take-profit (SL/TP) settlements. The hex-encoded data can contain either a serialized `ExecuteTraderOrderZkosSlTp` struct (with optional SL/TP parameters) or a serialized `ExecuteTraderOrderZkos` struct (without SL/TP). The method automatically detects the format and routes accordingly.
 
 **Use Cases:**
 
 - Order finalization and trade confirmation for executed positions
+- Settlement of orders with stop-loss and take-profit conditions
 - Settlement timing optimization for tax and accounting purposes
 - Automated settlement workflows for algorithmic trading systems
 - Risk management through controlled settlement processes
 - Compliance and audit trail maintenance for trade settlement records
 
-Settle an existing trade order
+Settle an existing trade order (supports both standard and SL/TP variants)
 
 ### HTTP Method
 
@@ -1990,7 +2007,7 @@ Settle an existing trade order
 
 | Params | Data_Type | Values                                          |
 | ------ | --------- | ----------------------------------------------- |
-| data   | string    | Hex-encoded settlement data for the trade order |
+| data   | string    | Hex-encoded settlement data for the trade order. Accepts either `ExecuteTraderOrderZkosSlTp` (with optional SL/TP) or `ExecuteTraderOrderZkos` format |
 
 ### Response Fields
 
@@ -2114,17 +2131,18 @@ fetch("API_ENDPOINT/api", requestOptions)
 }
 ```
 
-**Description:** Cancels an existing unfilled or partially filled trading order, removing it from the orderbook. The hex-encoded data contains a serialized `CancelTraderOrderZkos` struct. Only orders with a cancelable status can be cancelled.
+**Description:** Cancels an existing unfilled or partially filled trading order, removing it from the orderbook. This method handles both standard and stop-loss/take-profit (SL/TP) cancellations. The hex-encoded data can contain either a serialized `CancelTraderOrderZkosSlTp` struct (with SL/TP cancel parameters) or a serialized `CancelTraderOrderZkos` struct (without SL/TP). The method automatically detects the format and routes accordingly. Only orders with a cancelable status can be cancelled.
 
 **Use Cases:**
 
 - Risk management through rapid order cancellation during market volatility
+- Cancellation of orders with associated stop-loss and take-profit legs
 - Strategy adjustment and order modification for changing market conditions
 - Automated order management and stop-loss implementation for trading algorithms
 - Position size adjustment and order replacement for optimal execution
 - Emergency order cancellation and risk mitigation during system issues
 
-Cancel an existing trader order
+Cancel an existing trader order (supports both standard and SL/TP variants)
 
 ### HTTP Method
 
@@ -2138,7 +2156,7 @@ Cancel an existing trader order
 
 | Params | Data_Type | Values                                             |
 | ------ | --------- | -------------------------------------------------- |
-| data   | string    | Hex-encoded cancellation data for the trader order |
+| data   | string    | Hex-encoded cancellation data for the trader order. Accepts either `CancelTraderOrderZkosSlTp` (with SL/TP cancel info) or `CancelTraderOrderZkos` format |
 
 ### Response Fields
 

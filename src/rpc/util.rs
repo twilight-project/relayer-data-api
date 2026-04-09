@@ -1,6 +1,6 @@
 use crate::database::{Ask, Bid, OrderBook, RecentOrder};
-use super::types::{MarketRiskStatsResponse, MarketStatus, RiskParams};
-use chrono::{TimeDelta, Utc};
+use super::types::{FundingRateResponse, MarketRiskStatsResponse, MarketStatus, RiskParams};
+use chrono::{DateTime, TimeDelta, Utc};
 use itertools::Itertools;
 use relayer_core::relayer::RiskState;
 
@@ -82,6 +82,10 @@ pub fn compute_market_risk_stats(
     risk_state: &RiskState,
     pool_equity_btc: f64,
     params: RiskParams,
+    funding_rate: f64,
+    funding_rate_timestamp: DateTime<Utc>,
+    total_long_usd: f64,
+    total_short_usd: f64,
 ) -> MarketRiskStatsResponse {
 
     // Compute market status
@@ -129,6 +133,21 @@ pub fn compute_market_risk_stats(
         (max_long, max_short)
     };
 
+    let mut estimated_funding_rate: f64;
+    let psi = 1.0;
+    if total_long_usd+total_short_usd == 0.0 {
+        estimated_funding_rate = 0.0;
+    } else {
+        estimated_funding_rate = ((total_long_usd - total_short_usd) / (total_long_usd + total_short_usd)).powi(2) / (psi * 8.0);
+    }
+
+    //positive funding if totallong > totalshort else negative funding
+    if total_long_usd <= total_short_usd {
+        estimated_funding_rate = estimated_funding_rate * -1.0;
+    }
+
+    let estimated_funding_rate_timestamp = funding_rate_timestamp + TimeDelta::hours(1);
+
     MarketRiskStatsResponse {
         pool_equity_btc,
         total_long_btc: total_long,
@@ -145,5 +164,11 @@ pub fn compute_market_risk_stats(
         status,
         status_reason,
         params,
+        funding_rate: FundingRateResponse {
+            funding_rate,
+            estimated_funding_rate,
+            funding_rate_timestamp,
+            estimated_funding_rate_timestamp,
+        },
     }
 }

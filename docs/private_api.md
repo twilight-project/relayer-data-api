@@ -275,17 +275,18 @@ fetch("API_ENDPOINT_PRIVATE/api", requestOptions)
 }
 ```
 
-**Description:** Executes the settlement process for filled trade orders via the authenticated private API. Verifies that the order belongs to the authenticated customer before proceeding with settlement. The hex-encoded data contains a serialized `ExecuteTraderOrderZkos` struct.
+**Description:** Executes the settlement process for filled trade orders via the authenticated private API. Verifies that the order belongs to the authenticated customer before proceeding with settlement. This method handles both standard and stop-loss/take-profit (SL/TP) settlements. The hex-encoded data can contain either a serialized `ExecuteTraderOrderZkosSlTp` struct (with optional SL/TP parameters) or a serialized `ExecuteTraderOrderZkos` struct (without SL/TP). The method automatically detects the format and routes accordingly.
 
 **Use Cases:**
 
 - Authenticated order settlement with customer verification
+- Settlement of orders with stop-loss and take-profit conditions
 - Account-specific settlement workflows for institutional traders
 - Automated settlement systems with API key authentication
 - Risk management with customer-level settlement controls
 - Compliance-ready settlement with full audit trail
 
-Settle an existing trade order (authenticated)
+Settle an existing trade order (authenticated, supports both standard and SL/TP variants)
 
 ### HTTP Method
 
@@ -300,7 +301,7 @@ Settle an existing trade order (authenticated)
 | Params          | Data_Type | Values                                          |
 | --------------- | --------- | ----------------------------------------------- |
 | user.customer_id | integer  | Authenticated customer ID                       |
-| params.data     | string    | Hex-encoded settlement data for the trade order |
+| params.data     | string    | Hex-encoded settlement data for the trade order. Accepts either `ExecuteTraderOrderZkosSlTp` (with optional SL/TP) or `ExecuteTraderOrderZkos` format |
 
 ### Response Fields
 
@@ -435,17 +436,18 @@ fetch("API_ENDPOINT_PRIVATE/api", requestOptions)
 }
 ```
 
-**Description:** Cancels an existing unfilled or partially filled trading order via the authenticated private API. Verifies customer ownership and that the order is in a cancelable state before proceeding. The hex-encoded data contains a serialized `CancelTraderOrderZkos` struct.
+**Description:** Cancels an existing unfilled or partially filled trading order via the authenticated private API. Verifies customer ownership and that the order is in a cancelable state before proceeding. This method handles both standard and stop-loss/take-profit (SL/TP) cancellations. The hex-encoded data can contain either a serialized `CancelTraderOrderZkosSlTp` struct (with SL/TP cancel parameters) or a serialized `CancelTraderOrderZkos` struct (without SL/TP). The method automatically detects the format and routes accordingly.
 
 **Use Cases:**
 
 - Authenticated order cancellation with customer verification
+- Cancellation of orders with associated stop-loss and take-profit legs
 - Risk management through controlled order cancellation
 - Automated order management for algorithmic trading
 - Account-specific cancellation workflows for institutional traders
 - Emergency order cancellation with authentication security
 
-Cancel an existing trader order (authenticated)
+Cancel an existing trader order (authenticated, supports both standard and SL/TP variants)
 
 ### HTTP Method
 
@@ -460,7 +462,7 @@ Cancel an existing trader order (authenticated)
 | Params          | Data_Type | Values                                             |
 | --------------- | --------- | -------------------------------------------------- |
 | user.customer_id | integer  | Authenticated customer ID                          |
-| params.data     | string    | Hex-encoded cancellation data for the trader order |
+| params.data     | string    | Hex-encoded cancellation data for the trader order. Accepts either `CancelTraderOrderZkosSlTp` (with SL/TP cancel info) or `CancelTraderOrderZkos` format |
 
 ### Response Fields
 
