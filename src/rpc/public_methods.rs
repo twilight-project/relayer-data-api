@@ -784,19 +784,24 @@ pub(super) fn cancel_trader_order(
         return Ok(format!("Invalid hex data").into());
     };
 
-    let Ok(tx) = bincode::deserialize::<relayer::CancelTraderOrderZkos>(&bytes) else {
-        return Ok(format!("Invalid bincode").into());
-    };
+    // Try deserializing as SlTp variant first, then fall back to plain variant
+    let (cancel_order, msg, sltp_cancel) =
+        if let Ok(tx) = bincode::deserialize::<relayer::CancelTraderOrderZkosSlTp>(&bytes) {
+            (tx.cancel_trader_order, tx.msg, Some(tx.sltp_cancel))
+        } else if let Ok(tx) = bincode::deserialize::<relayer::CancelTraderOrderZkos>(&bytes) {
+            (tx.cancel_trader_order, tx.msg, None)
+        } else {
+            return Ok(format!("Invalid bincode").into());
+        };
 
     if let Err(_) = verify_query_order(
-        tx.msg.convert_cancel_to_query(),
-        &bincode::serialize(&tx.cancel_trader_order).unwrap(),
+        msg.convert_cancel_to_query(),
+        &bincode::serialize(&cancel_order).unwrap(),
     ) {
         return Ok(format!("Invalid order params").into());
     }
 
-    let order = tx.cancel_trader_order.clone();
-    let public_key = order.account_id.clone();
+    let public_key = cancel_order.account_id.clone();
     let response = RequestResponse::new(
         "Order request submitted successfully".to_string(),
         public_key,
@@ -808,7 +813,7 @@ pub(super) fn cancel_trader_order(
         return Ok(format!("Database connection error").into());
     };
 
-    let Ok(ord) = TraderOrder::get_by_uuid(&mut conn, order.uuid.to_string()) else {
+    let Ok(ord) = TraderOrder::get_by_uuid(&mut conn, cancel_order.uuid.to_string()) else {
         return Ok(format!("Order not found").into());
     };
 
@@ -817,18 +822,37 @@ pub(super) fn cancel_trader_order(
     }
 
     let meta = super::headers::meta_from_headers();
+    let msg_hex = msg.encode_as_hex_string();
+    let response_id = response.get_id();
 
-    let order = relayer::RpcCommand::CancelTraderOrder(
-        order.clone(),
-        meta,
-        tx.msg.encode_as_hex_string(),
-        response.get_id(),
-    );
-    let Ok(serialized) = serde_json::to_vec(&order) else {
+    let (rpc_command, record_key) = if let Some(sltp_cancel) = sltp_cancel {
+        (
+            relayer::RpcCommand::CancelTraderOrderSlTp(
+                cancel_order,
+                sltp_cancel,
+                meta,
+                msg_hex,
+                response_id,
+            ),
+            "CancelTraderOrderSlTp",
+        )
+    } else {
+        (
+            relayer::RpcCommand::CancelTraderOrder(
+                cancel_order,
+                meta,
+                msg_hex,
+                response_id,
+            ),
+            "CancelTraderOrder",
+        )
+    };
+
+    let Ok(serialized) = serde_json::to_vec(&rpc_command) else {
         return Ok(format!("Could not serialize order").into());
     };
 
-    let record = Record::from_key_value(&topic, "CancelTraderOrder", serialized);
+    let record = Record::from_key_value(&topic, record_key, serialized);
     if let Err(e) = ctx.kafka.lock().expect("Lock poisoned!").send(&record) {
         Ok(format!("Could not send order {:?}", e).into())
     } else {

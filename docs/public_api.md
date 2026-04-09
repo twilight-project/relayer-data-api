@@ -1982,17 +1982,18 @@ fetch("API_ENDPOINT/api", requestOptions)
 }
 ```
 
-**Description:** Executes the settlement process for filled trade orders, finalizing the trade and updating account balances. The hex-encoded data contains a serialized `ExecuteTraderOrderZkos` struct.
+**Description:** Executes the settlement process for filled trade orders, finalizing the trade and updating account balances. This method handles both standard and stop-loss/take-profit (SL/TP) settlements. The hex-encoded data can contain either a serialized `ExecuteTraderOrderZkosSlTp` struct (with optional SL/TP parameters) or a serialized `ExecuteTraderOrderZkos` struct (without SL/TP). The method automatically detects the format and routes accordingly.
 
 **Use Cases:**
 
 - Order finalization and trade confirmation for executed positions
+- Settlement of orders with stop-loss and take-profit conditions
 - Settlement timing optimization for tax and accounting purposes
 - Automated settlement workflows for algorithmic trading systems
 - Risk management through controlled settlement processes
 - Compliance and audit trail maintenance for trade settlement records
 
-Settle an existing trade order
+Settle an existing trade order (supports both standard and SL/TP variants)
 
 ### HTTP Method
 
@@ -2006,7 +2007,7 @@ Settle an existing trade order
 
 | Params | Data_Type | Values                                          |
 | ------ | --------- | ----------------------------------------------- |
-| data   | string    | Hex-encoded settlement data for the trade order |
+| data   | string    | Hex-encoded settlement data for the trade order. Accepts either `ExecuteTraderOrderZkosSlTp` (with optional SL/TP) or `ExecuteTraderOrderZkos` format |
 
 ### Response Fields
 
@@ -2130,17 +2131,18 @@ fetch("API_ENDPOINT/api", requestOptions)
 }
 ```
 
-**Description:** Cancels an existing unfilled or partially filled trading order, removing it from the orderbook. The hex-encoded data contains a serialized `CancelTraderOrderZkos` struct. Only orders with a cancelable status can be cancelled.
+**Description:** Cancels an existing unfilled or partially filled trading order, removing it from the orderbook. This method handles both standard and stop-loss/take-profit (SL/TP) cancellations. The hex-encoded data can contain either a serialized `CancelTraderOrderZkosSlTp` struct (with SL/TP cancel parameters) or a serialized `CancelTraderOrderZkos` struct (without SL/TP). The method automatically detects the format and routes accordingly. Only orders with a cancelable status can be cancelled.
 
 **Use Cases:**
 
 - Risk management through rapid order cancellation during market volatility
+- Cancellation of orders with associated stop-loss and take-profit legs
 - Strategy adjustment and order modification for changing market conditions
 - Automated order management and stop-loss implementation for trading algorithms
 - Position size adjustment and order replacement for optimal execution
 - Emergency order cancellation and risk mitigation during system issues
 
-Cancel an existing trader order
+Cancel an existing trader order (supports both standard and SL/TP variants)
 
 ### HTTP Method
 
@@ -2154,7 +2156,7 @@ Cancel an existing trader order
 
 | Params | Data_Type | Values                                             |
 | ------ | --------- | -------------------------------------------------- |
-| data   | string    | Hex-encoded cancellation data for the trader order |
+| data   | string    | Hex-encoded cancellation data for the trader order. Accepts either `CancelTraderOrderZkosSlTp` (with SL/TP cancel info) or `CancelTraderOrderZkos` format |
 
 ### Response Fields
 
