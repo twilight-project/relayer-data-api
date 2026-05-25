@@ -145,6 +145,7 @@ pub fn compute_market_risk_stats(
     if total_long_usd <= total_short_usd {
         estimated_funding_rate = estimated_funding_rate * -1.0;
     }
+    estimated_funding_rate = (estimated_funding_rate * 1_000_000.0).round() / 1_000_000.0;
 
     let estimated_funding_rate_timestamp = funding_rate_timestamp + TimeDelta::hours(1);
 
