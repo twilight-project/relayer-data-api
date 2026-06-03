@@ -81,11 +81,12 @@ pub fn recent_orders(conn: &mut redis::Connection) -> Vec<RecentOrder> {
 pub fn compute_market_risk_stats(
     risk_state: &RiskState,
     pool_equity_btc: f64,
+    mark_price: f64,
     params: RiskParams,
     funding_rate: f64,
     funding_rate_timestamp: DateTime<Utc>,
-    total_long_usd: f64,
-    total_short_usd: f64,
+    position_long_usd: f64,
+    position_short_usd: f64,
 ) -> MarketRiskStatsResponse {
 
     // Compute market status
@@ -99,50 +100,63 @@ pub fn compute_market_risk_stats(
         (MarketStatus::HEALTHY, None)
     };
 
-    let total_long = risk_state.total_long_btc;
-    let total_short = risk_state.total_short_btc;
-    let oi_btc = total_long + total_short;
-    let net_btc = total_long - total_short;
+    // Exposure is netted in USD notional (mirrors relayer-core).
+    let total_long = risk_state.total_long_usd;
+    let total_short = risk_state.total_short_usd;
+    let oi_usd = total_long + total_short;
+    let net_usd = total_long - total_short;
 
-    let (long_pct, short_pct) = if oi_btc > 0.0 {
-        (total_long / oi_btc, total_short / oi_btc)
-    } else {
-        (0.0, 0.0)
-    };
-
-    let utilization = if pool_equity_btc > 0.0 {
-        oi_btc / pool_equity_btc
+    // Pool equity expressed in USD at the current mark, so exposure and equity
+    // share a unit. A non-positive/invalid mark yields 0 (caps collapse to 0).
+    let pool_equity_usd = if mark_price.is_finite() && mark_price > 0.0 {
+        pool_equity_btc * mark_price
     } else {
         0.0
     };
 
-    // Compute limits (matching relayer-core compute_limits)
-    let oi_max_btc = params.max_oi_mult * pool_equity_btc;
-    let net_max_btc = params.max_net_mult * pool_equity_btc;
-    let pos_max_btc = params.max_position_pct * pool_equity_btc;
+    let (long_pct, short_pct) = if oi_usd > 0.0 {
+        (total_long / oi_usd, total_short / oi_usd)
+    } else {
+        (0.0, 0.0)
+    };
 
-    let x_oi = (oi_max_btc - oi_btc).max(0.0);
-    let x_net_long = (net_max_btc - net_btc).max(0.0);
-    let x_net_short = (net_max_btc + net_btc).max(0.0);
+    let utilization = if pool_equity_usd > 0.0 {
+        oi_usd / pool_equity_usd
+    } else {
+        0.0
+    };
 
-    let (max_long_btc, max_short_btc) = if status != MarketStatus::HEALTHY {
+    // Compute limits in USD (matching relayer-core compute_limits)
+    let oi_max_usd = params.max_oi_mult * pool_equity_usd;
+    let net_max_usd = params.max_net_mult * pool_equity_usd;
+    let pos_max_usd = params.max_position_pct * pool_equity_usd;
+
+    let x_oi = (oi_max_usd - oi_usd).max(0.0);
+    let x_net_long = (net_max_usd - net_usd).max(0.0);
+    let x_net_short = (net_max_usd + net_usd).max(0.0);
+
+    let (max_long_usd, max_short_usd) = if status != MarketStatus::HEALTHY {
         (0.0, 0.0)
     } else {
-        let max_long = x_oi.min(x_net_long).min(pos_max_btc);
-        let max_short = x_oi.min(x_net_short).min(pos_max_btc);
+        let max_long = x_oi.min(x_net_long).min(pos_max_usd);
+        let max_short = x_oi.min(x_net_short).min(pos_max_usd);
         (max_long, max_short)
     };
 
+    // Estimated next funding rate from the position-size-log USD skew.
     let mut estimated_funding_rate: f64;
     let psi = 1.0;
-    if total_long_usd+total_short_usd == 0.0 {
+    if position_long_usd + position_short_usd == 0.0 {
         estimated_funding_rate = 0.0;
     } else {
-        estimated_funding_rate = ((total_long_usd - total_short_usd) / (total_long_usd + total_short_usd)).powi(2) / (psi * 8.0);
+        estimated_funding_rate = ((position_long_usd - position_short_usd)
+            / (position_long_usd + position_short_usd))
+            .powi(2)
+            / (psi * 8.0);
     }
 
     //positive funding if totallong > totalshort else negative funding
-    if total_long_usd <= total_short_usd {
+    if position_long_usd <= position_short_usd {
         estimated_funding_rate = estimated_funding_rate * -1.0;
     }
     estimated_funding_rate = (estimated_funding_rate * 1_000_000.0).round() / 1_000_000.0;
@@ -151,17 +165,19 @@ pub fn compute_market_risk_stats(
 
     MarketRiskStatsResponse {
         pool_equity_btc,
-        total_long_btc: total_long,
-        total_short_btc: total_short,
-        total_pending_long_btc: risk_state.total_pending_long_btc,
-        total_pending_short_btc: risk_state.total_pending_short_btc,
-        open_interest_btc: oi_btc,
-        net_exposure_btc: net_btc,
+        pool_equity_usd,
+        mark_price,
+        total_long_usd: total_long,
+        total_short_usd: total_short,
+        total_pending_long_usd: risk_state.total_pending_long_usd,
+        total_pending_short_usd: risk_state.total_pending_short_usd,
+        open_interest_usd: oi_usd,
+        net_exposure_usd: net_usd,
         long_pct,
         short_pct,
         utilization,
-        max_long_btc,
-        max_short_btc,
+        max_long_usd,
+        max_short_usd,
         status,
         status_reason,
         params,

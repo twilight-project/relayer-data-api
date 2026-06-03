@@ -791,18 +791,24 @@ pub struct FundingRateResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct MarketRiskStatsResponse {
+    /// Pool equity in BTC (raw locked value).
     pub pool_equity_btc: f64,
-    pub total_long_btc: f64,
-    pub total_short_btc: f64,
-    pub total_pending_long_btc: f64,
-    pub total_pending_short_btc: f64,
-    pub open_interest_btc: f64,
-    pub net_exposure_btc: f64,
+    /// Pool equity converted to USD at the current mark (= pool_equity_btc * mark_price).
+    pub pool_equity_usd: f64,
+    /// Current index/mark price used to convert BTC equity to USD.
+    pub mark_price: f64,
+    /// Exposure is netted in USD notional (im*lev*entry_price).
+    pub total_long_usd: f64,
+    pub total_short_usd: f64,
+    pub total_pending_long_usd: f64,
+    pub total_pending_short_usd: f64,
+    pub open_interest_usd: f64,
+    pub net_exposure_usd: f64,
     pub long_pct: f64,
     pub short_pct: f64,
     pub utilization: f64,
-    pub max_long_btc: f64,
-    pub max_short_btc: f64,
+    pub max_long_usd: f64,
+    pub max_short_usd: f64,
     pub status: MarketStatus,
     pub status_reason: Option<String>,
     pub params: RiskParams,

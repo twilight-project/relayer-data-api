@@ -1310,6 +1310,16 @@ impl CurrentPriceUpdate {
             .values(update)
             .execute(conn)
     }
+
+    /// Latest BTC/USD index (mark) price, used to convert pool equity to USD.
+    pub fn get_latest(conn: &mut PgConnection) -> QueryResult<f64> {
+        use crate::database::schema::btc_usd_price::dsl::*;
+        let latest: BigDecimal = btc_usd_price
+            .select(price)
+            .order(timestamp.desc())
+            .first::<BigDecimal>(conn)?;
+        Ok(latest.to_f64().unwrap_or(0.0))
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Queryable)]
@@ -2929,10 +2939,10 @@ pub struct RiskEngineUpdateRow {
     #[diesel(sql_type = crate::database::schema::sql_types::PositionType)]
     pub position_type: Option<PositionType>,
     pub amount: Option<f64>,
-    pub total_long_btc: f64,
-    pub total_short_btc: f64,
-    pub total_pending_long_btc: f64,
-    pub total_pending_short_btc: f64,
+    pub total_long_usd: f64,
+    pub total_short_usd: f64,
+    pub total_pending_long_usd: f64,
+    pub total_pending_short_usd: f64,
     pub manual_halt: bool,
     pub manual_close_only: bool,
     pub pause_funding: bool,
@@ -2946,10 +2956,10 @@ pub struct NewRiskEngineUpdate {
     pub command: String,
     pub position_type: Option<PositionType>,
     pub amount: Option<f64>,
-    pub total_long_btc: f64,
-    pub total_short_btc: f64,
-    pub total_pending_long_btc: f64,
-    pub total_pending_short_btc: f64,
+    pub total_long_usd: f64,
+    pub total_short_usd: f64,
+    pub total_pending_long_usd: f64,
+    pub total_pending_short_usd: f64,
     pub manual_halt: bool,
     pub manual_close_only: bool,
     pub pause_funding: bool,
